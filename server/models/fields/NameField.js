@@ -17,6 +17,18 @@ class NameField extends Field {
 
         super({ ...fixedProperties, ...allowedOverrides });
     }
+
+    onSet(value) {
+        value = "mr. " + value.trim();
+        return value.trim();
+    }
+
+    onGet(value) {
+        if (typeof value === 'string' && value.length > 0) {
+            return value.charAt(0).toUpperCase() + value.slice(1);
+        }
+        return value;
+    }
 }
 
 export default NameField;

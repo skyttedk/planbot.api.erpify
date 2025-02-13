@@ -30,10 +30,8 @@ export default class Model {
   static defaultFields = {
     id: {
       uid: '{f6e2aabc-1e8f-4b19-8e3d-1a2b3c4d5e6f}', // replace with your fixed GUID
-      /*  
-         The next line instructs _getColumnDefinition() to simply use this SQL fragment.
-         This produces: "id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY"
-      */
+      // Instructs _getColumnDefinition() to simply use this SQL fragment.
+      // Produces: "id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY"
       sql: 'INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY',
       required: true,
     },
@@ -54,13 +52,36 @@ export default class Model {
   static async find(conditions = {}, client = null) {
     const { whereClause, values } = this.buildWhere(conditions);
     const query = `SELECT * FROM ${this._quoteIdentifier(this.tableName)} ${whereClause}`;
-    return this.query(query, values, client);
+    const rows = await this.query(query, values, client);
+
+    // Process onGet hooks for each field if defined
+    return rows.map((row) => {
+      for (const key in row) {
+        const fieldTemplate = this.fields && this.fields[key];
+        if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
+          row[key] = fieldTemplate.onGet(row[key]);
+        }
+      }
+      return row;
+    });
   }
 
   static async findById(id, client = null) {
-    const query = `SELECT * FROM ${this._quoteIdentifier(this.tableName)} WHERE ${this._quoteIdentifier(this.primaryKey)} = $1`;
+    const query = `SELECT * FROM ${this._quoteIdentifier(this.tableName)} WHERE ${this._quoteIdentifier(
+      this.primaryKey
+    )} = $1`;
     const rows = await this.query(query, [id], client);
-    return rows.length > 0 ? rows[0] : null;
+    if (rows.length > 0) {
+      const row = rows[0];
+      for (const key in row) {
+        const fieldTemplate = this.fields && this.fields[key];
+        if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
+          row[key] = fieldTemplate.onGet(row[key]);
+        }
+      }
+      return row;
+    }
+    return null;
   }
 
   static async findOne(conditions = {}, client = null) {
@@ -72,9 +93,19 @@ export default class Model {
     if (typeof this.beforeCreate === 'function') {
       data = await this.beforeCreate(data);
     }
-    const keys = Object.keys(data);
+    // Process onSet hooks for each field if defined
+    const processedData = {};
+    for (const key in data) {
+      const fieldTemplate = this.fields && this.fields[key];
+      if (fieldTemplate && typeof fieldTemplate.onSet === 'function') {
+        processedData[key] = fieldTemplate.onSet(data[key]);
+      } else {
+        processedData[key] = data[key];
+      }
+    }
+    const keys = Object.keys(processedData);
     const quotedKeys = keys.map((k) => this._quoteIdentifier(k));
-    const values = Object.values(data);
+    const values = Object.values(processedData);
     const params = keys.map((_, i) => `$${i + 1}`);
     const query = `
       INSERT INTO ${this._quoteIdentifier(this.tableName)} (${quotedKeys.join(', ')})
@@ -85,18 +116,36 @@ export default class Model {
     if (typeof this.afterCreate === 'function') {
       await this.afterCreate(result);
     }
-    return result;
+    // Process onGet hooks on the returned record
+    const record = result[0];
+    for (const key in record) {
+      const fieldTemplate = this.fields && this.fields[key];
+      if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
+        record[key] = fieldTemplate.onGet(record[key]);
+      }
+    }
+    return record;
   }
 
   static async update(id, data, client = null) {
     if (typeof this.beforeUpdate === 'function') {
       data = await this.beforeUpdate(data);
     }
-    const keys = Object.keys(data);
+    // Process onSet hooks for each field if defined
+    const processedData = {};
+    for (const key in data) {
+      const fieldTemplate = this.fields && this.fields[key];
+      if (fieldTemplate && typeof fieldTemplate.onSet === 'function') {
+        processedData[key] = fieldTemplate.onSet(data[key]);
+      } else {
+        processedData[key] = data[key];
+      }
+    }
+    const keys = Object.keys(processedData);
     const setClause = keys
       .map((k, i) => `${this._quoteIdentifier(k)} = $${i + 1}`)
       .join(', ');
-    const values = [...Object.values(data), id];
+    const values = [...Object.values(processedData), id];
     const query = `
       UPDATE ${this._quoteIdentifier(this.tableName)}
       SET ${setClause}
@@ -107,7 +156,15 @@ export default class Model {
     if (typeof this.afterUpdate === 'function') {
       await this.afterUpdate(result);
     }
-    return result;
+    // Process onGet hooks on the returned record
+    const record = result[0];
+    for (const key in record) {
+      const fieldTemplate = this.fields && this.fields[key];
+      if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
+        record[key] = fieldTemplate.onGet(record[key]);
+      }
+    }
+    return record;
   }
 
   static async delete(id, client = null) {
@@ -137,11 +194,24 @@ export default class Model {
         throw new Error('All objects in dataArray must have the same keys');
       }
     }
+    // Process onSet hooks for each record in the array
+    const processedArray = dataArray.map((data) => {
+      const newObj = {};
+      for (const key in data) {
+        const fieldTemplate = this.fields && this.fields[key];
+        if (fieldTemplate && typeof fieldTemplate.onSet === 'function') {
+          newObj[key] = fieldTemplate.onSet(data[key]);
+        } else {
+          newObj[key] = data[key];
+        }
+      }
+      return newObj;
+    });
     const keys = baseKeys;
     const quotedKeys = keys.map((k) => this._quoteIdentifier(k));
     let values = [];
     let rowsPlaceholders = [];
-    dataArray.forEach((data, rowIndex) => {
+    processedArray.forEach((data, rowIndex) => {
       const placeholders = keys.map((_, colIndex) => {
         values.push(data[keys[colIndex]]);
         return `$${rowIndex * keys.length + colIndex + 1}`;
@@ -153,7 +223,17 @@ export default class Model {
       VALUES ${rowsPlaceholders.join(', ')}
       RETURNING *
     `;
-    return this.query(query, values, client);
+    const result = await this.query(query, values, client);
+    // Process onGet hooks for each returned record
+    return result.map((record) => {
+      for (const key in record) {
+        const fieldTemplate = this.fields && this.fields[key];
+        if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
+          record[key] = fieldTemplate.onGet(record[key]);
+        }
+      }
+      return record;
+    });
   }
 
   /* ==================== Query Helpers ==================== */
@@ -237,12 +317,6 @@ export default class Model {
 
   /* ==================== Schema Synchronization ==================== */
 
-  /**
-   * Synchronize the database table schema with the model definition.
-   * This method supports reusable field templates defined via static fields
-   * (or falling back to static schema).
-   * It automatically includes default fields: id, createdAt and updatedAt.
-   */
   static async syncSchema() {
     // Merge default fields with the model's own fields (child fields override defaults if keys conflict)
     const schema = { ...this.defaultFields, ...(this.fields || this.schema) };
@@ -381,7 +455,6 @@ export default class Model {
 
       // 2. Index Synchronization: Create, update, and remove indexes.
       if (this.indexes) {
-        // Retrieve existing indexes (with definitions) for this table.
         const indexesResult = await client.query(
           `SELECT indexname, indexdef 
            FROM pg_indexes 
@@ -393,12 +466,9 @@ export default class Model {
           dbIndexes[row.indexname] = row.indexdef;
         }
 
-        // Build a list of index names that should exist according to the model.
         const modelIndexNames = this.indexes.map((idx) => idx.name);
 
-        // --- Remove any extra indexes that exist in the DB but not in the model.
         for (const existingIndexName in dbIndexes) {
-          // Skip the primary key index.
           if (existingIndexName.toLowerCase() === `${this.tableName.toLowerCase()}_pkey`) {
             continue;
           }
@@ -409,12 +479,10 @@ export default class Model {
           }
         }
 
-        // --- Process each model-defined index.
         for (const idx of this.indexes) {
           const existingDef = dbIndexes[idx.name];
           let needRecreation = false;
           if (existingDef) {
-            // Extract the column list from the existing index definition (using a simple regexp).
             const regex = /\(([^)]+)\)/;
             const match = existingDef.match(regex);
             let dbColumns = [];
@@ -428,7 +496,6 @@ export default class Model {
             if (desiredColumns.join(',') !== currentColumns.join(',')) {
               needRecreation = true;
             }
-            // Check uniqueness.
             const dbUnique = existingDef.includes('UNIQUE INDEX') || existingDef.includes('UNIQUE');
             const desiredUnique = !!idx.unique;
             if (dbUnique !== desiredUnique) {
@@ -440,7 +507,6 @@ export default class Model {
               await client.query(dropQuery);
             }
           }
-          // If the index does not exist or was dropped/recreated, create it.
           if (!existingDef || needRecreation) {
             const uniqueClause = idx.unique ? 'UNIQUE' : '';
             const idxQuery = `CREATE ${uniqueClause} INDEX ${this._quoteIdentifier(idx.name)} ON ${quotedTableName} (${idx.columns
@@ -471,14 +537,11 @@ export default class Model {
     }
   }
 
-  /* ==================== Helper Methods ==================== */
-
   static _quoteIdentifier(identifier) {
     return '"' + identifier.replace(/"/g, '""') + '"';
   }
 
   static _getColumnDefinition(fieldName, fieldDef) {
-    // If a custom SQL fragment is provided, use that.
     if (fieldDef.sql) {
       return `${this._quoteIdentifier(fieldName)} ${fieldDef.sql}`;
     }

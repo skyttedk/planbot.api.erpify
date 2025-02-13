@@ -3,7 +3,7 @@
 import { WebSocketServer } from 'ws';
 import pool from './config/db.js';
 import ora from 'ora';
-import models from './models/index.js';
+import Models from './models/index.js';
 
 /**
  * Main function that synchronizes the database schemas
@@ -13,6 +13,13 @@ async function main() {
   try {
 
     const spinner = ora('Loading data...').start();
+
+
+
+
+    // Create the customer record.
+    const newCustomer = await Models.Customer.findById(1);
+    console.log(newCustomer);
 
     // Create the WebSocket server on port 8011 using WebSocketServer
     const wss = new WebSocketServer({ port: 8011 });
