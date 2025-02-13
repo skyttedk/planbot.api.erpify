@@ -26,6 +26,38 @@ const writeFileIfNotExists = (filePath, content) => {
     }
 };
 
+// Function to update modelPaths in index.js
+const updateModelPaths = (modelName) => {
+    const indexFilePath = path.join(process.cwd(), 'server', 'models', 'index.js');
+    const relativeModelPath = `./${modelName}.js`;
+
+    // Read the existing content of index.js
+    let indexFileContent = fs.readFileSync(indexFilePath, 'utf8');
+
+    // Ensure the new model entry is not duplicated
+    if (indexFileContent.includes(`${modelName}: '${relativeModelPath}'`)) {
+        console.error(`Error: ${modelName} already exists in modelPaths`);
+        process.exit(1); // Exit with failure
+    }
+
+    // Find the position to insert the new model path
+    const closingBracketIndex = indexFileContent.indexOf('};', indexFileContent.indexOf('const modelPaths = {'));
+    if (closingBracketIndex === -1) {
+        console.error(`Closing bracket for modelPaths not found.`);
+        process.exit(1);
+    }
+
+    // Construct the new model entry
+    const newModelEntry = `    ${modelName}: '${relativeModelPath}',\n`;
+
+    // Insert the new model entry before the closing bracket
+    const before = indexFileContent.slice(0, closingBracketIndex);
+    const after = indexFileContent.slice(closingBracketIndex);
+    indexFileContent = `${before}${newModelEntry}${after}`;
+    fs.writeFileSync(indexFilePath, indexFileContent);
+    console.log(`Updated modelPaths in ${indexFilePath}`);
+};
+
 // Function to update fieldPaths in index.js
 const updateFieldPaths = (fieldName) => {
     const indexFilePath = path.join(process.cwd(), 'server', 'models', 'fields', 'index.js');
@@ -44,7 +76,7 @@ const updateFieldPaths = (fieldName) => {
         process.exit(1);
     }
 
-    const newFieldEntry = `    ${fieldName}: '${relativeFieldPath}',\n`;
+    const newFieldEntry = `    ${fieldName}: '${relativeFieldPath}',\n`;
 
     const before = indexFileContent.slice(0, closingBracketIndex);
     const after = indexFileContent.slice(closingBracketIndex);
@@ -90,46 +122,46 @@ program
             const fieldPath = path.join(process.cwd(), 'server', 'models', 'fields', `${fieldName}.js`);
             const lengthStr = length ? `length: ${length},` : '';
             const fieldContent = `
-            import Field from '../../lib/orm/Field.js';
-            
-            class ${fieldName} extends Field {
-                constructor(options = {}) {
-                    const fixedProperties = {
-                        uid: '${generateUID()}',
-                        type: '${sqlType}',
-                        ${lengthStr}
-                    };
+            import Field from '../../lib/orm/Field.js';
+            
+            class ${fieldName} extends Field {
+                constructor(options = {}) {
+                    const fixedProperties = {
+                        uid: '${generateUID()}',
+                        type: '${sqlType}',
+                        ${lengthStr}
+                    };
 
-                    const allowedOverrides = {
-                        required: options.required,
-                        default: options.default,
-                    };
+                    const allowedOverrides = {
+                        required: options.required,
+                        default: options.default,
+                    };
 
-                    const documentation = {
-                        description: '<your description here>',
-                        examples: ['""', '""'],
-                        usage: '<describe intended usages>'
-                    };
+                    const documentation = {
+                        description: '<your description here>',
+                        examples: ['""', '""'],
+                        usage: '<describe intended usages>'
+                    };
 
-                    super({ ...fixedProperties, ...allowedOverrides });
-                }
+                    super({ ...fixedProperties, ...allowedOverrides });
+                }
 
-                onSet(value) {
-                    // Custom setter logic
-                    if (typeof value === 'string') {
-                        value = value.trim();
-                    }
-                    return value;
-                }
+                onSet(value) {
+                    // Custom setter logic
+                    if (typeof value === 'string') {
+                        value = value.trim();
+                    }
+                    return value;
+                }
 
-                onGet(value) {
-                    // Custom getter logic
-                    return value;
-                }
-            }
+                onGet(value) {
+                    // Custom getter logic
+                    return value;
+                }
+            }
 
-            export default ${fieldName};
-        `;
+            export default ${fieldName};
+        `;
             writeFileIfNotExists(fieldPath, fieldContent);
             updateFieldPaths(fieldName);
         });
@@ -151,66 +183,67 @@ program
             const modelName = answers.modelName;
             const modelPath = path.join(process.cwd(), 'server', 'models', `${modelName}.js`);
             const modelContent = `
-            import Model from '../lib/orm/Model.js';
-            import fields from './fields/index.js'; // Import field definitions
+            import Model from '../lib/orm/Model.js';
+            import fields from './fields/index.js'; // Import field definitions
 
-            class ${modelName} extends Model {
-                static tableName = '${modelName.toLowerCase()}s';
+            class ${modelName} extends Model {
+                static tableName = '${modelName.toLowerCase()}s';
 
-                static fields = {
-                    name: new fields.NameField(),
-                    age: new fields.AgeField(),
-                    phone: new fields.PhoneField(),
-                    zip: new fields.ZipField(),
-                };
+                static fields = {
+                    name: new fields.NameField(),
+                    age: new fields.AgeField(),
+                    phone: new fields.PhoneField(),
+                    zip: new fields.ZipField(),
+                };
 
-                static indexes = [
-                    { name: '${modelName.toLowerCase()}_name_idx', columns: ['name'], unique: true },
-                ];
+                static indexes = [
+                    { name: '${modelName.toLowerCase()}_name_idx', columns: ['name'], unique: true },
+                ];
 
-                // Create Hooks
-                static async onBeforeCreate(data) {
-                    console.log('onBeforeCreate: validating and transforming ${modelName} data:', data);
-                    if (typeof data.name === 'string') {
-                        data.name = data.name.trim();
-                    }
-                    return data;
-                }
-                
-                static async onAfterCreate(record) {
-                    console.log('onAfterCreate: ${modelName} record created:', record);
-                    return record;
-                }
+                // Create Hooks
+                static async onBeforeCreate(data) {
+                    console.log('onBeforeCreate: validating and transforming ${modelName} data:', data);
+                    if (typeof data.name === 'string') {
+                        data.name = data.name.trim();
+                    }
+                    return data;
+                }
+                
+                static async onAfterCreate(record) {
+                    console.log('onAfterCreate: ${modelName} record created:', record);
+                    return record;
+                }
 
-                // Update Hooks
-                static async onBeforeUpdate(data) {
-                    console.log('onBeforeUpdate: validating and transforming update data:', data);
-                    if (data.name && typeof data.name === 'string') {
-                        data.name = data.name.trim();
-                    }
-                    return data;
-                }
+                // Update Hooks
+                static async onBeforeUpdate(data) {
+                    console.log('onBeforeUpdate: validating and transforming update data:', data);
+                    if (data.name && typeof data.name === 'string') {
+                        data.name = data.name.trim();
+                    }
+                    return data;
+                }
 
-                static async onAfterUpdate(record) {
-                    console.log('onAfterUpdate: ${modelName} record updated:', record);
-                    return record;
-                }
+                static async onAfterUpdate(record) {
+                    console.log('onAfterUpdate: ${modelName} record updated:', record);
+                    return record;
+                }
 
-                // Delete Hooks
-                static async onBeforeDelete(id) {
-                    console.log('onBeforeDelete: about to delete ${modelName} with id:', id);
-                    return id;
-                }
+                // Delete Hooks
+                static async onBeforeDelete(id) {
+                    console.log('onBeforeDelete: about to delete ${modelName} with id:', id);
+                    return id;
+                }
 
-                static async onAfterDelete(result) {
-                    console.log('onAfterDelete: ${modelName} deletion result:', result);
-                    return result;
-                }
-            }
+                static async onAfterDelete(result) {
+                    console.log('onAfterDelete: ${modelName} deletion result:', result);
+                    return result;
+                }
+            }
 
-            export default ${modelName};
-        `;
+            export default ${modelName};
+        `;
             writeFileIfNotExists(modelPath, modelContent);
+            updateModelPaths(modelName);
         });
     });
 
