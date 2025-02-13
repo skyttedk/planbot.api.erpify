@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lit Components in Separate Files</title>
+  <!-- Import the main JavaScript file -->
+  <script type="module" src="./components/main.js"></script>
+
+
+  <script>
+    const ws = new WebSocket('ws://localhost:8011');
+    ws.onmessage = function (event) {
+      console.log('Received data:', JSON.parse(event.data));
+    };
+    ws.onerror = function (error) {
+      console.error('WebSocket error:', error);
+    };
+  </script>
+
+</head>
+
+<body>
+  <!-- Use your custom components -->
+  <my-component name="Lit"></my-component>
+  <another-component></another-component>
+
+  <h1>Todo List</h1>
+  <todo-list>
+    <todo-item>Task 1</todo-item>
+    <todo-item>Task 2</todo-item>
+    <todo-item>Task 3</todo-item>
+  </todo-list>
+
+</body>
+
+</html>
