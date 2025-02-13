@@ -63,9 +63,7 @@ program
                 type: 'input',
                 name: 'fieldName',
                 message: 'Enter the name of the field:',
-                validate: function (input) {
-                    return !!input || 'Field name is required!';
-                }
+                validate: input => !!input || 'Field name is required!'
             },
             {
                 type: 'list',
@@ -77,10 +75,20 @@ program
                     'timestamp', 'timestamptz', 'time', 'interval', 'boolean', 'json',
                     'jsonb', 'uuid'
                 ]
+            },
+            {
+                type: 'input',
+                name: 'length',
+                message: 'Enter the length for the type (optional):',
+                when: (answers) => ['varchar', 'char'].includes(answers.sqlType),
+                validate: input => {
+                    return input === '' || (!isNaN(input) && parseInt(input, 10) > 0) || 'Please enter a valid positive number.';
+                }
             }
         ]).then(answers => {
-            const { fieldName, sqlType } = answers;
+            const { fieldName, sqlType, length } = answers;
             const fieldPath = path.join(process.cwd(), 'server', 'models', 'fields', `${fieldName}.js`);
+            const lengthStr = length ? `length: ${length},` : '';
             const fieldContent = `
             import Field from '../../lib/orm/Field.js';
             
@@ -89,7 +97,7 @@ program
                     const fixedProperties = {
                         uid: '${generateUID()}',
                         type: '${sqlType}',
-                        length: 1024,
+                        ${lengthStr}
                     };
 
                     const allowedOverrides = {
@@ -137,9 +145,7 @@ program
                 type: 'input',
                 name: 'modelName',
                 message: 'Enter the name of the model:',
-                validate: function (input) {
-                    return !!input || 'Model name is required!';
-                }
+                validate: input => !!input || 'Model name is required!'
             }
         ]).then(answers => {
             const modelName = answers.modelName;
