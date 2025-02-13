@@ -4,7 +4,11 @@
   "main": "server/index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "field:add": "npx mycli field:add",
+    "model:create": "npx mycli model:create"
+  },
+  "bin": {
+    "mycli": "./cli.js"
   },
   "author": "",
   "license": "ISC",
@@ -15,5 +19,9 @@
     "ora": "^8.2.0",
     "pg": "^8.13.1",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "commander": "^13.1.0",
+    "inquirer": "^12.4.1"
   }
 }
