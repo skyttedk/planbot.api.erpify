@@ -7,6 +7,8 @@ const fieldPaths = {
     ZipField: './ZipField.js',
     AgeField: './AgeField.js',
     NameField: './NameField.js',
+    JsonField: './JsonField.js',
+    PathField: './PathField.js',
 };
 
 // Dynamically import each module based on the above configuration.

@@ -21,6 +21,15 @@ import pool from '../../config/db.js';
  *   id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
  *   createdAt TIMESTAMPTZ NOT NULL DEFAULT NOW(),
  *   updatedAt TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ *
+ * Additionally, you can define model-level trigger hooks:
+ *
+ *   onBeforeCreate(data) -> data
+ *   onAfterCreate(record)
+ *   onBeforeUpdate(data) -> data
+ *   onAfterUpdate(record)
+ *   onBeforeDelete(id)
+ *   onAfterDelete(result)
  */
 export default class Model {
   static tableName = '';
@@ -54,7 +63,7 @@ export default class Model {
     const query = `SELECT * FROM ${this._quoteIdentifier(this.tableName)} ${whereClause}`;
     const rows = await this.query(query, values, client);
 
-    // Process onGet hooks for each field if defined
+    // Process onGet hooks for each field if defined.
     return rows.map((row) => {
       for (const key in row) {
         const fieldTemplate = this.fields && this.fields[key];
@@ -67,9 +76,7 @@ export default class Model {
   }
 
   static async findById(id, client = null) {
-    const query = `SELECT * FROM ${this._quoteIdentifier(this.tableName)} WHERE ${this._quoteIdentifier(
-      this.primaryKey
-    )} = $1`;
+    const query = `SELECT * FROM ${this._quoteIdentifier(this.tableName)} WHERE ${this._quoteIdentifier(this.primaryKey)} = $1`;
     const rows = await this.query(query, [id], client);
     if (rows.length > 0) {
       const row = rows[0];
@@ -90,10 +97,12 @@ export default class Model {
   }
 
   static async create(data, client = null) {
-    if (typeof this.beforeCreate === 'function') {
-      data = await this.beforeCreate(data);
+    // Call the model-level before-create trigger if defined.
+    if (typeof this.onBeforeCreate === 'function') {
+      data = await this.onBeforeCreate(data);
     }
-    // Process onSet hooks for each field if defined
+
+    // Process onSet hooks for each field if defined.
     const processedData = {};
     for (const key in data) {
       const fieldTemplate = this.fields && this.fields[key];
@@ -103,20 +112,25 @@ export default class Model {
         processedData[key] = data[key];
       }
     }
+
     const keys = Object.keys(processedData);
     const quotedKeys = keys.map((k) => this._quoteIdentifier(k));
     const values = Object.values(processedData);
     const params = keys.map((_, i) => `$${i + 1}`);
+
     const query = `
       INSERT INTO ${this._quoteIdentifier(this.tableName)} (${quotedKeys.join(', ')})
       VALUES (${params.join(', ')})
       RETURNING *
     `;
     const result = await this.query(query, values, client);
-    if (typeof this.afterCreate === 'function') {
-      await this.afterCreate(result);
+
+    // Call the model-level after-create trigger if defined.
+    if (typeof this.onAfterCreate === 'function') {
+      await this.onAfterCreate(result[0]);
     }
-    // Process onGet hooks on the returned record
+
+    // Process onGet hooks on the returned record.
     const record = result[0];
     for (const key in record) {
       const fieldTemplate = this.fields && this.fields[key];
@@ -128,10 +142,12 @@ export default class Model {
   }
 
   static async update(id, data, client = null) {
-    if (typeof this.beforeUpdate === 'function') {
-      data = await this.beforeUpdate(data);
+    // Call the model-level before-update trigger if defined.
+    if (typeof this.onBeforeUpdate === 'function') {
+      data = await this.onBeforeUpdate(data);
     }
-    // Process onSet hooks for each field if defined
+
+    // Process onSet hooks for each field if defined.
     const processedData = {};
     for (const key in data) {
       const fieldTemplate = this.fields && this.fields[key];
@@ -141,6 +157,7 @@ export default class Model {
         processedData[key] = data[key];
       }
     }
+
     const keys = Object.keys(processedData);
     const setClause = keys
       .map((k, i) => `${this._quoteIdentifier(k)} = $${i + 1}`)
@@ -153,10 +170,13 @@ export default class Model {
       RETURNING *
     `;
     const result = await this.query(query, values, client);
-    if (typeof this.afterUpdate === 'function') {
-      await this.afterUpdate(result);
+
+    // Call the model-level after-update trigger if defined.
+    if (typeof this.onAfterUpdate === 'function') {
+      await this.onAfterUpdate(result[0]);
     }
-    // Process onGet hooks on the returned record
+
+    // Process onGet hooks on the returned record.
     const record = result[0];
     for (const key in record) {
       const fieldTemplate = this.fields && this.fields[key];
@@ -168,8 +188,9 @@ export default class Model {
   }
 
   static async delete(id, client = null) {
-    if (typeof this.beforeDelete === 'function') {
-      await this.beforeDelete(id);
+    // Call the model-level before-delete trigger if defined.
+    if (typeof this.onBeforeDelete === 'function') {
+      await this.onBeforeDelete(id);
     }
     const query = `
       DELETE FROM ${this._quoteIdentifier(this.tableName)}
@@ -177,8 +198,9 @@ export default class Model {
       RETURNING *
     `;
     const result = await this.query(query, [id], client);
-    if (typeof this.afterDelete === 'function') {
-      await this.afterDelete(result);
+    // Call the model-level after-delete trigger if defined.
+    if (typeof this.onAfterDelete === 'function') {
+      await this.onAfterDelete(result);
     }
     return result;
   }
@@ -194,7 +216,7 @@ export default class Model {
         throw new Error('All objects in dataArray must have the same keys');
       }
     }
-    // Process onSet hooks for each record in the array
+    // Process onSet hooks for each record in the array.
     const processedArray = dataArray.map((data) => {
       const newObj = {};
       for (const key in data) {
@@ -224,7 +246,6 @@ export default class Model {
       RETURNING *
     `;
     const result = await this.query(query, values, client);
-    // Process onGet hooks for each returned record
     return result.map((record) => {
       for (const key in record) {
         const fieldTemplate = this.fields && this.fields[key];
@@ -281,39 +302,6 @@ export default class Model {
     }
   }
 
-  static async beginTransaction() {
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      return client;
-    } catch (error) {
-      client.release();
-      console.error('Error beginning transaction:', error);
-      throw error;
-    }
-  }
-
-  static async commitTransaction(client) {
-    try {
-      await client.query('COMMIT');
-    } catch (error) {
-      console.error('Error committing transaction:', error);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  static async rollbackTransaction(client) {
-    try {
-      await client.query('ROLLBACK');
-    } catch (error) {
-      console.error('Error rolling back transaction:', error);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
 
   /* ==================== Schema Synchronization ==================== */
 
@@ -341,7 +329,6 @@ export default class Model {
         // Build the CREATE TABLE statement using the merged schema.
         let columnDefinitions = [];
         for (const [fieldName, fieldDef] of Object.entries(schema)) {
-          // If a custom SQL fragment is provided, use it.
           if (fieldDef.sql) {
             columnDefinitions.push(`${this._quoteIdentifier(fieldName)} ${fieldDef.sql}`);
           } else {
@@ -361,7 +348,6 @@ export default class Model {
         const result = await client.query(currentSchemaQuery, [this.tableName]);
         const dbColumns = {};
         for (const row of result.rows) {
-          // Use lowercased column name for comparison.
           dbColumns[row.column_name.toLowerCase()] = row;
         }
 
@@ -369,7 +355,6 @@ export default class Model {
         for (const [fieldName, fieldDef] of Object.entries(schema)) {
           const key = fieldName.toLowerCase();
           if (!dbColumns[key]) {
-            // Check for rename mapping.
             if (this.renameMap && this.renameMap[fieldName]) {
               const oldField = this.renameMap[fieldName];
               const oldKey = oldField.toLowerCase();
@@ -382,9 +367,7 @@ export default class Model {
                 continue;
               }
             }
-            // Adding a new column.
             if (fieldDef.required && fieldDef.default === undefined) {
-              // Add column as nullable first.
               let tempDef = fieldDef.sql
                 ? fieldDef.sql
                 : this._getColumnDefinition(fieldName, { ...fieldDef, required: false });
@@ -407,13 +390,9 @@ export default class Model {
               await client.query(addColumnQuery);
             }
           } else {
-            // Column exists.
-            // If a custom SQL fragment is provided, skip updating this column.
             if (fieldDef.sql) {
               continue;
             }
-
-            // Otherwise, check if its definition needs an update.
             const dbCol = dbColumns[key];
             const desiredDef = this._parseFieldDefinition(fieldDef);
             if (
@@ -465,9 +444,7 @@ export default class Model {
         for (const row of indexesResult.rows) {
           dbIndexes[row.indexname] = row.indexdef;
         }
-
         const modelIndexNames = this.indexes.map((idx) => idx.name);
-
         for (const existingIndexName in dbIndexes) {
           if (existingIndexName.toLowerCase() === `${this.tableName.toLowerCase()}_pkey`) {
             continue;
@@ -478,7 +455,6 @@ export default class Model {
             await client.query(dropQuery);
           }
         }
-
         for (const idx of this.indexes) {
           const existingDef = dbIndexes[idx.name];
           let needRecreation = false;
