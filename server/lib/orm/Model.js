@@ -308,7 +308,6 @@ export default class Model {
   static async syncSchema() {
     // Merge default fields with the model's own fields (child fields override defaults if keys conflict)
     const schema = { ...this.defaultFields, ...(this.fields || this.schema) };
-
     const quotedTableName = this._quoteIdentifier(this.tableName);
     const client = await pool.connect();
 
@@ -434,6 +433,7 @@ export default class Model {
 
       // 2. Index Synchronization: Create, update, and remove indexes.
       if (this.indexes) {
+        // Retrieve existing indexes from the database.
         const indexesResult = await client.query(
           `SELECT indexname, indexdef 
            FROM pg_indexes 
@@ -444,7 +444,10 @@ export default class Model {
         for (const row of indexesResult.rows) {
           dbIndexes[row.indexname] = row.indexdef;
         }
-        const modelIndexNames = this.indexes.map((idx) => idx.name);
+        // Build the list of index names as they should appear (with table prefix)
+        const modelIndexNames = this.indexes.map(idx => this._getIndexName(idx));
+
+        // Drop any extra indexes that exist in the DB but are not in the model.
         for (const existingIndexName in dbIndexes) {
           if (existingIndexName.toLowerCase() === `${this.tableName.toLowerCase()}_pkey`) {
             continue;
@@ -455,10 +458,14 @@ export default class Model {
             await client.query(dropQuery);
           }
         }
+
+        // Create or update model-defined indexes.
         for (const idx of this.indexes) {
-          const existingDef = dbIndexes[idx.name];
+          const computedIndexName = this._getIndexName(idx);
+          const existingDef = dbIndexes[computedIndexName];
           let needRecreation = false;
           if (existingDef) {
+            // Extract the columns from the existing index definition.
             const regex = /\(([^)]+)\)/;
             const match = existingDef.match(regex);
             let dbColumns = [];
@@ -478,14 +485,14 @@ export default class Model {
               needRecreation = true;
             }
             if (needRecreation) {
-              const dropQuery = `DROP INDEX ${this._quoteIdentifier(idx.name)};`;
-              console.log(`Dropping index ${idx.name} due to definition changes:`, dropQuery);
+              const dropQuery = `DROP INDEX ${this._quoteIdentifier(computedIndexName)};`;
+              console.log(`Dropping index ${computedIndexName} due to definition changes:`, dropQuery);
               await client.query(dropQuery);
             }
           }
           if (!existingDef || needRecreation) {
             const uniqueClause = idx.unique ? 'UNIQUE' : '';
-            const idxQuery = `CREATE ${uniqueClause} INDEX ${this._quoteIdentifier(idx.name)} ON ${quotedTableName} (${idx.columns
+            const idxQuery = `CREATE ${uniqueClause} INDEX ${this._quoteIdentifier(computedIndexName)} ON ${quotedTableName} (${idx.columns
               .map((col) => this._quoteIdentifier(col))
               .join(', ')});`;
             console.log('Creating index:', idxQuery);
@@ -639,4 +646,15 @@ export default class Model {
         return null;
     }
   }
+
+  // Add this helper function to your Model class:
+  static _getIndexName(indexDef) {
+    // If the index name already starts with the table name (case-insensitive), use it as-is.
+    const prefix = this.tableName.toLowerCase() + '_';
+    if (indexDef.name.toLowerCase().startsWith(prefix)) {
+      return indexDef.name;
+    }
+    return `${this.tableName}_${indexDef.name}`;
+  }
+
 }

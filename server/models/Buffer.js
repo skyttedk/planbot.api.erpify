@@ -12,7 +12,7 @@ class Buffer extends Model {
     };
 
     static indexes = [
-        { name: 'buffer_name_idx', columns: ['name'], unique: true },
+        { name: 'x', columns: ['name'], unique: true },
     ];
 
     // Create Hooks

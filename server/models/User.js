@@ -14,7 +14,7 @@ class User extends Model {
 
     // Define indexes if needed.
     static indexes = [
-        { name: 'users_namne_idx', columns: ['name'], unique: true }
+        { name: 'x', columns: ['name'], unique: true }
     ];
 }
 

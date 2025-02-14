@@ -1,14 +1,17 @@
 // models/fields/index.js
 
+//const ora = require('ora') us eimport
+import ora from 'ora';
+
 // Define a single configuration object that maps field names to their module paths.
 const fieldPaths = {
     Field: '../../lib/orm/Field.js',
     PhoneField: './PhoneField.js',
     ZipField: './ZipField.js',
     AgeField: './AgeField.js',
-    NameField: './NameField.js',
     JsonField: './JsonField.js',
     PathField: './PathField.js',
+    NameField: './NameField.js',
 };
 
 // Dynamically import each module based on the above configuration.
@@ -16,6 +19,9 @@ const fieldPaths = {
 const exportedFields = {};
 await Promise.all(
     Object.entries(fieldPaths).map(async ([name, path]) => {
+        // make ora log
+
+
         const module = await import(path);
         exportedFields[name] = module.default;
     })

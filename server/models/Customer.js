@@ -15,7 +15,7 @@ class Customer extends Model {
 
     // Optionally add renameMap, indexes, etc.
     static indexes = [
-        { name: 'users_email_idx', columns: ['name'], unique: true },
+        { name: 'x', columns: ['name'], unique: true },
     ];
 
 
