@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Dynamic Customer Form</title>
+    <script type="module">
+        import { socketService } from './socketService.js';
+
+        let schema = null;
+
+        // When the socket connects, request the Customer schema.
+        socketService.on("open", () => {
+            console.log("Socket connected");
+            socketService.sendMessage({
+                action: "getSchema",
+                model: "Customer",
+                requestId: "req-get-schema"
+            });
+        });
+
+        // Listen for all messages.
+        socketService.on("message", (message) => {
+            // Handle schema response.
+            if (message.success && message.result && message.requestId === "req-get-schema") {
+                schema = message.result;
+                buildForm(schema);
+            }
+            // Handle customer creation response.
+            if (message.requestId === "req-create-customer") {
+                alert("Customer created successfully!");
+            }
+        });
+
+        // Dynamically build the form using the schema.
+        function buildForm(schema) {
+            const container = document.getElementById("formContainer");
+            container.innerHTML = ""; // Clear existing content
+
+            for (const field in schema) {
+                // Optionally skip system fields.
+                if (["id", "createdAt", "updatedAt"].includes(field)) continue;
+
+                const fieldDef = schema[field];
+
+                const label = document.createElement("label");
+                label.textContent = field;
+                label.htmlFor = field;
+
+                let input;
+                // Map field types to appropriate input types.
+                if (["integer", "numeric"].includes(fieldDef.type)) {
+                    input = document.createElement("input");
+                    input.type = "number";
+                } else if (["varchar", "string", "text"].includes(fieldDef.type)) {
+                    input = document.createElement("input");
+                    input.type = "text";
+                } else {
+                    input = document.createElement("input");
+                    input.type = "text";
+                }
+
+                input.id = field;
+                input.name = field;
+                if (fieldDef.required) {
+                    input.required = true;
+                }
+
+                container.appendChild(label);
+                container.appendChild(input);
+                container.appendChild(document.createElement("br"));
+            }
+        }
+
+        // Gather form data and send a create record message.
+        window.submitForm = function submitForm() {
+            const formData = {};
+            const container = document.getElementById("formContainer");
+            const inputs = container.querySelectorAll("input");
+
+            inputs.forEach((input) => {
+                formData[input.name] = input.value;
+            });
+
+            const message = {
+                action: "create",
+                model: "Customer",
+                data: formData,
+                requestId: "req-create-customer",
+                timestamp: new Date().toISOString()
+            };
+
+            socketService.sendMessage(message);
+            console.log("Create message sent:", message);
+        };
+    </script>
+</head>
+
+<body>
+    <h1>Dynamic Customer Form</h1>
+    <div id="formContainer">
+        <!-- Form fields will be generated here -->
+    </div>
+    <button onclick="submitForm()">Submit</button>
+</body>
+
+</html>

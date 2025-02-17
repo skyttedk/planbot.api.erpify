@@ -1,0 +1,210 @@
+{
+  "id": "customerForm",
+  "caption": { "key": "customerForm.caption", "default": "Customer Details" },
+  "type": "form",
+  "dataSource": "customers",
+  "filter": {
+    "criteria": [{ "field": "active", "operator": "equals", "value": true }]
+  },
+  "sort": {
+    "field": "lastName",
+    "order": "asc"
+  },
+  "pagination": {
+    "pageSize": 20,
+    "currentPage": 1
+  },
+  "permissions": {
+    "allowInsert": true,
+    "allowDelete": true,
+    "allowModify": true,
+    "fields": {
+      "customerId": {
+        "editable": false
+      },
+      "email": {
+        "editable": true
+      }
+    }
+  },
+  "menu": [
+    {
+      "caption": { "key": "menu.reports", "default": "Reports" },
+      "items": [
+        {
+          "caption": {
+            "key": "menu.customerOverview",
+            "default": "Customer Overview"
+          },
+          "action": "generateCustomerOverviewReport"
+        },
+        {
+          "caption": { "key": "menu.salesReport", "default": "Sales Report" },
+          "action": "generateSalesReport"
+        }
+      ]
+    },
+    {
+      "caption": { "key": "menu.actions", "default": "Actions" },
+      "items": [
+        {
+          "caption": { "key": "menu.exportData", "default": "Export Data" },
+          "action": "exportData"
+        }
+      ]
+    }
+  ],
+  "layout": {
+    "layoutType": "grid",
+    "groups": [
+      {
+        "id": "personalInfo",
+        "caption": {
+          "key": "group.personalInfo",
+          "default": "Personal Information"
+        },
+        "fields": [
+          {
+            "name": "firstName",
+            "caption": { "key": "field.firstName", "default": "First Name" },
+            "type": "text",
+            "required": true,
+            "maxLength": 50,
+            "defaultValue": "",
+            "events": {
+              "onChange": "validateName",
+              "onFocus": "highlightField"
+            }
+          },
+          {
+            "name": "lastName",
+            "caption": { "key": "field.lastName", "default": "Last Name" },
+            "type": "text",
+            "required": true,
+            "maxLength": 50,
+            "defaultValue": "",
+            "events": {
+              "onChange": "validateName"
+            }
+          },
+          {
+            "name": "email",
+            "caption": { "key": "field.email", "default": "Email Address" },
+            "type": "email",
+            "required": true,
+            "defaultValue": "",
+            "pattern": "^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+$",
+            "events": {
+              "onChange": "validateEmail"
+            }
+          }
+        ]
+      },
+      {
+        "id": "addressInfo",
+        "caption": {
+          "key": "group.addressInfo",
+          "default": "Address Information"
+        },
+        "fields": [
+          {
+            "name": "streetAddress",
+            "caption": {
+              "key": "field.streetAddress",
+              "default": "Street Address"
+            },
+            "type": "text",
+            "required": true,
+            "defaultValue": ""
+          },
+          {
+            "name": "city",
+            "caption": { "key": "field.city", "default": "City" },
+            "type": "text",
+            "required": true,
+            "defaultValue": ""
+          },
+          {
+            "name": "state",
+            "caption": { "key": "field.state", "default": "State" },
+            "type": "text",
+            "required": true,
+            "defaultValue": ""
+          },
+          {
+            "name": "zip",
+            "caption": { "key": "field.zip", "default": "ZIP Code" },
+            "type": "number",
+            "required": true,
+            "defaultValue": "",
+            "maxLength": 10
+          }
+        ]
+      },
+      {
+        "id": "subscriptionInfo",
+        "caption": {
+          "key": "group.subscriptionInfo",
+          "default": "Subscription Information"
+        },
+        "fields": [
+          {
+            "name": "subscriptionType",
+            "caption": {
+              "key": "field.subscriptionType",
+              "default": "Subscription Type"
+            },
+            "type": "select",
+            "required": true,
+            "options": [
+              {
+                "value": "free",
+                "label": { "key": "option.free", "default": "Free" }
+              },
+              {
+                "value": "premium",
+                "label": { "key": "option.premium", "default": "Premium" }
+              },
+              {
+                "value": "enterprise",
+                "label": { "key": "option.enterprise", "default": "Enterprise" }
+              }
+            ],
+            "defaultValue": "free",
+            "events": {
+              "onChange": "handleSubscriptionChange"
+            }
+          },
+          {
+            "name": "subscriptionStartDate",
+            "caption": {
+              "key": "field.subscriptionStartDate",
+              "default": "Start Date"
+            },
+            "type": "date",
+            "required": false,
+            "defaultValue": "",
+            "localeFormat": "MM/DD/YYYY",
+            "conditional": {
+              "showWhen": {
+                "field": "subscriptionType",
+                "operator": "notEquals",
+                "value": "free"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "debug": true,
+  "customTemplates": {
+    "formHeader": "customFormHeaderTemplate",
+    "formFooter": "customFormFooterTemplate"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "Your Company",
+    "lastUpdated": "2025-02-17"
+  }
+}

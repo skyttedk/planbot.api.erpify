@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ERP Record - Enhanced Window</title>
+  <style>
+    /* Global Reset */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background: #ecf0f1;
+      color: #333;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+    }
+    /* Draggable, Resizable Window Container */
+    .window {
+      position: absolute;
+      top: 50px;
+      left: 50px;
+      width: 700px;
+      min-width: 300px;
+      min-height: 400px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+    }
+    .window.hidden {
+      display: none;
+    }
+    .window-header {
+      background: #2c3e50;
+      color: #fff;
+      padding: 8px 12px;
+      cursor: move;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+    .window-header h2 {
+      font-size: 16px;
+      margin: 0;
+    }
+    .window-controls button {
+      background: transparent;
+      border: none;
+      color: #ecf0f1;
+      font-size: 16px;
+      margin-left: 5px;
+      cursor: pointer;
+    }
+    /* In-window Menu Bar with Submenus */
+    .menu-bar {
+      background: #34495e;
+      padding: 6px 12px;
+      position: relative;
+    }
+    .menu-bar ul {
+      list-style: none;
+      display: flex;
+      gap: 20px;
+    }
+    .menu-bar li {
+      font-size: 14px;
+      position: relative;
+    }
+    .menu-bar a {
+      color: #ecf0f1;
+      text-decoration: none;
+      cursor: pointer;
+      transition: color 0.3s;
+    }
+    .menu-bar a:hover {
+      color: #bdc3c7;
+    }
+    /* Submenu styles */
+    .menu-bar li ul {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      background: #34495e;
+      list-style: none;
+      padding: 5px 0;
+      margin: 0;
+      border-radius: 4px;
+      display: none;
+      min-width: 120px;
+      z-index: 10;
+    }
+    .menu-bar li:hover > ul {
+      display: block;
+    }
+    .menu-bar li ul li {
+      padding: 4px 15px;
+    }
+    .menu-bar li ul li a {
+      font-size: 13px;
+      display: block;
+    }
+    .menu-bar li ul li a:hover {
+      color: #bdc3c7;
+    }
+    /* Additional Submenu Example under Actions */
+    .menu-bar li ul li ul {
+      top: 0;
+      left: 100%;
+      margin-left: 1px;
+      border-radius: 4px;
+      display: none;
+    }
+    .menu-bar li ul li:hover > ul {
+      display: block;
+    }
+    /* Window Body (flexible) */
+    .window-body {
+      flex: 1;
+      padding: 10px 20px;
+      overflow-y: auto;
+    }
+    /* Window Footer / Info Bar */
+    .window-footer {
+      background: #f9f9f9;
+      border-top: 1px solid #ddd;
+      padding: 5px 10px;
+      font-size: 13px;
+      color: #555;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    /* Compact Multi-Section Form Styles */
+    form {
+      font-size: 13px;
+    }
+    .form-section {
+      margin-bottom: 15px;
+    }
+    .section-title {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 3px;
+      color: #2c3e50;
+    }
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 15px;
+    }
+    .full-width {
+      grid-column: span 2;
+    }
+    .form-group {
+      display: flex;
+      align-items: center;
+    }
+    .form-group label {
+      width: 100px;
+      margin-right: 5px;
+      font-size: 13px;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      flex: 1;
+      padding: 4px 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .form-group textarea {
+      resize: vertical;
+      min-height: 50px;
+    }
+    button.submit-btn {
+      padding: 8px 14px;
+      font-size: 14px;
+      background: #2c3e50;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      display: block;
+      margin: 10px auto 0;
+    }
+    button.submit-btn:hover {
+      background: #34495e;
+    }
+    .success {
+      color: #27ae60;
+      font-size: 14px;
+      text-align: center;
+      margin-top: 8px;
+    }
+    /* Resize Handle (Bottom Right) */
+    .resize-handle {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      right: 0;
+      bottom: 0;
+      cursor: se-resize;
+      background: transparent;
+      z-index: 101;
+    }
+  </style>
+</head>
+<body>
+  <div class="window" id="recordWindow">
+    <!-- Window Header -->
+    <div class="window-header" id="windowHeader">
+      <h2>Record: Data Entry</h2>
+      <div class="window-controls">
+        <button title="Minimize" id="minimizeBtn">&#x2015;</button>
+        <button title="Close" id="closeBtn">&#x2715;</button>
+      </div>
+    </div>
+    <!-- In-window Menu Bar with Submenus -->
+    <nav class="menu-bar">
+      <ul>
+        <li>
+          <a href="#">Actions</a>
+          <ul>
+            <li><a href="#">Save</a></li>
+            <li>
+              <a href="#">More</a>
+              <ul>
+                <li><a href="#">Duplicate</a></li>
+                <li><a href="#">Delete</a></li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+        <li>
+          <a href="#">Reports</a>
+          <ul>
+            <li><a href="#">Sales Report</a></li>
+            <li><a href="#">Inventory Report</a></li>
+            <li>
+              <a href="#">Custom</a>
+              <ul>
+                <li><a href="#">Report 1</a></li>
+                <li><a href="#">Report 2</a></li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+        <li>
+          <a href="#">Export/Import</a>
+          <ul>
+            <li><a href="#">Export Data</a></li>
+            <li><a href="#">Import Data</a></li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+    <!-- Window Body -->
+    <div class="window-body" id="windowBody">
+      <form id="recordForm" novalidate>
+        <!-- General Information Group -->
+        <div class="form-section">
+          <div class="section-title">General Information</div>
+          <div class="field-grid">
+            <div class="form-group">
+              <label for="firstName">First Name</label>
+              <input type="text" id="firstName" name="firstName" required />
+            </div>
+            <div class="form-group">
+              <label for="lastName">Last Name</label>
+              <input type="text" id="lastName" name="lastName" required />
+            </div>
+            <div class="form-group">
+              <label for="dob">DOB</label>
+              <input type="date" id="dob" name="dob" />
+            </div>
+            <div class="form-group">
+              <label for="gender">Gender</label>
+              <select id="gender" name="gender">
+                <option value="">Select</option>
+                <option>Male</option>
+                <option>Female</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <!-- Address Group -->
+        <div class="form-section">
+          <div class="section-title">Address</div>
+          <div class="field-grid">
+            <div class="form-group full-width">
+              <label for="address1">Address 1</label>
+              <input type="text" id="address1" name="address1" required />
+            </div>
+            <div class="form-group full-width">
+              <label for="address2">Address 2</label>
+              <input type="text" id="address2" name="address2" />
+            </div>
+            <div class="form-group">
+              <label for="city">City</label>
+              <input type="text" id="city" name="city" required />
+            </div>
+            <div class="form-group">
+              <label for="state">State</label>
+              <input type="text" id="state" name="state" required />
+            </div>
+            <div class="form-group">
+              <label for="zip">Zip</label>
+              <input type="text" id="zip" name="zip" required />
+            </div>
+          </div>
+        </div>
+        <!-- Contact Details Group -->
+        <div class="form-section">
+          <div class="section-title">Contact Details</div>
+          <div class="field-grid">
+            <div class="form-group">
+              <label for="phone">Phone</label>
+              <input type="text" id="phone" name="phone" required />
+            </div>
+            <div class="form-group">
+              <label for="email">Email</label>
+              <input type="email" id="email" name="email" required />
+            </div>
+            <div class="form-group full-width">
+              <label for="website">Website</label>
+              <input type="url" id="website" name="website" />
+            </div>
+          </div>
+        </div>
+        <!-- Company Information Group -->
+        <div class="form-section">
+          <div class="section-title">Company Information</div>
+          <div class="field-grid">
+            <div class="form-group">
+              <label for="company">Company</label>
+              <input type="text" id="company" name="company" />
+            </div>
+            <div class="form-group">
+              <label for="department">Department</label>
+              <input type="text" id="department" name="department" />
+            </div>
+            <div class="form-group full-width">
+              <label for="position">Position</label>
+              <input type="text" id="position" name="position" />
+            </div>
+          </div>
+        </div>
+        <!-- Preferences Group -->
+        <div class="form-section">
+          <div class="section-title">Preferences</div>
+          <div class="field-grid">
+            <div class="form-group">
+              <label for="language">Language</label>
+              <select id="language" name="language">
+                <option value="">Select</option>
+                <option>English</option>
+                <option>Spanish</option>
+                <option>French</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="timezone">Timezone</label>
+              <select id="timezone" name="timezone">
+                <option value="">Select</option>
+                <option>GMT</option>
+                <option>EST</option>
+                <option>PST</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <button type="submit" class="submit-btn">Submit</button>
+        <div class="success" id="successMessage"></div>
+      </form>
+    </div>
+    <!-- Window Footer / Info Bar -->
+    <div class="window-footer">
+      <span id="infoText">Info: All changes saved.</span>
+      <span style="cursor: se-resize;">&#x2198;</span>
+    </div>
+    <!-- Resize Handle (Bottom Right) -->
+    <div class="resize-handle" id="resizeHandle"></div>
+  </div>
+
+  <script>
+    // --- Window Drag Functionality ---
+    (function() {
+      const windowEl = document.getElementById('recordWindow');
+      const header = document.getElementById('windowHeader');
+      let offsetX, offsetY, isDragging = false;
+      
+      header.addEventListener('mousedown', function(e) {
+        isDragging = true;
+        offsetX = e.clientX - windowEl.offsetLeft;
+        offsetY = e.clientY - windowEl.offsetTop;
+        document.body.style.userSelect = 'none';
+      });
+      
+      document.addEventListener('mousemove', function(e) {
+        if (isDragging) {
+          windowEl.style.left = (e.clientX - offsetX) + 'px';
+          windowEl.style.top = (e.clientY - offsetY) + 'px';
+        }
+      });
+      
+      document.addEventListener('mouseup', function() {
+        isDragging = false;
+        document.body.style.userSelect = 'auto';
+      });
+    })();
+
+    // --- Window Resizing Functionality ---
+    (function() {
+      const windowEl = document.getElementById('recordWindow');
+      const handle = document.getElementById('resizeHandle');
+      let isResizing = false, startX, startY, startWidth, startHeight;
+      
+      handle.addEventListener('mousedown', function(e) {
+        isResizing = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startWidth = parseInt(document.defaultView.getComputedStyle(windowEl).width, 10);
+        startHeight = parseInt(document.defaultView.getComputedStyle(windowEl).height, 10);
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      
+      document.addEventListener('mousemove', function(e) {
+        if (!isResizing) return;
+        let newWidth = startWidth + e.clientX - startX;
+        let newHeight = startHeight + e.clientY - startY;
+        windowEl.style.width = (newWidth > 300 ? newWidth : 300) + 'px';
+        windowEl.style.height = (newHeight > 400 ? newHeight : 400) + 'px';
+      });
+      
+      document.addEventListener('mouseup', function() {
+        isResizing = false;
+      });
+    })();
+
+    // --- Minimize & Close Functionality ---
+    (function() {
+      const minimizeBtn = document.getElementById('minimizeBtn');
+      const closeBtn = document.getElementById('closeBtn');
+      const windowBody = document.getElementById('windowBody');
+      const menuBar = document.querySelector('.menu-bar');
+      const windowFooter = document.querySelector('.window-footer');
+      
+      minimizeBtn.addEventListener('click', function() {
+        // Toggle visibility of the window body, menu bar, and footer
+        if (windowBody.style.display === 'none') {
+          windowBody.style.display = 'block';
+          menuBar.style.display = 'block';
+          windowFooter.style.display = 'flex';
+        } else {
+          windowBody.style.display = 'none';
+          menuBar.style.display = 'none';
+          windowFooter.style.display = 'none';
+        }
+      });
+      
+      closeBtn.addEventListener('click', function() {
+        document.getElementById('recordWindow').classList.add('hidden');
+      });
+    })();
+
+    // --- Simple Form Submission Handling ---
+    (function() {
+      const form = document.getElementById('recordForm');
+      const successMessage = document.getElementById('successMessage');
+      
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        successMessage.textContent = '';
+        
+        if (form.checkValidity()) {
+          successMessage.textContent = 'Form submitted successfully!';
+          form.reset();
+        } else {
+          form.reportValidity();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

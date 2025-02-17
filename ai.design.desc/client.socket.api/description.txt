@@ -1,3 +1,18 @@
+our client is communication with the server through sockets.
+
+We need to create a robust production grade comunication itnerface, for connecting to server,
+reading/updating/ etc. with server.
+
+based on the following example, please isolate socket comm to an isolated file... that
+will handle all communication woith server.
+
+
+
+
+
+
+
+
 <!DOCTYPE html>
 <html lang="en">
 

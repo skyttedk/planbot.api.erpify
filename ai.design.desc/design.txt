@@ -1,0 +1,73 @@
+erpify erp engine
+
+Database Tier
+
+PostgreSQL SQL (ACID Compliant)
+
+   Caching: Implement in-memory caches (e.g., global objects) or use Redis.
+   Connection Pooling: Build your own pool for database connections.
+   Database Indexing: Manually design indexes based on query patterns.
+
+Server Tier
+
+   PHP
+   PDO (Simple Orm. Transactions, fully automatic schema synchronization!!)
+   WEB Sockets
+
+Client Side
+
+   Lit Web Components (perhapsos)
+   WEB Sockets
+   History API-- læs mere om dette.
+
+Security:
+   
+  Authentication: JWT 
+  Authorization: Build role-based access control (RBAC) with custom logic.
+
+
+
+State Machine ??
+   
+  Cold we implement State Machine Behaviour!!
+
+
+
+erpify applications
+
+  easy table designed using drag/drop table designer and field templates (perhaps even API )
+
+  easy page/form/view designer using declaritive json / or drag/drop (also with API)
+
+
+  easy business logic using flow based programming.
+    - event driven. onAfterInsert etv..
+    - and FQL like script, that makes common erp oprations a breeze
+        filtering/looping CRUD 
+        dialogss, logging etc.
+
+
+// Other tings
+
+*  field templates are central. define a field template once., and user same field all over in application.
+   Change field template, and have it updated throughout entire application
+
+task/scheduler /Cronjobs
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     
+
+   

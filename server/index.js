@@ -7,44 +7,45 @@ async function handleClientConnection(ws) {
 
   ws.on('message', async (message) => {
     let client;
-
     try {
       client = await pool.connect();
-      await client.query('BEGIN'); // Start transaction
+      await client.query('BEGIN');
 
-      // Parse the received message
       let request;
       try {
         request = JSON.parse(message);
       } catch (parseError) {
         console.error('Message parsing error:', parseError);
         ws.send(JSON.stringify({ success: false, message: 'Invalid JSON format' }));
-        return; // Exit early if JSON is invalid
+        return;
       }
 
-      const action = request.action;
-      const data = request.data;
+      // Destructure the request object
+      const { model, action, data } = request;
 
-      // Handle the action
-      let result;
-      switch (action) {
-        case 'createCustomer':
-          result = await Models.Customer.create(data, client);
-          break;
-        // Add additional actions here
-        default:
-          throw new Error(`Unknown action: ${action}`);
+      // Ensure the model exists in your Models object.
+      const ModelClass = Models[model];
+      if (!ModelClass) {
+        throw new Error(`Model "${model}" not found`);
       }
 
-      await client.query('COMMIT'); // Commit transaction if successful
-      ws.send(JSON.stringify({ success: true, message: 'Operation succeeded', result }));
+      // Check if the action is a valid method on the model.
+      if (typeof ModelClass[action] !== 'function') {
+        throw new Error(`Action "${action}" is not available for model "${model}"`);
+      }
+
+      // Call the model operation. (e.g., ModelClass.create, ModelClass.find, etc.)
+      const result = await ModelClass[action](data, client);
+
+      await client.query('COMMIT');
+      ws.send(JSON.stringify({ success: true, message: 'Operation succeeded', requestId: request.requestId, result }));
 
     } catch (error) {
-      if (client) await client.query('ROLLBACK'); // Rollback transaction
+      if (client) await client.query('ROLLBACK');
       console.error('Error during DB operation:', error);
       ws.send(JSON.stringify({ success: false, message: 'Operation failed', error: error.message }));
     } finally {
-      if (client) client.release(); // Release db client back to pool
+      if (client) client.release();
     }
   });
 
@@ -56,6 +57,7 @@ async function handleClientConnection(ws) {
     console.error('WebSocket error:', error);
   });
 }
+
 
 async function main() {
   const wss = new WebSocketServer({ port: 8011 });

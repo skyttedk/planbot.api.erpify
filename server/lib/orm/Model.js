@@ -56,6 +56,24 @@ export default class Model {
     },
   };
 
+  /**
+   * Returns the merged schema of the model,
+   * combining parent (super) fields with the current class's fields.
+   */
+  static getSchema() {
+    // If we're at the base class, return the defaultFields
+    if (this === Model) {
+      return this.defaultFields;
+    }
+    // Get the parent's schema
+    const parentSchema =
+      typeof Object.getPrototypeOf(this).getSchema === 'function'
+        ? Object.getPrototypeOf(this).getSchema()
+        : {};
+    // Merge parent's schema with this class's own fields (if defined)
+    return { ...parentSchema, ...(this.fields || {}) };
+  }
+
   /* ==================== Public CRUD Methods ==================== */
 
   static async find(conditions = {}, client = null) {

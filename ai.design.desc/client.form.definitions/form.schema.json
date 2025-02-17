@@ -1,0 +1,244 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ERP Form Configuration Schema",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "caption": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "default": { "type": "string" }
+      },
+      "required": ["key", "default"]
+    },
+    "type": {
+      "type": "string",
+      "enum": ["list", "form", "lookup", "search", "dashboard", "reportViewer"]
+    },
+    "dataSource": { "type": "string" },
+    "filter": {
+      "type": "object",
+      "properties": {
+        "criteria": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": { "type": "string" },
+              "operator": {
+                "type": "string",
+                "enum": [
+                  "equals",
+                  "notEquals",
+                  "greaterThan",
+                  "lessThan",
+                  "contains"
+                ]
+              },
+              "value": {}
+            },
+            "required": ["field", "operator", "value"]
+          }
+        }
+      }
+    },
+    "sort": {
+      "type": "object",
+      "properties": {
+        "field": { "type": "string" },
+        "order": { "type": "string", "enum": ["asc", "desc"] }
+      },
+      "required": ["field", "order"]
+    },
+    "pagination": {
+      "type": "object",
+      "properties": {
+        "pageSize": { "type": "integer", "minimum": 1 },
+        "currentPage": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["pageSize", "currentPage"]
+    },
+    "permissions": {
+      "type": "object",
+      "properties": {
+        "allowInsert": { "type": "boolean" },
+        "allowDelete": { "type": "boolean" },
+        "allowModify": { "type": "boolean" },
+        "fields": {
+          "type": "object",
+          "patternProperties": {
+            "^[a-zA-Z0-9_]+$": {
+              "type": "object",
+              "properties": {
+                "editable": { "type": "boolean" }
+              },
+              "required": ["editable"]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["allowInsert", "allowDelete", "allowModify"]
+    },
+    "menu": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "caption": {
+            "type": "object",
+            "properties": {
+              "key": { "type": "string" },
+              "default": { "type": "string" }
+            },
+            "required": ["key", "default"]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "caption": {
+                  "type": "object",
+                  "properties": {
+                    "key": { "type": "string" },
+                    "default": { "type": "string" }
+                  },
+                  "required": ["key", "default"]
+                },
+                "action": { "type": "string" }
+              },
+              "required": ["caption", "action"]
+            }
+          }
+        },
+        "required": ["caption", "items"]
+      }
+    },
+    "layout": {
+      "type": "object",
+      "properties": {
+        "layoutType": { "type": "string", "enum": ["grid", "flex"] },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "caption": {
+                "type": "object",
+                "properties": {
+                  "key": { "type": "string" },
+                  "default": { "type": "string" }
+                },
+                "required": ["key", "default"]
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string" },
+                    "caption": {
+                      "type": "object",
+                      "properties": {
+                        "key": { "type": "string" },
+                        "default": { "type": "string" }
+                      },
+                      "required": ["key", "default"]
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": ["text", "number", "date", "email", "select"]
+                    },
+                    "required": { "type": "boolean" },
+                    "defaultValue": {},
+                    "maxLength": { "type": "number" },
+                    "minLength": { "type": "number" },
+                    "pattern": { "type": "string" },
+                    "readOnly": { "type": "boolean" },
+                    "disabled": { "type": "boolean" },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": {},
+                          "label": {
+                            "type": "object",
+                            "properties": {
+                              "key": { "type": "string" },
+                              "default": { "type": "string" }
+                            },
+                            "required": ["key", "default"]
+                          }
+                        },
+                        "required": ["value", "label"]
+                      }
+                    },
+                    "events": {
+                      "type": "object",
+                      "properties": {
+                        "onChange": { "type": "string" },
+                        "onFocus": { "type": "string" },
+                        "onBlur": { "type": "string" }
+                      },
+                      "additionalProperties": false
+                    },
+                    "localeFormat": { "type": "string" },
+                    "conditional": {
+                      "type": "object",
+                      "properties": {
+                        "showWhen": {
+                          "type": "object",
+                          "properties": {
+                            "field": { "type": "string" },
+                            "operator": {
+                              "type": "string",
+                              "enum": [
+                                "equals",
+                                "notEquals",
+                                "greaterThan",
+                                "lessThan"
+                              ]
+                            },
+                            "value": {}
+                          },
+                          "required": ["field", "operator", "value"]
+                        }
+                      },
+                      "required": ["showWhen"]
+                    }
+                  },
+                  "required": ["name", "caption", "type", "required"]
+                }
+              }
+            },
+            "required": ["id", "caption", "fields"]
+          }
+        }
+      },
+      "required": ["layoutType", "groups"]
+    },
+    "debug": { "type": "boolean" },
+    "customTemplates": {
+      "type": "object",
+      "properties": {
+        "formHeader": { "type": "string" },
+        "formFooter": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "version": { "type": "string" },
+        "author": { "type": "string" },
+        "lastUpdated": { "type": "string", "format": "date" }
+      },
+      "required": ["version", "author", "lastUpdated"]
+    }
+  },
+  "required": ["id", "caption", "type", "dataSource", "layout", "permissions"]
+}
