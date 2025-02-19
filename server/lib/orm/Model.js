@@ -4,32 +4,74 @@ import pool from '../../config/db.js';
  * Base Model class for ORM operations with automatic schema synchronization.
  *
  * Each subclass should define:
- * - static tableName: the table name.
- * - static fields (preferred) OR static schema: an object describing the fields.
- *   Example:
+ * - **static tableName**: The name of the database table this model represents.
+ * - **static fields (preferred) OR static schema**: An object describing the fields of the table.
+ *   - **Fields**: Each field is an object specifying its properties.
+ *   - Example:
+ *     ```javascript
  *     static fields = {
- *       name: new NameField({ required: true }),
- *       phone: new PhoneField({ required: false }),
- *       zip: new ZipField({ required: true, default: '00000' })
+ *       name: {
+ *         type: 'string',              // Data type (e.g., 'string', 'integer', 'boolean', 'date')
+ *         required: true,              // Whether the field is mandatory
+ *         default: 'Unknown',          // Default value if not provided
+ *         length: 100,                 // Optional length for VARCHAR (defaults to 255)
+ *         validate: (value) => {       // Optional validation function
+ *           if (typeof value !== 'string') throw new Error('Name must be a string');
+ *         },
+ *         onSet: (value) => value.trim(), // Optional transformation before saving
+ *         onGet: (value) => value.toUpperCase() // Optional transformation after retrieval
+ *       },
+ *       age: {
+ *         type: 'integer',
+ *         required: false,
+ *         default: 0
+ *       }
  *     };
+ *     ```
+ *   - Supported properties:
+ *     - `type`: The SQL data type (e.g., 'string', 'integer', 'boolean', 'date', 'timestamp', 'numeric').
+ *     - `required`: Boolean indicating if the field must be non-null.
+ *     - `default`: Default value if none is provided.
+ *     - `length`: For 'string' types, specifies VARCHAR length (defaults to 255).
+ *     - `precision` and `scale`: For 'numeric' types, defines precision and scale.
+ *     - `validate`: Function to validate the field value; throws an error on failure.
+ *     - `onSet`: Function to transform the value before insertion/update.
+ *     - `onGet`: Function to transform the value after retrieval.
  *
- * - (Optional) static renameMap: an object mapping new field names to their old names.
- * - (Optional) static indexes: an array of index definitions.
+ * - **(Optional) static renameMap**: An object mapping new field names to old names for schema evolution.
+ *   - Example:
+ *     ```javascript
+ *     static renameMap = { newFieldName: 'oldFieldName' };
+ *     ```
  *
- * This base Model automatically includes these default fields:
+ * - **(Optional) static indexes**: An array of index definitions to optimize queries.
+ *   - Each index is an object with:
+ *     - `name`: The index name (prefixed with table name if not already).
+ *     - `columns`: Array of column names to index.
+ *     - `unique`: Boolean indicating if the index enforces uniqueness.
+ *   - Example:
+ *     ```javascript
+ *     static indexes = [
+ *       { name: 'idx_name', columns: ['name'], unique: false },
+ *       { name: 'idx_age_unique', columns: ['age'], unique: true }
+ *     ];
+ *     ```
  *
- *   id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
- *   createdAt TIMESTAMPTZ NOT NULL DEFAULT NOW(),
- *   updatedAt TIMESTAMPTZ NOT NULL DEFAULT NOW()
+ * **Default Fields**: This base `Model` automatically includes:
+ *   - `id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY`
+ *   - `createdAt TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+ *   - `updatedAt TIMESTAMPTZ NOT NULL DEFAULT NOW()`
  *
- * Additionally, you can define model-level trigger hooks:
+ * **Model-Level Trigger Hooks**: Subclasses can define these optional hooks:
+ *   - `onBeforeCreate(data)`: Modify data before insertion; returns modified data.
+ *   - `onAfterCreate(record)`: Perform actions after insertion.
+ *   - `onBeforeUpdate(data)`: Modify data before update; returns modified data.
+ *   - `onAfterUpdate(record)`: Perform actions after update.
+ *   - `onBeforeDelete(id)`: Perform actions before deletion.
+ *   - `onAfterDelete(result)`: Perform actions after deletion.
+ *   - Hooks can be asynchronous.
  *
- *   onBeforeCreate(data) -> data
- *   onAfterCreate(record)
- *   onBeforeUpdate(data) -> data
- *   onAfterUpdate(record)
- *   onBeforeDelete(id)
- *   onAfterDelete(result)
+ * **Schema Synchronization**: The `syncSchema` method aligns the database table with the defined schema, adding columns, renaming fields (via `renameMap`), and managing indexes.
  */
 export default class Model {
   static tableName = '';
@@ -38,59 +80,47 @@ export default class Model {
   // Hardcode default field definitions
   static defaultFields = {
     id: {
-      uid: '{f6e2aabc-1e8f-4b19-8e3d-1a2b3c4d5e6f}', // replace with your fixed GUID
-      // Instructs _getColumnDefinition() to simply use this SQL fragment.
-      // Produces: "id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY"
+      uid: '{f6e2aabc-1e8f-4b19-8e3d-1a2b3c4d5e6f}', // Replace with your fixed GUID
       sql: 'INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY',
       required: true,
     },
     createdAt: {
-      uid: '{a1b2c3d4-e5f6-7890-abcd-ef1234567890}', // replace with your fixed GUID
+      uid: '{a1b2c3d4-e5f6-7890-abcd-ef1234567890}', // Replace with your fixed GUID
       sql: 'TIMESTAMPTZ NOT NULL DEFAULT NOW()',
       required: true,
     },
     updatedAt: {
-      uid: '{09876543-21fe-dcba-0987-654321fedcba}', // replace with your fixed GUID
+      uid: '{09876543-21fe-dcba-0987-654321fedcba}', // Replace with your fixed GUID
       sql: 'TIMESTAMPTZ NOT NULL DEFAULT NOW()',
       required: true,
     },
   };
 
   /**
-   * Returns the merged schema of the model,
-   * combining parent (super) fields with the current class's fields.
+   * Returns the merged schema of the model, combining parent fields with the current class's fields.
    */
   static getSchema() {
-    // If we're at the base class, return the defaultFields
     if (this === Model) {
       return this.defaultFields;
     }
-    // Get the parent's schema
     const parentSchema =
       typeof Object.getPrototypeOf(this).getSchema === 'function'
         ? Object.getPrototypeOf(this).getSchema()
         : {};
-    // Merge parent's schema with this class's own fields (if defined)
     return { ...parentSchema, ...(this.fields || {}) };
   }
 
   /* ==================== Public CRUD Methods ==================== */
 
-  static async find(conditions = {}, client = null) {
+  static async find(conditions = {}, options = {}, client = null) {
     const { whereClause, values } = this.buildWhere(conditions);
-    const query = `SELECT * FROM ${this._quoteIdentifier(this.tableName)} ${whereClause}`;
+    const { limit, offset, orderBy } = options;
+    let query = `SELECT * FROM ${this._quoteIdentifier(this.tableName)} ${whereClause}`;
+    if (orderBy) query += ` ORDER BY ${this._quoteIdentifier(orderBy)}`;
+    if (limit) query += ` LIMIT ${limit}`;
+    if (offset) query += ` OFFSET ${offset}`;
     const rows = await this.query(query, values, client);
-
-    // Process onGet hooks for each field if defined.
-    return rows.map((row) => {
-      for (const key in row) {
-        const fieldTemplate = this.fields && this.fields[key];
-        if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
-          row[key] = fieldTemplate.onGet(row[key]);
-        }
-      }
-      return row;
-    });
+    return rows.map(row => this._processOnGet(row));
   }
 
   static async findById(id, client = null) {
@@ -110,48 +140,72 @@ export default class Model {
   }
 
   static async findOne(conditions = {}, client = null) {
-    const results = await this.find(conditions, client);
-    return results.length > 0 ? results[0] : null;
+    const results = await this.find(conditions, { limit: 1 }, client);
+    return results[0] || null;
+  }
+
+  static async first(conditions = {}, client = null) {
+    return this.findOne(conditions, client);
+  }
+
+  static async last(conditions = {}, orderBy = 'id', client = null) {
+    const { whereClause, values } = this.buildWhere(conditions);
+    const query = `
+      SELECT * FROM ${this._quoteIdentifier(this.tableName)}
+      ${whereClause}
+      ORDER BY ${this._quoteIdentifier(orderBy)} DESC
+      LIMIT 1
+    `;
+    const rows = await this.query(query, values, client);
+    return rows.length > 0 ? rows[0] : null;
+  }
+
+  static async count(conditions = {}, client = null) {
+    const { whereClause, values } = this.buildWhere(conditions);
+    const query = `SELECT COUNT(*) FROM ${this._quoteIdentifier(this.tableName)} ${whereClause}`;
+    const result = await this.query(query, values, client);
+    return parseInt(result[0].count, 10);
   }
 
   static async create(data, client = null) {
-    // Call the model-level before-create trigger if defined.
+    const schema = this.getSchema();
+    for (const [key, value] of Object.entries(data)) {
+      if (schema[key] && typeof schema[key].validate === 'function') {
+        try {
+          schema[key].validate(value);
+        } catch (error) {
+          throw new Error(`Validation failed for field '${key}': ${error.message}`);
+        }
+      }
+    }
     if (typeof this.onBeforeCreate === 'function') {
       data = await this.onBeforeCreate(data);
     }
-
-    // Process onSet hooks for each field if defined.
     const processedData = {};
     for (const key in data) {
-      const fieldTemplate = this.fields && this.fields[key];
+      const fieldTemplate = schema[key];
       if (fieldTemplate && typeof fieldTemplate.onSet === 'function') {
         processedData[key] = fieldTemplate.onSet(data[key]);
       } else {
         processedData[key] = data[key];
       }
     }
-
     const keys = Object.keys(processedData);
     const quotedKeys = keys.map((k) => this._quoteIdentifier(k));
     const values = Object.values(processedData);
     const params = keys.map((_, i) => `$${i + 1}`);
-
     const query = `
       INSERT INTO ${this._quoteIdentifier(this.tableName)} (${quotedKeys.join(', ')})
       VALUES (${params.join(', ')})
       RETURNING *
     `;
     const result = await this.query(query, values, client);
-
-    // Call the model-level after-create trigger if defined.
     if (typeof this.onAfterCreate === 'function') {
       await this.onAfterCreate(result[0]);
     }
-
-    // Process onGet hooks on the returned record.
     const record = result[0];
     for (const key in record) {
-      const fieldTemplate = this.fields && this.fields[key];
+      const fieldTemplate = schema[key];
       if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
         record[key] = fieldTemplate.onGet(record[key]);
       }
@@ -159,45 +213,62 @@ export default class Model {
     return record;
   }
 
+  /**
+   * Updates a single record in the database by its primary key.
+   * @param {string|number} id - The primary key value of the record to update.
+   * @param {Object} data - An object containing the fields and values to update.
+   * @param {Object} [client=null] - An optional database client for transaction support.
+   * @returns {Object|null} The updated record, or null if no record was found.
+   * @throws {Error} If validation fails, no data is provided, or a database error occurs.
+   */
   static async update(id, data, client = null) {
-    // Call the model-level before-update trigger if defined.
+    const schema = this.getSchema();
+    for (const [key, value] of Object.entries(data)) {
+      if (schema[key] && typeof schema[key].validate === 'function') {
+        try {
+          schema[key].validate(value);
+        } catch (error) {
+          throw new Error(`Validation failed for field '${key}': ${error.message}`);
+        }
+      }
+    }
     if (typeof this.onBeforeUpdate === 'function') {
       data = await this.onBeforeUpdate(data);
     }
-
-    // Process onSet hooks for each field if defined.
     const processedData = {};
     for (const key in data) {
-      const fieldTemplate = this.fields && this.fields[key];
+      const fieldTemplate = schema[key];
       if (fieldTemplate && typeof fieldTemplate.onSet === 'function') {
         processedData[key] = fieldTemplate.onSet(data[key]);
       } else {
         processedData[key] = data[key];
       }
     }
-
-    const keys = Object.keys(processedData);
-    const setClause = keys
+    const updateKeys = Object.keys(processedData).filter(k => k !== this.primaryKey);
+    if (updateKeys.length === 0) {
+      throw new Error('No data provided for update');
+    }
+    const setClause = updateKeys
       .map((k, i) => `${this._quoteIdentifier(k)} = $${i + 1}`)
       .join(', ');
-    const values = [...Object.values(processedData), id];
+    const updateValues = updateKeys.map(k => processedData[k]);
+    const values = [...updateValues, id];
     const query = `
       UPDATE ${this._quoteIdentifier(this.tableName)}
       SET ${setClause}
-      WHERE ${this._quoteIdentifier(this.primaryKey)} = $${keys.length + 1}
+      WHERE ${this._quoteIdentifier(this.primaryKey)} = $${updateKeys.length + 1}
       RETURNING *
     `;
     const result = await this.query(query, values, client);
-
-    // Call the model-level after-update trigger if defined.
+    if (result.length === 0) {
+      return null;
+    }
     if (typeof this.onAfterUpdate === 'function') {
       await this.onAfterUpdate(result[0]);
     }
-
-    // Process onGet hooks on the returned record.
     const record = result[0];
     for (const key in record) {
-      const fieldTemplate = this.fields && this.fields[key];
+      const fieldTemplate = schema[key];
       if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
         record[key] = fieldTemplate.onGet(record[key]);
       }
@@ -206,7 +277,6 @@ export default class Model {
   }
 
   static async delete(id, client = null) {
-    // Call the model-level before-delete trigger if defined.
     if (typeof this.onBeforeDelete === 'function') {
       await this.onBeforeDelete(id);
     }
@@ -216,7 +286,6 @@ export default class Model {
       RETURNING *
     `;
     const result = await this.query(query, [id], client);
-    // Call the model-level after-delete trigger if defined.
     if (typeof this.onAfterDelete === 'function') {
       await this.onAfterDelete(result);
     }
@@ -234,7 +303,6 @@ export default class Model {
         throw new Error('All objects in dataArray must have the same keys');
       }
     }
-    // Process onSet hooks for each record in the array.
     const processedArray = dataArray.map((data) => {
       const newObj = {};
       for (const key in data) {
@@ -320,11 +388,9 @@ export default class Model {
     }
   }
 
-
   /* ==================== Schema Synchronization ==================== */
 
-  static async syncSchema() {
-    // Merge default fields with the model's own fields (child fields override defaults if keys conflict)
+  static async syncSchema(options = { dropExtraColumns: false }) {
     const schema = { ...this.defaultFields, ...(this.fields || this.schema) };
     const quotedTableName = this._quoteIdentifier(this.tableName);
     const client = await pool.connect();
@@ -332,7 +398,6 @@ export default class Model {
     try {
       await client.query('BEGIN');
 
-      // 1. Check if the table exists.
       const tableExistsQuery = `
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
@@ -343,7 +408,6 @@ export default class Model {
       const tableExists = tableExistsResult.rows[0].exists;
 
       if (!tableExists) {
-        // Build the CREATE TABLE statement using the merged schema.
         let columnDefinitions = [];
         for (const [fieldName, fieldDef] of Object.entries(schema)) {
           if (fieldDef.sql) {
@@ -356,7 +420,6 @@ export default class Model {
         console.log('Creating table:', createTableQuery);
         await client.query(createTableQuery);
       } else {
-        // Retrieve current table schema.
         const currentSchemaQuery = `
           SELECT column_name, data_type, character_maximum_length, is_nullable, column_default
           FROM information_schema.columns
@@ -368,7 +431,6 @@ export default class Model {
           dbColumns[row.column_name.toLowerCase()] = row;
         }
 
-        // Process each column defined in our merged schema.
         for (const [fieldName, fieldDef] of Object.entries(schema)) {
           const key = fieldName.toLowerCase();
           if (!dbColumns[key]) {
@@ -447,11 +509,18 @@ export default class Model {
             }
           }
         }
+
+        if (options.dropExtraColumns) {
+          const schemaKeys = Object.keys(schema).map(k => k.toLowerCase());
+          for (const dbKey in dbColumns) {
+            if (!schemaKeys.includes(dbKey)) {
+              await client.query(`ALTER TABLE ${quotedTableName} DROP COLUMN ${this._quoteIdentifier(dbKey)}`);
+            }
+          }
+        }
       }
 
-      // 2. Index Synchronization: Create, update, and remove indexes.
       if (this.indexes) {
-        // Retrieve existing indexes from the database.
         const indexesResult = await client.query(
           `SELECT indexname, indexdef 
            FROM pg_indexes 
@@ -462,10 +531,7 @@ export default class Model {
         for (const row of indexesResult.rows) {
           dbIndexes[row.indexname] = row.indexdef;
         }
-        // Build the list of index names as they should appear (with table prefix)
         const modelIndexNames = this.indexes.map(idx => this._getIndexName(idx));
-
-        // Drop any extra indexes that exist in the DB but are not in the model.
         for (const existingIndexName in dbIndexes) {
           if (existingIndexName.toLowerCase() === `${this.tableName.toLowerCase()}_pkey`) {
             continue;
@@ -476,21 +542,16 @@ export default class Model {
             await client.query(dropQuery);
           }
         }
-
-        // Create or update model-defined indexes.
         for (const idx of this.indexes) {
           const computedIndexName = this._getIndexName(idx);
           const existingDef = dbIndexes[computedIndexName];
           let needRecreation = false;
           if (existingDef) {
-            // Extract the columns from the existing index definition.
             const regex = /\(([^)]+)\)/;
             const match = existingDef.match(regex);
             let dbColumns = [];
             if (match && match[1]) {
-              dbColumns = match[1]
-                .split(',')
-                .map((s) => s.trim().replace(/"/g, '').toLowerCase());
+              dbColumns = match[1].split(',').map((s) => s.trim().replace(/"/g, '').toLowerCase());
             }
             const desiredColumns = idx.columns.map((col) => col.toLowerCase()).sort();
             const currentColumns = dbColumns.sort();
@@ -519,7 +580,6 @@ export default class Model {
         }
       }
 
-      // 3. Set UID Comments on Columns.
       for (const [fieldName, fieldDef] of Object.entries(schema)) {
         if (fieldDef.uid) {
           const quotedFieldName = this._quoteIdentifier(fieldName);
@@ -546,7 +606,6 @@ export default class Model {
     if (fieldDef.sql) {
       return `${this._quoteIdentifier(fieldName)} ${fieldDef.sql}`;
     }
-
     let sql = `${this._quoteIdentifier(fieldName)} `;
     switch (fieldDef.type.toLowerCase()) {
       case 'string':
@@ -647,7 +706,7 @@ export default class Model {
       case 'string':
       case 'varchar':
       case 'text':
-        return "''"; // empty string
+        return "''";
       case 'integer':
       case 'int':
       case 'bigint':
@@ -665,9 +724,7 @@ export default class Model {
     }
   }
 
-  // Add this helper function to your Model class:
   static _getIndexName(indexDef) {
-    // If the index name already starts with the table name (case-insensitive), use it as-is.
     const prefix = this.tableName.toLowerCase() + '_';
     if (indexDef.name.toLowerCase().startsWith(prefix)) {
       return indexDef.name;
@@ -675,4 +732,15 @@ export default class Model {
     return `${this.tableName}_${indexDef.name}`;
   }
 
+  static _processOnGet(row) {
+    const schema = this.getSchema();
+    const processedRow = { ...row };
+    for (const key in processedRow) {
+      const fieldTemplate = schema[key];
+      if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
+        processedRow[key] = fieldTemplate.onGet(processedRow[key]);
+      }
+    }
+    return processedRow;
+  }
 }

@@ -1,9 +1,18 @@
 import Field from '../../lib/orm/Field.js';
 
+/**
+ * A custom field class for storing names, extending the base Field class.
+ * This field enforces a fixed type ('varchar') and length (10), with optional
+ * overrides for 'required' and 'default'.
+ *
+ * @param {Object} options - Configuration options.
+ * @param {boolean} [options.required=false] - Whether the field is required.
+ * @param {string} [options.default] - Default value if none is provided.
+ */
 class NameField extends Field {
     constructor(options = {}) {
         const fixedProperties = {
-            uid: 'b0868557-fcab-4d9d-8e58-bacbb143e649',
+            uid: '{b0868557-fcab-4d9d-8e58-bacbb143e649}',
             type: 'varchar',
             length: 10,
         };
@@ -19,19 +28,30 @@ class NameField extends Field {
             usage: 'Name of a person',
         };
 
-        super({ ...fixedProperties, ...allowedOverrides });
+        // Merge fixed properties and allowed overrides, set field name to 'Name'
+        super({ ...fixedProperties, ...allowedOverrides }, 'Name');
     }
 
+    /**
+     * Custom setter logic: trims the string value if provided.
+     *
+     * @param {any} value - The value to transform.
+     * @returns {any} The transformed value.
+     */
     onSet(value) {
-        // Custom setter logic
         if (typeof value === 'string') {
-            value = value.trim();
+            return value.trim();
         }
         return value;
     }
 
+    /**
+     * Custom getter logic: currently a no-op, but can be extended.
+     *
+     * @param {any} value - The value to transform.
+     * @returns {any} The transformed value.
+     */
     onGet(value) {
-        // Custom getter logic
         return value;
     }
 }
