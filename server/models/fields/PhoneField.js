@@ -17,7 +17,7 @@ class PhoneField extends Field {
             uid: '{2880f18c-87a7-4ca9-9029-64969bfb4335}',
             type: 'string',
             length: 15,
-            pattern: /^\+?\d{10,15}$/, // e.g. allows an optional '+' followed by 10 to 15 digits
+            //pattern: /^\+?\d{10,15}$/, // e.g. allows an optional '+' followed by 10 to 15 digits
         };
 
         // Only allow `required` and `default` to be overridden.

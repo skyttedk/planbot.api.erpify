@@ -14,7 +14,7 @@ class NameField extends Field {
         const fixedProperties = {
             uid: '{b0868557-fcab-4d9d-8e58-bacbb143e649}',
             type: 'varchar',
-            length: 10,
+            length: 50,
         };
 
         const allowedOverrides = {

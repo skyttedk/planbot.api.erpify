@@ -174,7 +174,7 @@ export default class Model {
         try {
           schema[key].validate(value);
         } catch (error) {
-          throw new Error(`Validation failed for field '${key}': ${error.message}`);
+          throw new Error(`Validation failed for field '${key}' in table '${this.tableName}': ${error.message}`);
         }
       }
     }
@@ -199,19 +199,24 @@ export default class Model {
       VALUES (${params.join(', ')})
       RETURNING *
     `;
-    const result = await this.query(query, values, client);
-    if (typeof this.onAfterCreate === 'function') {
-      await this.onAfterCreate(result[0]);
-    }
-    const record = result[0];
-    for (const key in record) {
-      const fieldTemplate = schema[key];
-      if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
-        record[key] = fieldTemplate.onGet(record[key]);
+    try {
+      const result = await this.query(query, values, client);
+      if (typeof this.onAfterCreate === 'function') {
+        await this.onAfterCreate(result[0]);
       }
+      const record = result[0];
+      for (const key in record) {
+        const fieldTemplate = schema[key];
+        if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
+          record[key] = fieldTemplate.onGet(record[key]);
+        }
+      }
+      return record;
+    } catch (error) {
+      throw new Error(`Failed to create record in table '${this.tableName}': ${error.message}\nData: ${JSON.stringify(data)}`);
     }
-    return record;
   }
+
 
   /**
    * Updates a single record in the database by its primary key.
@@ -228,7 +233,7 @@ export default class Model {
         try {
           schema[key].validate(value);
         } catch (error) {
-          throw new Error(`Validation failed for field '${key}': ${error.message}`);
+          throw new Error(`Validation failed for field '${key}' in table '${this.tableName}': ${error.message}`);
         }
       }
     }
@@ -246,7 +251,7 @@ export default class Model {
     }
     const updateKeys = Object.keys(processedData).filter(k => k !== this.primaryKey);
     if (updateKeys.length === 0) {
-      throw new Error('No data provided for update');
+      throw new Error(`No data provided for update in table '${this.tableName}'`);
     }
     const setClause = updateKeys
       .map((k, i) => `${this._quoteIdentifier(k)} = $${i + 1}`)
@@ -259,21 +264,25 @@ export default class Model {
       WHERE ${this._quoteIdentifier(this.primaryKey)} = $${updateKeys.length + 1}
       RETURNING *
     `;
-    const result = await this.query(query, values, client);
-    if (result.length === 0) {
-      return null;
-    }
-    if (typeof this.onAfterUpdate === 'function') {
-      await this.onAfterUpdate(result[0]);
-    }
-    const record = result[0];
-    for (const key in record) {
-      const fieldTemplate = schema[key];
-      if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
-        record[key] = fieldTemplate.onGet(record[key]);
+    try {
+      const result = await this.query(query, values, client);
+      if (result.length === 0) {
+        return null;
       }
+      if (typeof this.onAfterUpdate === 'function') {
+        await this.onAfterUpdate(result[0]);
+      }
+      const record = result[0];
+      for (const key in record) {
+        const fieldTemplate = schema[key];
+        if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
+          record[key] = fieldTemplate.onGet(record[key]);
+        }
+      }
+      return record;
+    } catch (error) {
+      throw new Error(`Failed to update record with ID '${id}' in table '${this.tableName}': ${error.message}\nData: ${JSON.stringify(data)}`);
     }
-    return record;
   }
 
   static async delete(id, client = null) {
@@ -292,21 +301,74 @@ export default class Model {
     return result;
   }
 
+  /**
+ * Deletes all records from the table, invoking hooks for each record if defined.
+ * @param {Object} [client=null] - An optional database client for use within an existing transaction.
+ * @returns {Object[]} An array of deleted records.
+ * @throws {Error} If a database error occurs or hooks fail.
+ */
+  static async deleteBatch(client = null) {
+    const quotedTableName = this._quoteIdentifier(this.tableName);
+
+    // If hooks are defined, fetch all records to trigger hooks per record
+    if (typeof this.onBeforeDelete === 'function' || typeof this.onAfterDelete === 'function') {
+      const records = await this.find({}, {}, client);
+      if (records.length === 0) return [];
+
+      // Trigger onBeforeDelete for each record
+      if (typeof this.onBeforeDelete === 'function') {
+        for (const record of records) {
+          await this.onBeforeDelete(record[this.primaryKey]);
+        }
+      }
+
+      // Delete all records
+      const query = `DELETE FROM ${quotedTableName} RETURNING *`;
+      const result = await this.query(query, [], client);
+      const deletedRecords = result.map(row => this._processOnGet(row));
+
+      // Trigger onAfterDelete for each record
+      if (typeof this.onAfterDelete === 'function') {
+        for (const record of deletedRecords) {
+          await this.onAfterDelete([record]); // Match the signature of delete(id)
+        }
+      }
+
+      return deletedRecords;
+    } else {
+      // No hooks, perform a simple bulk delete
+      const query = `DELETE FROM ${quotedTableName} RETURNING *`;
+      const result = await this.query(query, [], client);
+      return result.map(row => this._processOnGet(row));
+    }
+  }
+
   static async createBatch(dataArray, client = null) {
     if (!Array.isArray(dataArray) || dataArray.length === 0) {
-      throw new Error('dataArray must be a non-empty array');
+      throw new Error(`dataArray must be a non-empty array for batch create in table '${this.tableName}'`);
     }
     const baseKeys = Object.keys(dataArray[0]).sort();
     for (const data of dataArray) {
       const keys = Object.keys(data).sort();
       if (baseKeys.join(',') !== keys.join(',')) {
-        throw new Error('All objects in dataArray must have the same keys');
+        throw new Error(`All objects in dataArray must have the same keys for batch create in table '${this.tableName}'`);
+      }
+      const schema = this.getSchema();
+      for (const [key, value] of Object.entries(data)) {
+        if (schema[key] && typeof schema[key].validate === 'function') {
+          try {
+            schema[key].validate(value);
+          } catch (error) {
+            throw new Error(`Validation failed for field '${key}' in table '${this.tableName}' during batch create: ${error.message}\nData: ${JSON.stringify(data)}`);
+          }
+        }
       }
     }
     const processedArray = dataArray.map((data) => {
       const newObj = {};
+      const schema = this.getSchema();
       for (const key in data) {
-        const fieldTemplate = this.fields && this.fields[key];
+        const fieldTemplate = schema[key];
         if (fieldTemplate && typeof fieldTemplate.onSet === 'function') {
           newObj[key] = fieldTemplate.onSet(data[key]);
         } else {
@@ -331,17 +393,24 @@ export default class Model {
       VALUES ${rowsPlaceholders.join(', ')}
       RETURNING *
     `;
-    const result = await this.query(query, values, client);
-    return result.map((record) => {
-      for (const key in record) {
-        const fieldTemplate = this.fields && this.fields[key];
-        if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
-          record[key] = fieldTemplate.onGet(record[key]);
+    try {
+      const result = await this.query(query, values, client);
+      return result.map((record) => {
+        const schema = this.getSchema();
+        for (const key in record) {
+          const fieldTemplate = schema[key];
+          if (fieldTemplate && typeof fieldTemplate.onGet === 'function') {
+            record[key] = fieldTemplate.onGet(record[key]);
+          }
         }
-      }
-      return record;
-    });
+        return record;
+      });
+    } catch (error) {
+      throw new Error(`Failed to batch create records in table '${this.tableName}': ${error.message}\nData: ${JSON.stringify(dataArray)}`);
+    }
   }
+
+
 
   /* ==================== Query Helpers ==================== */
 
@@ -366,13 +435,30 @@ export default class Model {
   }
 
   static async query(text, params, client = null) {
+    const tableName = this.tableName || 'unknown_table'; // Fallback if not set
     if (client) {
       try {
         const result = await client.query(text, params);
         return result.rows;
       } catch (error) {
-        console.error('Database query error (transaction client):', { text, params, error });
-        throw error;
+        // Enhance error with query context
+        const enhancedError = new Error(
+          `Database error in table '${tableName}': ${error.message}\nQuery: ${text}\nParameters: ${JSON.stringify(params)}`
+        );
+        // Attempt to extract field name from PostgreSQL error
+        if (error.column) {
+          enhancedError.field = error.column;
+          enhancedError.message += `\nProblematic field: '${error.column}'`;
+        } else if (error.detail) {
+          const match = error.detail.match(/column "([^"]+)"/i);
+          if (match) {
+            enhancedError.field = match[1];
+            enhancedError.message += `\nProblematic field: '${match[1]}'`;
+          }
+        }
+        enhancedError.originalError = error;
+        console.error('Database query error (transaction client):', { tableName, text, params, error });
+        throw enhancedError;
       }
     } else {
       const clientFromPool = await pool.connect();
@@ -380,8 +466,22 @@ export default class Model {
         const result = await clientFromPool.query(text, params);
         return result.rows;
       } catch (error) {
-        console.error('Database query error:', { text, params, error });
-        throw error;
+        const enhancedError = new Error(
+          `Database error in table '${tableName}': ${error.message}\nQuery: ${text}\nParameters: ${JSON.stringify(params)}`
+        );
+        if (error.column) {
+          enhancedError.field = error.column;
+          enhancedError.message += `\nProblematic field: '${error.column}'`;
+        } else if (error.detail) {
+          const match = error.detail.match(/column "([^"]+)"/i);
+          if (match) {
+            enhancedError.field = match[1];
+            enhancedError.message += `\nProblematic field: '${match[1]}'`;
+          }
+        }
+        enhancedError.originalError = error;
+        console.error('Database query error:', { tableName, text, params, error });
+        throw enhancedError;
       } finally {
         clientFromPool.release();
       }

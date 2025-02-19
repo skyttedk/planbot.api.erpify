@@ -2,6 +2,8 @@ import { WebSocketServer } from 'ws';
 import pool from './config/db.js';
 import Models from './models/index.js';
 
+import runExamples from '../ai.design.desc/server.orm.model/examples.js';
+
 async function handleClientConnection(ws) {
   console.log('Client connected');
 
@@ -62,6 +64,8 @@ async function handleClientConnection(ws) {
 async function main() {
   const wss = new WebSocketServer({ port: 8011 });
   console.log('WebSocket server running on ws://localhost:8011');
+
+
 
   wss.on('connection', handleClientConnection);
 
