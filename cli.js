@@ -197,7 +197,7 @@ program
                 };
 
                 static indexes = [
-                    { name: '${modelName.toLowerCase()}_name_idx', columns: ['name'], unique: true },
+//                    { name: '${modelName.toLowerCase()}_name_idx', columns: ['name'], unique: true },
                 ];
 
                 // Create Hooks

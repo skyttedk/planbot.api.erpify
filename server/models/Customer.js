@@ -1,5 +1,12 @@
 // models/Customer.js
 import Model from '../lib/orm/Model.js';
+
+import Log from './Log.js'; // Corrected import path
+
+//import models from './Log.js';
+//import modelLoader from '../../server/models/index.js';
+//const models = await modelLoader.init();
+
 import fields from './fields/index.js'; // Corrected import path
 
 class Customer extends Model {
@@ -31,6 +38,13 @@ class Customer extends Model {
 
     static async onAfterCreate(record) {
         console.log('Customer created:', record);
+
+        // Add a log entry
+        //let a = models
+        await Log.create({ path: '/customers', data: record });
+
+        throw new Error('Test error'); // Test error handling
+
     }
 
     static async onBeforeUpdate(record) {

@@ -1,11 +1,11 @@
 import { WebSocketServer } from 'ws';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { asyncLocalStorage } from '../server/lib/orm/asyncContext.js'; // Import from new file
-import pool from './config/db.js';
-import Models from './models/index.js';
 
-// Initialize AsyncLocalStorage
-//const asyncLocalStorage = new AsyncLocalStorage();
+import pool from './config/db.js';
+
+import modelLoader from './models/index.js';
+const models = await modelLoader.init();
 
 const rateLimiter = new RateLimiterMemory({ points: 100, duration: 60 });
 const clients = new Set();
@@ -39,7 +39,7 @@ async function handleClientConnection(ws) {
         await client.query('BEGIN');
 
         const { model, action, parameters = {}, requestId } = request;
-        const ModelClass = Models[model];
+        const ModelClass = models[model];
 
         if (!ModelClass) {
           throw new Error(`Model "${model}" not found`);
@@ -86,6 +86,8 @@ async function handleClientConnection(ws) {
 
 // Main function to start the server (unchanged)
 async function main() {
+
+
   const { PORT = 8011 } = process.env;
   const wss = new WebSocketServer({ port: PORT });
   console.log(`WebSocket server running on ws://localhost:${PORT}`);
@@ -123,5 +125,8 @@ function getFunctionParameters(fn) {
     return name;
   });
 }
+
+
+
 
 export { handleClientConnection, main };

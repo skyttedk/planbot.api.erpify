@@ -1,10 +1,10 @@
 import Model from '../lib/orm/Model.js';
 import fields from './fields/index.js'; // Import field definitions
 
-import Log2 from './Log2.js'; // Corrected import path
+import Log from './Log.js'; // Corrected import path
 
-class Log extends Model {
-    static tableName = 'logs';
+class Log2 extends Model {
+    static tableName = 'logs_2';
 
     static fields = {
         path: new fields.PathField(),
@@ -25,10 +25,6 @@ class Log extends Model {
 
     static async onAfterCreate(record) {
         console.log('onAfterCreate: Log record created:', record);
-
-        // Add a log entry
-        Log2.create({ path: '/logs', data: record });
-
         return record;
     }
 
@@ -58,4 +54,4 @@ class Log extends Model {
     }
 }
 
-export default Log;
+export default Log2;
