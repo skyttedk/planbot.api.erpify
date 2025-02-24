@@ -24,18 +24,22 @@ class Customer extends Model {
     // Hooks
     // --------------------------
 
-    static async onBeforeCreate(data) {
-        console.log('Before creating customer:', data);
-        return data;
+    static async onBeforeCreate(record) {
+        console.log('Before creating customer:', record);
+        return record;
     }
 
     static async onAfterCreate(record) {
         console.log('Customer created:', record);
     }
 
-    static async onBeforeUpdate(data) {
-        console.log('Before updating customer:', data);
-        return data;
+    static async onBeforeUpdate(record) {
+        console.log('Before updating customer:', record);
+        //record.age += 1; // Increment age
+
+        this.fields.age.validate(1); // Validate age
+
+        return record;
     }
 
     static async onAfterUpdate(record) {

@@ -14,10 +14,12 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "async_hooks": "^1.0.0",
     "lit": "file:",
     "mssql": "^11.0.1",
     "ora": "^8.2.0",
     "pg": "^8.13.1",
+    "rate-limiter-flexible": "^5.0.5",
     "ws": "^8.18.0"
   },
   "devDependencies": {

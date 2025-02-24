@@ -19,12 +19,9 @@
     "allowDelete": true,
     "allowModify": true,
     "fields": {
-      "customerId": {
-        "editable": false
-      },
-      "email": {
-        "editable": true
-      }
+      "customerId": { "editable": false },
+      "email": { "editable": true },
+      "phone": { "editable": true }
     }
   },
   "menu": [
@@ -50,6 +47,24 @@
         {
           "caption": { "key": "menu.exportData", "default": "Export Data" },
           "action": "exportData"
+        },
+        {
+          "caption": { "key": "menu.viewOrders", "default": "View Orders" },
+          "action": "viewOrders"
+        },
+        {
+          "caption": {
+            "key": "menu.generateInvoice",
+            "default": "Generate Invoice"
+          },
+          "action": "generateInvoice"
+        },
+        {
+          "caption": {
+            "key": "menu.sendWelcomeEmail",
+            "default": "Send Welcome Email"
+          },
+          "action": "sendWelcomeEmail"
         }
       ]
     }
@@ -83,9 +98,7 @@
             "required": true,
             "maxLength": 50,
             "defaultValue": "",
-            "events": {
-              "onChange": "validateName"
-            }
+            "events": { "onChange": "validateName" }
           },
           {
             "name": "email",
@@ -94,9 +107,139 @@
             "required": true,
             "defaultValue": "",
             "pattern": "^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+$",
-            "events": {
-              "onChange": "validateEmail"
-            }
+            "events": { "onChange": "validateEmail" }
+          },
+          {
+            "name": "phone",
+            "caption": { "key": "field.phone", "default": "Phone Number" },
+            "type": "text",
+            "required": false,
+            "defaultValue": "",
+            "pattern": "^\\+?[0-9]{10,15}$",
+            "events": { "onChange": "validatePhone" }
+          },
+          {
+            "name": "dateOfBirth",
+            "caption": {
+              "key": "field.dateOfBirth",
+              "default": "Date of Birth"
+            },
+            "type": "date",
+            "required": false,
+            "defaultValue": "",
+            "localeFormat": "MM/DD/YYYY",
+            "events": { "onChange": "calculateAge" }
+          },
+          {
+            "name": "preferredContact",
+            "caption": {
+              "key": "field.preferredContact",
+              "default": "Preferred Contact Method"
+            },
+            "type": "select",
+            "required": false,
+            "options": [
+              {
+                "value": "email",
+                "label": { "key": "option.email", "default": "Email" }
+              },
+              {
+                "value": "phone",
+                "label": { "key": "option.phone", "default": "Phone" }
+              },
+              {
+                "value": "mail",
+                "label": { "key": "option.mail", "default": "Mail" }
+              }
+            ],
+            "defaultValue": "email"
+          },
+          {
+            "name": "language",
+            "caption": {
+              "key": "field.language",
+              "default": "Preferred Language"
+            },
+            "type": "select",
+            "required": false,
+            "options": [
+              {
+                "value": "en",
+                "label": { "key": "option.english", "default": "English" }
+              },
+              {
+                "value": "es",
+                "label": { "key": "option.spanish", "default": "Spanish" }
+              },
+              {
+                "value": "fr",
+                "label": { "key": "option.french", "default": "French" }
+              }
+            ],
+            "defaultValue": "en"
+          },
+          {
+            "name": "salesRep",
+            "caption": {
+              "key": "field.salesRep",
+              "default": "Sales Representative"
+            },
+            "type": "lookup",
+            "required": false,
+            "dataSource": "employees",
+            "displayField": "name",
+            "valueField": "id",
+            "defaultValue": null
+          },
+          {
+            "name": "customerSince",
+            "caption": {
+              "key": "field.customerSince",
+              "default": "Customer Since"
+            },
+            "type": "date",
+            "readOnly": true,
+            "defaultValue": "",
+            "localeFormat": "MM/DD/YYYY"
+          },
+          {
+            "name": "lastOrderDate",
+            "caption": {
+              "key": "field.lastOrderDate",
+              "default": "Last Order Date"
+            },
+            "type": "date",
+            "readOnly": true,
+            "defaultValue": "",
+            "localeFormat": "MM/DD/YYYY"
+          },
+          {
+            "name": "status",
+            "caption": { "key": "field.status", "default": "Status" },
+            "type": "select",
+            "required": true,
+            "options": [
+              {
+                "value": "active",
+                "label": { "key": "option.active", "default": "Active" }
+              },
+              {
+                "value": "inactive",
+                "label": { "key": "option.inactive", "default": "Inactive" }
+              }
+            ],
+            "defaultValue": "active"
+          },
+          {
+            "name": "isBusiness",
+            "caption": {
+              "key": "field.isBusiness",
+              "default": "Is Business Customer"
+            },
+            "type": "checkbox",
+            "required": false,
+            "defaultValue": false,
+            "events": { "onChange": "toggleBusinessInfo" }
           }
         ]
       },
@@ -107,6 +250,30 @@
           "default": "Address Information"
         },
         "fields": [
+          {
+            "name": "addressType",
+            "caption": {
+              "key": "field.addressType",
+              "default": "Address Type"
+            },
+            "type": "select",
+            "required": true,
+            "options": [
+              {
+                "value": "home",
+                "label": { "key": "option.home", "default": "Home" }
+              },
+              {
+                "value": "business",
+                "label": { "key": "option.business", "default": "Business" }
+              },
+              {
+                "value": "other",
+                "label": { "key": "option.other", "default": "Other" }
+              }
+            ],
+            "defaultValue": "home"
+          },
           {
             "name": "streetAddress",
             "caption": {
@@ -138,6 +305,27 @@
             "required": true,
             "defaultValue": "",
             "maxLength": 10
+          },
+          {
+            "name": "country",
+            "caption": { "key": "field.country", "default": "Country" },
+            "type": "select",
+            "required": true,
+            "options": [
+              {
+                "value": "us",
+                "label": { "key": "option.us", "default": "United States" }
+              },
+              {
+                "value": "ca",
+                "label": { "key": "option.ca", "default": "Canada" }
+              },
+              {
+                "value": "uk",
+                "label": { "key": "option.uk", "default": "United Kingdom" }
+              }
+            ],
+            "defaultValue": "us"
           }
         ]
       },
@@ -171,9 +359,7 @@
               }
             ],
             "defaultValue": "free",
-            "events": {
-              "onChange": "handleSubscriptionChange"
-            }
+            "events": { "onChange": "handleSubscriptionChange" }
           },
           {
             "name": "subscriptionStartDate",
@@ -192,6 +378,129 @@
                 "value": "free"
               }
             }
+          },
+          {
+            "name": "subscriptionEndDate",
+            "caption": {
+              "key": "field.subscriptionEndDate",
+              "default": "End Date"
+            },
+            "type": "date",
+            "required": false,
+            "defaultValue": "",
+            "localeFormat": "MM/DD/YYYY",
+            "conditional": {
+              "showWhen": {
+                "field": "subscriptionType",
+                "operator": "notEquals",
+                "value": "free"
+              }
+            }
+          },
+          {
+            "name": "paymentMethod",
+            "caption": {
+              "key": "field.paymentMethod",
+              "default": "Payment Method"
+            },
+            "type": "select",
+            "required": false,
+            "options": [
+              {
+                "value": "creditCard",
+                "label": {
+                  "key": "option.creditCard",
+                  "default": "Credit Card"
+                }
+              },
+              {
+                "value": "paypal",
+                "label": { "key": "option.paypal", "default": "PayPal" }
+              },
+              {
+                "value": "bankTransfer",
+                "label": {
+                  "key": "option.bankTransfer",
+                  "default": "Bank Transfer"
+                }
+              }
+            ],
+            "defaultValue": "",
+            "conditional": {
+              "showWhen": {
+                "field": "subscriptionType",
+                "operator": "notEquals",
+                "value": "free"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "businessInfo",
+        "caption": {
+          "key": "group.businessInfo",
+          "default": "Business Information"
+        },
+        "conditional": {
+          "showWhen": {
+            "field": "isBusiness",
+            "operator": "equals",
+            "value": true
+          }
+        },
+        "fields": [
+          {
+            "name": "companyName",
+            "caption": {
+              "key": "field.companyName",
+              "default": "Company Name"
+            },
+            "type": "text",
+            "required": true,
+            "defaultValue": ""
+          },
+          {
+            "name": "taxId",
+            "caption": { "key": "field.taxId", "default": "Tax ID" },
+            "type": "text",
+            "required": false,
+            "defaultValue": ""
+          },
+          {
+            "name": "industry",
+            "caption": { "key": "field.industry", "default": "Industry" },
+            "type": "select",
+            "required": false,
+            "options": [
+              {
+                "value": "technology",
+                "label": { "key": "option.technology", "default": "Technology" }
+              },
+              {
+                "value": "finance",
+                "label": { "key": "option.finance", "default": "Finance" }
+              },
+              {
+                "value": "healthcare",
+                "label": { "key": "option.healthcare", "default": "Healthcare" }
+              }
+            ],
+            "defaultValue": ""
+          }
+        ]
+      },
+      {
+        "id": "notes",
+        "caption": { "key": "group.notes", "default": "Notes" },
+        "fields": [
+          {
+            "name": "notes",
+            "caption": { "key": "field.notes", "default": "Additional Notes" },
+            "type": "textarea",
+            "required": false,
+            "defaultValue": "",
+            "maxLength": 1000
           }
         ]
       }

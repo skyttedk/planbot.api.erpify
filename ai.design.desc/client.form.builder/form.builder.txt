@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ERP Record - Enhanced Window</title>
+  <title>ERP Record - Dynamic Form Builder</title>
   <style>
     /* Global Reset */
     * {
@@ -84,15 +84,12 @@
     .menu-bar a:hover {
       color: #bdc3c7;
     }
-    /* Submenu styles */
     .menu-bar li ul {
       position: absolute;
       top: 100%;
       left: 0;
       background: #34495e;
-      list-style: none;
       padding: 5px 0;
-      margin: 0;
       border-radius: 4px;
       display: none;
       min-width: 120px;
@@ -108,27 +105,22 @@
       font-size: 13px;
       display: block;
     }
-    .menu-bar li ul li a:hover {
-      color: #bdc3c7;
-    }
-    /* Additional Submenu Example under Actions */
     .menu-bar li ul li ul {
       top: 0;
       left: 100%;
       margin-left: 1px;
-      border-radius: 4px;
       display: none;
     }
     .menu-bar li ul li:hover > ul {
       display: block;
     }
-    /* Window Body (flexible) */
+    /* Window Body */
     .window-body {
       flex: 1;
       padding: 10px 20px;
       overflow-y: auto;
     }
-    /* Window Footer / Info Bar */
+    /* Window Footer */
     .window-footer {
       background: #f9f9f9;
       border-top: 1px solid #ddd;
@@ -139,7 +131,7 @@
       align-items: center;
       justify-content: space-between;
     }
-    /* Compact Multi-Section Form Styles */
+    /* Dynamic Form Styles */
     form {
       font-size: 13px;
     }
@@ -159,12 +151,12 @@
       grid-template-columns: 1fr 1fr;
       gap: 8px 15px;
     }
-    .full-width {
-      grid-column: span 2;
-    }
     .form-group {
       display: flex;
       align-items: center;
+    }
+    .form-group.full-width {
+      grid-column: span 2;
     }
     .form-group label {
       width: 100px;
@@ -205,7 +197,7 @@
       text-align: center;
       margin-top: 8px;
     }
-    /* Resize Handle (Bottom Right) */
+    /* Resize Handle */
     .resize-handle {
       position: absolute;
       width: 16px;
@@ -220,15 +212,13 @@
 </head>
 <body>
   <div class="window" id="recordWindow">
-    <!-- Window Header -->
     <div class="window-header" id="windowHeader">
-      <h2>Record: Data Entry</h2>
+      <h2 id="formTitle">Record: Data Entry</h2>
       <div class="window-controls">
-        <button title="Minimize" id="minimizeBtn">&#x2015;</button>
-        <button title="Close" id="closeBtn">&#x2715;</button>
+        <button title="Minimize" id="minimizeBtn">―</button>
+        <button title="Close" id="closeBtn">✕</button>
       </div>
     </div>
-    <!-- In-window Menu Bar with Submenus -->
     <nav class="menu-bar">
       <ul>
         <li>
@@ -249,13 +239,6 @@
           <ul>
             <li><a href="#">Sales Report</a></li>
             <li><a href="#">Inventory Report</a></li>
-            <li>
-              <a href="#">Custom</a>
-              <ul>
-                <li><a href="#">Report 1</a></li>
-                <li><a href="#">Report 2</a></li>
-              </ul>
-            </li>
           </ul>
         </li>
         <li>
@@ -267,168 +250,390 @@
         </li>
       </ul>
     </nav>
-    <!-- Window Body -->
     <div class="window-body" id="windowBody">
-      <form id="recordForm" novalidate>
-        <!-- General Information Group -->
-        <div class="form-section">
-          <div class="section-title">General Information</div>
-          <div class="field-grid">
-            <div class="form-group">
-              <label for="firstName">First Name</label>
-              <input type="text" id="firstName" name="firstName" required />
-            </div>
-            <div class="form-group">
-              <label for="lastName">Last Name</label>
-              <input type="text" id="lastName" name="lastName" required />
-            </div>
-            <div class="form-group">
-              <label for="dob">DOB</label>
-              <input type="date" id="dob" name="dob" />
-            </div>
-            <div class="form-group">
-              <label for="gender">Gender</label>
-              <select id="gender" name="gender">
-                <option value="">Select</option>
-                <option>Male</option>
-                <option>Female</option>
-                <option>Other</option>
-              </select>
-            </div>
-          </div>
-        </div>
-        <!-- Address Group -->
-        <div class="form-section">
-          <div class="section-title">Address</div>
-          <div class="field-grid">
-            <div class="form-group full-width">
-              <label for="address1">Address 1</label>
-              <input type="text" id="address1" name="address1" required />
-            </div>
-            <div class="form-group full-width">
-              <label for="address2">Address 2</label>
-              <input type="text" id="address2" name="address2" />
-            </div>
-            <div class="form-group">
-              <label for="city">City</label>
-              <input type="text" id="city" name="city" required />
-            </div>
-            <div class="form-group">
-              <label for="state">State</label>
-              <input type="text" id="state" name="state" required />
-            </div>
-            <div class="form-group">
-              <label for="zip">Zip</label>
-              <input type="text" id="zip" name="zip" required />
-            </div>
-          </div>
-        </div>
-        <!-- Contact Details Group -->
-        <div class="form-section">
-          <div class="section-title">Contact Details</div>
-          <div class="field-grid">
-            <div class="form-group">
-              <label for="phone">Phone</label>
-              <input type="text" id="phone" name="phone" required />
-            </div>
-            <div class="form-group">
-              <label for="email">Email</label>
-              <input type="email" id="email" name="email" required />
-            </div>
-            <div class="form-group full-width">
-              <label for="website">Website</label>
-              <input type="url" id="website" name="website" />
-            </div>
-          </div>
-        </div>
-        <!-- Company Information Group -->
-        <div class="form-section">
-          <div class="section-title">Company Information</div>
-          <div class="field-grid">
-            <div class="form-group">
-              <label for="company">Company</label>
-              <input type="text" id="company" name="company" />
-            </div>
-            <div class="form-group">
-              <label for="department">Department</label>
-              <input type="text" id="department" name="department" />
-            </div>
-            <div class="form-group full-width">
-              <label for="position">Position</label>
-              <input type="text" id="position" name="position" />
-            </div>
-          </div>
-        </div>
-        <!-- Preferences Group -->
-        <div class="form-section">
-          <div class="section-title">Preferences</div>
-          <div class="field-grid">
-            <div class="form-group">
-              <label for="language">Language</label>
-              <select id="language" name="language">
-                <option value="">Select</option>
-                <option>English</option>
-                <option>Spanish</option>
-                <option>French</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="timezone">Timezone</label>
-              <select id="timezone" name="timezone">
-                <option value="">Select</option>
-                <option>GMT</option>
-                <option>EST</option>
-                <option>PST</option>
-              </select>
-            </div>
-          </div>
-        </div>
-        <button type="submit" class="submit-btn">Submit</button>
-        <div class="success" id="successMessage"></div>
-      </form>
+      <form id="recordForm" novalidate></form>
     </div>
-    <!-- Window Footer / Info Bar -->
     <div class="window-footer">
       <span id="infoText">Info: All changes saved.</span>
-      <span style="cursor: se-resize;">&#x2198;</span>
+      <span style="cursor: se-resize;">↘</span>
     </div>
-    <!-- Resize Handle (Bottom Right) -->
     <div class="resize-handle" id="resizeHandle"></div>
   </div>
 
   <script>
-    // --- Window Drag Functionality ---
+    // Embedded JSON Configuration
+    const formConfig = {
+      "id": "customerForm",
+      "caption": { "key": "customerForm.caption", "default": "Customer Details" },
+      "type": "form",
+      "dataSource": "customers",
+      "layout": {
+        "groups": [
+          {
+            "id": "generalInfo",
+            "caption": { "key": "group.generalInfo", "default": "General Information" },
+            "fields": [
+              {
+                "name": "customerId",
+                "caption": { "key": "field.customerId", "default": "Customer ID" },
+                "type": "text",
+                "required": true,
+                "maxLength": 10,
+                "events": { "change": "validateName" }
+              },
+              {
+                "name": "name",
+                "caption": { "key": "field.name", "default": "Name" },
+                "type": "text",
+                "required": true,
+                "maxLength": 100
+              },
+              {
+                "name": "email",
+                "caption": { "key": "field.email", "default": "Email" },
+                "type": "email",
+                "required": true,
+                "pattern": "[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$",
+                "events": { "blur": "validateEmail" }
+              },
+              {
+                "name": "subscriptionType",
+                "caption": { "key": "field.subscriptionType", "default": "Subscription Type" },
+                "type": "select",
+                "required": true,
+                "options": [
+                  { "value": "free", "label": { "key": "option.free", "default": "Free" } },
+                  { "value": "premium", "label": { "key": "option.premium", "default": "Premium" } },
+                  { "value": "enterprise", "label": { "key": "option.enterprise", "default": "Enterprise" } }
+                ],
+                "defaultValue": "free",
+                "events": { "change": "handleSubscriptionChange" }
+              }
+            ]
+          },
+          {
+            "id": "billingInfo",
+            "caption": { "key": "group.billingInfo", "default": "Billing Information" },
+            "fields": [
+              {
+                "name": "billingContact",
+                "caption": { "key": "field.billingContact", "default": "Billing Contact" },
+                "type": "text",
+                "required": true,
+                "conditional": {
+                  "showWhen": { "field": "subscriptionType", "operator": "notEquals", "value": "free" }
+                }
+              },
+              {
+                "name": "paymentTerms",
+                "caption": { "key": "field.paymentTerms", "default": "Payment Terms" },
+                "type": "select",
+                "options": [
+                  { "value": "net30", "label": { "key": "option.net30", "default": "Net 30" } },
+                  { "value": "net60", "label": { "key": "option.net60", "default": "Net 60" } }
+                ],
+                "defaultValue": "net30",
+                "conditional": {
+                  "showWhen": { "field": "subscriptionType", "operator": "notEquals", "value": "free" }
+                }
+              }
+            ]
+          },
+          {
+            "id": "businessInfo",
+            "caption": { "key": "group.businessInfo", "default": "Business Information" },
+            "conditional": {
+              "showWhen": { "field": "isBusiness", "operator": "equals", "value": true }
+            },
+            "fields": [
+              {
+                "name": "companyName",
+                "caption": { "key": "field.companyName", "default": "Company Name" },
+                "type": "text",
+                "required": false
+              },
+              {
+                "name": "taxId",
+                "caption": { "key": "field.taxId", "default": "Tax ID" },
+                "type": "text",
+                "required": false
+              }
+            ]
+          },
+          {
+            "id": "additionalInfo",
+            "caption": { "key": "group.additionalInfo", "default": "Additional Information" },
+            "fields": [
+              {
+                "name": "isBusiness",
+                "caption": { "key": "field.isBusiness", "default": "Business Customer" },
+                "type": "checkbox",
+                "defaultValue": false
+              },
+              {
+                "name": "startDate",
+                "caption": { "key": "field.startDate", "default": "Start Date" },
+                "type": "date",
+                "required": false,
+                "localeFormat": "YYYY-MM-DD"
+              },
+              {
+                "name": "comments",
+                "caption": { "key": "field.comments", "default": "Comments" },
+                "type": "textarea",
+                "required": false,
+                "maxLength": 500
+              },
+              {
+                "name": "salesRep",
+                "caption": { "key": "field.salesRep", "default": "Sales Representative" },
+                "type": "lookup",
+                "required": false,
+                "dataSource": "employees",
+                "displayField": "name",
+                "valueField": "id",
+                "defaultValue": null
+              }
+            ]
+          }
+        ]
+      },
+      "permissions": {
+        "fields": {
+          "customerId": { "editable": false },
+          "email": { "editable": true },
+          "billingContact": { "editable": true }
+        }
+      }
+    };
+
+    // Placeholder Event Handlers
+    function validateName() {
+      console.log('Validating customer ID');
+    }
+    function validateEmail() {
+      console.log('Validating email');
+    }
+    function handleSubscriptionChange() {
+      console.log('Subscription type changed');
+    }
+
+    // Generate Dynamic Form
+    function generateForm(config) {
+      const form = document.getElementById('recordForm');
+      const fieldMap = {};
+      const groupMap = {};
+
+      // Set form title
+      document.getElementById('formTitle').textContent = `Record: ${config.caption.default}`;
+
+      // Generate form sections based on groups
+      config.layout.groups.forEach(group => {
+        const section = document.createElement('div');
+        section.className = 'form-section';
+        section.id = group.id;
+        groupMap[group.id] = section;
+
+        const title = document.createElement('div');
+        title.className = 'section-title';
+        title.textContent = group.caption.default;
+        section.appendChild(title);
+
+        const grid = document.createElement('div');
+        grid.className = 'field-grid';
+        section.appendChild(grid);
+
+        group.fields.forEach(field => {
+          const groupDiv = document.createElement('div');
+          groupDiv.className = 'form-group';
+          if (field.fullWidth) {
+            groupDiv.classList.add('full-width');
+          }
+
+          const label = document.createElement('label');
+          label.htmlFor = field.name;
+          label.textContent = field.caption.default;
+          groupDiv.appendChild(label);
+
+          let input;
+          switch (field.type) {
+            case 'text':
+              input = document.createElement('input');
+              input.type = 'text';
+              break;
+            case 'email':
+              input = document.createElement('input');
+              input.type = 'email';
+              break;
+            case 'date':
+              input = document.createElement('input');
+              input.type = 'date';
+              break;
+            case 'checkbox':
+              input = document.createElement('input');
+              input.type = 'checkbox';
+              break;
+            case 'textarea':
+              input = document.createElement('textarea');
+              break;
+            case 'select':
+              input = document.createElement('select');
+              field.options.forEach(option => {
+                const opt = document.createElement('option');
+                opt.value = option.value;
+                opt.textContent = option.label.default;
+                input.appendChild(opt);
+              });
+              break;
+            case 'lookup':
+              input = document.createElement('select');
+              // Mock options for lookup (replace with actual data fetch in production)
+              const mockOptions = [
+                { id: '1', name: 'John Doe' },
+                { id: '2', name: 'Jane Smith' }
+              ];
+              mockOptions.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt[field.valueField];
+                option.textContent = opt[field.displayField];
+                input.appendChild(option);
+              });
+              break;
+            default:
+              input = document.createElement('input');
+              input.type = 'text';
+          }
+
+          input.id = field.name;
+          input.name = field.name;
+
+          // Apply field properties
+          if (field.required) input.required = true;
+          if (field.maxLength) input.maxLength = field.maxLength;
+          if (field.pattern) input.pattern = field.pattern;
+          if (field.defaultValue !== undefined && field.defaultValue !== null) {
+            if (field.type === 'checkbox') {
+              input.checked = field.defaultValue;
+            } else {
+              input.value = field.defaultValue;
+            }
+          }
+          if (config.permissions.fields && config.permissions.fields[field.name] && config.permissions.fields[field.name].editable === false) {
+            input.readOnly = true;
+          }
+
+          groupDiv.appendChild(input);
+          grid.appendChild(groupDiv);
+          fieldMap[field.name] = input;
+        });
+
+        form.appendChild(section);
+      });
+
+      // Add Submit Button
+      const submitBtn = document.createElement('button');
+      submitBtn.type = 'submit';
+      submitBtn.className = 'submit-btn';
+      submitBtn.textContent = 'Submit';
+      form.appendChild(submitBtn);
+
+      const successDiv = document.createElement('div');
+      successDiv.id = 'successMessage';
+      successDiv.className = 'success';
+      form.appendChild(successDiv);
+
+      // Setup Conditional Logic
+      config.layout.groups.forEach(group => {
+        // Group-level conditions
+        if (group.conditional) {
+          const condition = group.conditional.showWhen;
+          const triggerField = fieldMap[condition.field];
+          if (triggerField) {
+            triggerField.addEventListener('change', () => {
+              const triggerValue = triggerField.type === 'checkbox' ? triggerField.checked : triggerField.value;
+              const conditionValue = condition.value;
+              let shouldShow = triggerValue == conditionValue;
+              if (condition.operator === 'notEquals') {
+                shouldShow = !shouldShow;
+              }
+              groupMap[group.id].style.display = shouldShow ? 'block' : 'none';
+            });
+            triggerField.dispatchEvent(new Event('change'));
+          }
+        }
+
+        // Field-level conditions
+        group.fields.forEach(field => {
+          if (field.conditional) {
+            const condition = field.conditional.showWhen;
+            const triggerField = fieldMap[condition.field];
+            if (triggerField) {
+              const dependentFieldDiv = fieldMap[field.name].parentElement;
+              triggerField.addEventListener('change', () => {
+                const triggerValue = triggerField.type === 'checkbox' ? triggerField.checked : triggerField.value;
+                const conditionValue = condition.value;
+                let shouldShow = triggerValue == conditionValue;
+                if (condition.operator === 'notEquals') {
+                  shouldShow = !shouldShow;
+                }
+                dependentFieldDiv.style.display = shouldShow ? 'flex' : 'none';
+              });
+              triggerField.dispatchEvent(new Event('change'));
+            }
+          }
+        });
+      });
+
+      // Attach Event Listeners
+      config.layout.groups.forEach(group => {
+        group.fields.forEach(field => {
+          if (field.events) {
+            for (const [event, funcName] of Object.entries(field.events)) {
+              const input = fieldMap[field.name];
+              if (input && window[funcName]) {
+                input.addEventListener(event, window[funcName]);
+              }
+            }
+          }
+        });
+      });
+    }
+
+    // Initialize Form
+    generateForm(formConfig);
+
+    // Window Drag Functionality
     (function() {
       const windowEl = document.getElementById('recordWindow');
       const header = document.getElementById('windowHeader');
       let offsetX, offsetY, isDragging = false;
-      
+
       header.addEventListener('mousedown', function(e) {
         isDragging = true;
         offsetX = e.clientX - windowEl.offsetLeft;
         offsetY = e.clientY - windowEl.offsetTop;
         document.body.style.userSelect = 'none';
       });
-      
+
       document.addEventListener('mousemove', function(e) {
         if (isDragging) {
           windowEl.style.left = (e.clientX - offsetX) + 'px';
           windowEl.style.top = (e.clientY - offsetY) + 'px';
         }
       });
-      
+
       document.addEventListener('mouseup', function() {
         isDragging = false;
         document.body.style.userSelect = 'auto';
       });
     })();
 
-    // --- Window Resizing Functionality ---
+    // Window Resizing Functionality
     (function() {
       const windowEl = document.getElementById('recordWindow');
       const handle = document.getElementById('resizeHandle');
       let isResizing = false, startX, startY, startWidth, startHeight;
-      
+
       handle.addEventListener('mousedown', function(e) {
         isResizing = true;
         startX = e.clientX;
@@ -438,7 +643,7 @@
         e.preventDefault();
         e.stopPropagation();
       });
-      
+
       document.addEventListener('mousemove', function(e) {
         if (!isResizing) return;
         let newWidth = startWidth + e.clientX - startX;
@@ -446,22 +651,21 @@
         windowEl.style.width = (newWidth > 300 ? newWidth : 300) + 'px';
         windowEl.style.height = (newHeight > 400 ? newHeight : 400) + 'px';
       });
-      
+
       document.addEventListener('mouseup', function() {
         isResizing = false;
       });
     })();
 
-    // --- Minimize & Close Functionality ---
+    // Minimize & Close Functionality
     (function() {
       const minimizeBtn = document.getElementById('minimizeBtn');
       const closeBtn = document.getElementById('closeBtn');
       const windowBody = document.getElementById('windowBody');
       const menuBar = document.querySelector('.menu-bar');
       const windowFooter = document.querySelector('.window-footer');
-      
+
       minimizeBtn.addEventListener('click', function() {
-        // Toggle visibility of the window body, menu bar, and footer
         if (windowBody.style.display === 'none') {
           windowBody.style.display = 'block';
           menuBar.style.display = 'block';
@@ -472,24 +676,30 @@
           windowFooter.style.display = 'none';
         }
       });
-      
+
       closeBtn.addEventListener('click', function() {
         document.getElementById('recordWindow').classList.add('hidden');
       });
     })();
 
-    // --- Simple Form Submission Handling ---
+    // Form Submission Handling
     (function() {
       const form = document.getElementById('recordForm');
       const successMessage = document.getElementById('successMessage');
-      
-      form.addEventListener('submit', function (e) {
+
+      form.addEventListener('submit', function(e) {
         e.preventDefault();
         successMessage.textContent = '';
-        
+
         if (form.checkValidity()) {
+          const formData = new FormData(form);
+          const data = {};
+          for (const [key, value] of formData.entries()) {
+            data[key] = value;
+          }
+          console.log('Form Data:', data);
           successMessage.textContent = 'Form submitted successfully!';
-          form.reset();
+          // Optionally reset form: form.reset();
         } else {
           form.reportValidity();
         }
