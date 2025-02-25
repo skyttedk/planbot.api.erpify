@@ -1,3 +1,5 @@
+
+<!--
 our client is communication with the server through sockets.
 
 We need to create a robust production grade comunication itnerface, for connecting to server,
@@ -9,7 +11,7 @@ will handle all communication woith server.
 
 
 
-
+-->
 
 
 

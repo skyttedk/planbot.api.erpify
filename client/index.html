@@ -2,108 +2,17 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <title>Dynamic Customer Form</title>
-  <script type="module">
-    const ws = new WebSocket('ws://localhost:8011');
-
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      // Request the Customer schema when connection opens
-      ws.send(JSON.stringify({
-        action: "getSchema",
-        model: "Customer",
-        requestId: "req-get-schema"
-      }));
-    };
-
-    let schema = null;
-    ws.onmessage = (event) => {
-      const response = JSON.parse(event.data);
-      console.log('Received:', response);
-
-      // Check if this is the schema response
-      if (response.success && response.result && response.requestId === "req-get-schema") {
-        schema = response.result;
-        buildForm(schema);
-      }
-      // You can also handle responses for record creation here
-      if (response.requestId === "req-create-customer") {
-        alert("Customer created successfully!");
-      }
-    };
-
-    // Dynamically create form inputs based on the schema
-    function buildForm(schema) {
-      const container = document.getElementById('formContainer');
-      container.innerHTML = ''; // Clear any existing content
-
-      // Loop through each field in the schema
-      for (const field in schema) {
-        // Optionally skip system fields
-        if (["id", "createdAt", "updatedAt"].includes(field)) continue;
-
-        const fieldDef = schema[field];
-
-        const label = document.createElement('label');
-        label.textContent = field;
-        label.htmlFor = field;
-
-        let input;
-        // Map data types to input types
-        if (fieldDef.type === 'integer' || fieldDef.type === 'numeric') {
-          input = document.createElement('input');
-          input.type = 'number';
-        } else if (fieldDef.type === 'varchar' || fieldDef.type === 'string' || fieldDef.type === 'text') {
-          input = document.createElement('input');
-          input.type = 'text';
-        } else {
-          input = document.createElement('input');
-          input.type = 'text';
-        }
-
-        input.id = field;
-        input.name = field;
-        if (fieldDef.required) {
-          input.required = true;
-        }
-
-        container.appendChild(label);
-        container.appendChild(input);
-        container.appendChild(document.createElement('br'));
-      }
-    }
-
-    // Handle form submission: gather values and send a create record message
-    window.submitForm = function submitForm() {
-      const formData = {};
-      const container = document.getElementById('formContainer');
-      const inputs = container.querySelectorAll('input');
-
-      inputs.forEach(input => {
-        formData[input.name] = input.value;
-      });
-
-      const message = {
-        action: "create",
-        model: "Customer",
-        data: formData,
-        requestId: "req-create-customer",
-        timestamp: new Date().toISOString()
-      };
-
-      ws.send(JSON.stringify(message));
-      console.log('Create message sent:', message);
-    };
-  </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ERP Desktop - Dynamic Window and Form Builder</title>
+  <link rel="stylesheet" href="css/styles.css" />
 </head>
 
 <body>
-  <h1>Dynamic Customer Form</h1>
-  <div id="formContainer">
-    <!-- Form fields will be generated here -->
-  </div>
-  <button onclick="submitForm()">Submit</button>
+  <!-- Desktop container where windows will be dynamically added -->
+  <div id="desktop"></div>
+  <!-- Load the main application logic as an ES6 module -->
+  <script type="module" src="js/main.js"></script>
 </body>
 
 </html>

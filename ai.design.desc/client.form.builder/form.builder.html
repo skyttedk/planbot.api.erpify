@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ERP Record - Dynamic Form Builder</title>
+  <title>ERP Record - Dynamic Form Builder with Two-Way Data Binding</title>
   <style>
     /* Global Reset */
     * {
@@ -11,6 +12,7 @@
       margin: 0;
       padding: 0;
     }
+
     body {
       font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
       background: #ecf0f1;
@@ -19,6 +21,7 @@
       overflow: hidden;
       position: relative;
     }
+
     /* Draggable, Resizable Window Container */
     .window {
       position: absolute;
@@ -35,9 +38,11 @@
       display: flex;
       flex-direction: column;
     }
+
     .window.hidden {
       display: none;
     }
+
     .window-header {
       background: #2c3e50;
       color: #fff;
@@ -48,10 +53,12 @@
       justify-content: space-between;
       user-select: none;
     }
+
     .window-header h2 {
       font-size: 16px;
       margin: 0;
     }
+
     .window-controls button {
       background: transparent;
       border: none;
@@ -60,30 +67,36 @@
       margin-left: 5px;
       cursor: pointer;
     }
+
     /* In-window Menu Bar with Submenus */
     .menu-bar {
       background: #34495e;
       padding: 6px 12px;
       position: relative;
     }
+
     .menu-bar ul {
       list-style: none;
       display: flex;
       gap: 20px;
     }
+
     .menu-bar li {
       font-size: 14px;
       position: relative;
     }
+
     .menu-bar a {
       color: #ecf0f1;
       text-decoration: none;
       cursor: pointer;
       transition: color 0.3s;
     }
+
     .menu-bar a:hover {
       color: #bdc3c7;
     }
+
     .menu-bar li ul {
       position: absolute;
       top: 100%;
@@ -95,31 +108,38 @@
       min-width: 120px;
       z-index: 10;
     }
-    .menu-bar li:hover > ul {
+
+    .menu-bar li:hover>ul {
       display: block;
     }
+
     .menu-bar li ul li {
       padding: 4px 15px;
     }
+
     .menu-bar li ul li a {
       font-size: 13px;
       display: block;
     }
+
     .menu-bar li ul li ul {
       top: 0;
       left: 100%;
       margin-left: 1px;
       display: none;
     }
-    .menu-bar li ul li:hover > ul {
+
+    .menu-bar li ul li:hover>ul {
       display: block;
     }
+
     /* Window Body */
     .window-body {
       flex: 1;
       padding: 10px 20px;
       overflow-y: auto;
     }
+
     /* Window Footer */
     .window-footer {
       background: #f9f9f9;
@@ -131,13 +151,16 @@
       align-items: center;
       justify-content: space-between;
     }
+
     /* Dynamic Form Styles */
     form {
       font-size: 13px;
     }
+
     .form-section {
       margin-bottom: 15px;
     }
+
     .section-title {
       font-size: 14px;
       font-weight: bold;
@@ -146,36 +169,51 @@
       padding-bottom: 3px;
       color: #2c3e50;
     }
+
     .field-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px 15px;
     }
+
     .form-group {
       display: flex;
       align-items: center;
     }
+
     .form-group.full-width {
       grid-column: span 2;
     }
+
     .form-group label {
       width: 100px;
       margin-right: 5px;
       font-size: 13px;
     }
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
+
+    .form-group bindable-input {
       flex: 1;
       padding: 4px 6px;
       border: 1px solid #ccc;
       border-radius: 4px;
       font-size: 13px;
     }
-    .form-group textarea {
+
+    .form-group bindable-input::part(input),
+    .form-group bindable-input::part(textarea),
+    .form-group bindable-input::part(select) {
+      width: 100%;
+      padding: 4px 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .form-group bindable-input::part(textarea) {
       resize: vertical;
       min-height: 50px;
     }
+
     button.submit-btn {
       padding: 8px 14px;
       font-size: 14px;
@@ -188,15 +226,18 @@
       display: block;
       margin: 10px auto 0;
     }
+
     button.submit-btn:hover {
       background: #34495e;
     }
+
     .success {
       color: #27ae60;
       font-size: 14px;
       text-align: center;
       margin-top: 8px;
     }
+
     /* Resize Handle */
     .resize-handle {
       position: absolute;
@@ -210,6 +251,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="window" id="recordWindow">
     <div class="window-header" id="windowHeader">
@@ -261,7 +303,184 @@
   </div>
 
   <script>
-    // Embedded JSON Configuration
+    // Define the BindableInput custom element
+    class BindableInput extends HTMLElement {
+      constructor() {
+        super();
+        this.attachShadow({ mode: 'open' });
+        this._record = null;
+        this._field = null;
+        this._debounceDelay = 300;
+        this._createInput();
+      }
+
+      static get observedAttributes() {
+        return ['type', 'field', 'debounce', 'options', 'aria-label'];
+      }
+
+      attributeChangedCallback(name, oldValue, newValue) {
+        switch (name) {
+          case 'type':
+            if (oldValue !== newValue) {
+              this._createInput();
+              this.updateValue();
+            }
+            break;
+          case 'field':
+            this._field = newValue;
+            this.updateValue();
+            break;
+          case 'debounce':
+            this._debounceDelay = Number(newValue) || 300;
+            break;
+          case 'options':
+            if (this.getAttribute('type') === 'select') {
+              this._createInput();
+              this.updateValue();
+            }
+            break;
+          case 'aria-label':
+            if (this.inputElement) {
+              this.inputElement.setAttribute('aria-label', newValue);
+            }
+            break;
+        }
+      }
+
+      connectedCallback() {
+        if (this.hasAttribute('field')) {
+          this._field = this.getAttribute('field');
+        }
+        if (this.hasAttribute('debounce')) {
+          this._debounceDelay = Number(this.getAttribute('debounce')) || 300;
+        }
+      }
+
+      disconnectedCallback() {
+        if (this.inputElement) {
+          this.inputElement.removeEventListener('input', this._inputHandler);
+          this.inputElement.removeEventListener('change', this._inputHandler);
+        }
+      }
+
+      _createInput() {
+        if (this.inputElement && this.shadowRoot.contains(this.inputElement)) {
+          this.inputElement.removeEventListener('input', this._inputHandler);
+          this.inputElement.removeEventListener('change', this._inputHandler);
+          this.shadowRoot.removeChild(this.inputElement);
+        }
+        const inputType = this.getAttribute('type') || 'text';
+        this._inputHandler = this._debounce(() => this.onInput(), this._debounceDelay);
+
+        if (inputType === 'textarea') {
+          this.inputElement = document.createElement('textarea');
+          this.inputElement.addEventListener('input', this._inputHandler);
+        } else if (inputType === 'select') {
+          this.inputElement = document.createElement('select');
+          let options = [];
+          try {
+            const optionsAttr = this.getAttribute('options');
+            options = optionsAttr ? JSON.parse(optionsAttr) : [];
+          } catch (e) {
+            console.error('Invalid JSON for options attribute', e);
+          }
+          options.forEach(opt => {
+            const optionEl = document.createElement('option');
+            optionEl.value = opt.value;
+            optionEl.textContent = opt.label;
+            this.inputElement.appendChild(optionEl);
+          });
+          this.inputElement.addEventListener('change', this._inputHandler);
+        } else {
+          this.inputElement = document.createElement('input');
+          this.inputElement.type = inputType;
+          if (inputType === 'checkbox' || inputType === 'radio') {
+            this.inputElement.addEventListener('change', this._inputHandler);
+          } else {
+            this.inputElement.addEventListener('input', this._inputHandler);
+          }
+        }
+        if (this.hasAttribute('aria-label')) {
+          this.inputElement.setAttribute('aria-label', this.getAttribute('aria-label'));
+        }
+        this.shadowRoot.appendChild(this.inputElement);
+      }
+
+      _debounce(fn, delay) {
+        let timeoutId;
+        return () => {
+          clearTimeout(timeoutId);
+          timeoutId = setTimeout(fn, delay);
+        };
+      }
+
+      set record(newRecord) {
+        if (typeof newRecord !== 'object' || newRecord === null) {
+          console.error('record must be a non-null object');
+          return;
+        }
+        this._record = newRecord;
+        this.updateValue();
+      }
+
+      get record() {
+        return this._record;
+      }
+
+      set field(fieldName) {
+        if (typeof fieldName !== 'string' || !fieldName.trim()) {
+          console.error('field must be a non-empty string');
+          return;
+        }
+        this._field = fieldName;
+        this.setAttribute('field', fieldName);
+        this.updateValue();
+      }
+
+      get field() {
+        return this._field;
+      }
+
+      updateValue() {
+        if (!this._record || !this._field) {
+          return;
+        }
+        const inputType = this.getAttribute('type') || 'text';
+        if (inputType === 'checkbox' || inputType === 'radio') {
+          const newChecked = !!this._record[this._field];
+          if (this.inputElement.checked !== newChecked) {
+            this.inputElement.checked = newChecked;
+          }
+        } else {
+          const newValue = (this._record[this._field] != null) ? this._record[this._field] : "";
+          if (this.inputElement.value !== newValue) {
+            this.inputElement.value = newValue;
+          }
+        }
+      }
+
+      onInput() {
+        if (!this._record || !this._field) {
+          console.error('Record or field not defined for input event');
+          return;
+        }
+        const inputType = this.getAttribute('type') || 'text';
+        let value;
+        if (inputType === 'checkbox' || inputType === 'radio') {
+          value = this.inputElement.checked;
+        } else {
+          value = this.inputElement.value;
+        }
+        this._record[this._field] = value;
+        this.dispatchEvent(new CustomEvent('data-changed', {
+          detail: { field: this._field, value }
+        }));
+      }
+    }
+
+    customElements.define('bindable-input', BindableInput);
+
+    // Embedded JSON Configuration (unchanged)
     const formConfig = {
       "id": "customerForm",
       "caption": { "key": "customerForm.caption", "default": "Customer Details" },
@@ -418,7 +637,10 @@
       console.log('Subscription type changed');
     }
 
-    // Generate Dynamic Form
+    // Shared data record
+    let record = {};
+
+    // Generate Dynamic Form with BindableInput
     function generateForm(config) {
       const form = document.getElementById('recordForm');
       const fieldMap = {};
@@ -455,72 +677,35 @@
           label.textContent = field.caption.default;
           groupDiv.appendChild(label);
 
-          let input;
-          switch (field.type) {
-            case 'text':
-              input = document.createElement('input');
-              input.type = 'text';
-              break;
-            case 'email':
-              input = document.createElement('input');
-              input.type = 'email';
-              break;
-            case 'date':
-              input = document.createElement('input');
-              input.type = 'date';
-              break;
-            case 'checkbox':
-              input = document.createElement('input');
-              input.type = 'checkbox';
-              break;
-            case 'textarea':
-              input = document.createElement('textarea');
-              break;
-            case 'select':
-              input = document.createElement('select');
-              field.options.forEach(option => {
-                const opt = document.createElement('option');
-                opt.value = option.value;
-                opt.textContent = option.label.default;
-                input.appendChild(opt);
-              });
-              break;
-            case 'lookup':
-              input = document.createElement('select');
+          // Create BindableInput
+          const input = document.createElement('bindable-input');
+          input.setAttribute('type', field.type === 'lookup' ? 'select' : field.type);
+          input.setAttribute('field', field.name);
+          input.setAttribute('aria-label', field.caption.default);
+          if (field.required) input.setAttribute('required', '');
+          if (field.maxLength) input.setAttribute('maxLength', field.maxLength);
+          if (field.pattern) input.setAttribute('pattern', field.pattern);
+          if (field.defaultValue !== undefined && field.defaultValue !== null) {
+            record[field.name] = field.defaultValue;
+          }
+          if (config.permissions.fields && config.permissions.fields[field.name] && config.permissions.fields[field.name].editable === false) {
+            input.setAttribute('readonly', '');
+          }
+          if (field.type === 'select' || field.type === 'lookup') {
+            let options = [];
+            if (field.type === 'lookup') {
               // Mock options for lookup (replace with actual data fetch in production)
               const mockOptions = [
                 { id: '1', name: 'John Doe' },
                 { id: '2', name: 'Jane Smith' }
               ];
-              mockOptions.forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt[field.valueField];
-                option.textContent = opt[field.displayField];
-                input.appendChild(option);
-              });
-              break;
-            default:
-              input = document.createElement('input');
-              input.type = 'text';
-          }
-
-          input.id = field.name;
-          input.name = field.name;
-
-          // Apply field properties
-          if (field.required) input.required = true;
-          if (field.maxLength) input.maxLength = field.maxLength;
-          if (field.pattern) input.pattern = field.pattern;
-          if (field.defaultValue !== undefined && field.defaultValue !== null) {
-            if (field.type === 'checkbox') {
-              input.checked = field.defaultValue;
+              options = mockOptions.map(opt => ({ value: opt[field.valueField], label: opt[field.displayField] }));
             } else {
-              input.value = field.defaultValue;
+              options = field.options.map(opt => ({ value: opt.value, label: opt.label.default }));
             }
+            input.setAttribute('options', JSON.stringify(options));
           }
-          if (config.permissions.fields && config.permissions.fields[field.name] && config.permissions.fields[field.name].editable === false) {
-            input.readOnly = true;
-          }
+          input.record = record;
 
           groupDiv.appendChild(input);
           grid.appendChild(groupDiv);
@@ -549,8 +734,8 @@
           const condition = group.conditional.showWhen;
           const triggerField = fieldMap[condition.field];
           if (triggerField) {
-            triggerField.addEventListener('change', () => {
-              const triggerValue = triggerField.type === 'checkbox' ? triggerField.checked : triggerField.value;
+            triggerField.addEventListener('data-changed', () => {
+              const triggerValue = record[condition.field];
               const conditionValue = condition.value;
               let shouldShow = triggerValue == conditionValue;
               if (condition.operator === 'notEquals') {
@@ -558,7 +743,7 @@
               }
               groupMap[group.id].style.display = shouldShow ? 'block' : 'none';
             });
-            triggerField.dispatchEvent(new Event('change'));
+            triggerField.dispatchEvent(new CustomEvent('data-changed'));
           }
         }
 
@@ -569,8 +754,8 @@
             const triggerField = fieldMap[condition.field];
             if (triggerField) {
               const dependentFieldDiv = fieldMap[field.name].parentElement;
-              triggerField.addEventListener('change', () => {
-                const triggerValue = triggerField.type === 'checkbox' ? triggerField.checked : triggerField.value;
+              triggerField.addEventListener('data-changed', () => {
+                const triggerValue = record[condition.field];
                 const conditionValue = condition.value;
                 let shouldShow = triggerValue == conditionValue;
                 if (condition.operator === 'notEquals') {
@@ -578,7 +763,7 @@
                 }
                 dependentFieldDiv.style.display = shouldShow ? 'flex' : 'none';
               });
-              triggerField.dispatchEvent(new Event('change'));
+              triggerField.dispatchEvent(new CustomEvent('data-changed'));
             }
           }
         });
@@ -603,38 +788,38 @@
     generateForm(formConfig);
 
     // Window Drag Functionality
-    (function() {
+    (function () {
       const windowEl = document.getElementById('recordWindow');
       const header = document.getElementById('windowHeader');
       let offsetX, offsetY, isDragging = false;
 
-      header.addEventListener('mousedown', function(e) {
+      header.addEventListener('mousedown', function (e) {
         isDragging = true;
         offsetX = e.clientX - windowEl.offsetLeft;
         offsetY = e.clientY - windowEl.offsetTop;
         document.body.style.userSelect = 'none';
       });
 
-      document.addEventListener('mousemove', function(e) {
+      document.addEventListener('mousemove', function (e) {
         if (isDragging) {
           windowEl.style.left = (e.clientX - offsetX) + 'px';
           windowEl.style.top = (e.clientY - offsetY) + 'px';
         }
       });
 
-      document.addEventListener('mouseup', function() {
+      document.addEventListener('mouseup', function () {
         isDragging = false;
         document.body.style.userSelect = 'auto';
       });
     })();
 
     // Window Resizing Functionality
-    (function() {
+    (function () {
       const windowEl = document.getElementById('recordWindow');
       const handle = document.getElementById('resizeHandle');
       let isResizing = false, startX, startY, startWidth, startHeight;
 
-      handle.addEventListener('mousedown', function(e) {
+      handle.addEventListener('mousedown', function (e) {
         isResizing = true;
         startX = e.clientX;
         startY = e.clientY;
@@ -644,7 +829,7 @@
         e.stopPropagation();
       });
 
-      document.addEventListener('mousemove', function(e) {
+      document.addEventListener('mousemove', function (e) {
         if (!isResizing) return;
         let newWidth = startWidth + e.clientX - startX;
         let newHeight = startHeight + e.clientY - startY;
@@ -652,20 +837,20 @@
         windowEl.style.height = (newHeight > 400 ? newHeight : 400) + 'px';
       });
 
-      document.addEventListener('mouseup', function() {
+      document.addEventListener('mouseup', function () {
         isResizing = false;
       });
     })();
 
     // Minimize & Close Functionality
-    (function() {
+    (function () {
       const minimizeBtn = document.getElementById('minimizeBtn');
       const closeBtn = document.getElementById('closeBtn');
       const windowBody = document.getElementById('windowBody');
       const menuBar = document.querySelector('.menu-bar');
       const windowFooter = document.querySelector('.window-footer');
 
-      minimizeBtn.addEventListener('click', function() {
+      minimizeBtn.addEventListener('click', function () {
         if (windowBody.style.display === 'none') {
           windowBody.style.display = 'block';
           menuBar.style.display = 'block';
@@ -677,34 +862,26 @@
         }
       });
 
-      closeBtn.addEventListener('click', function() {
+      closeBtn.addEventListener('click', function () {
         document.getElementById('recordWindow').classList.add('hidden');
       });
     })();
 
     // Form Submission Handling
-    (function() {
+    (function () {
       const form = document.getElementById('recordForm');
       const successMessage = document.getElementById('successMessage');
 
-      form.addEventListener('submit', function(e) {
+      form.addEventListener('submit', function (e) {
         e.preventDefault();
         successMessage.textContent = '';
 
-        if (form.checkValidity()) {
-          const formData = new FormData(form);
-          const data = {};
-          for (const [key, value] of formData.entries()) {
-            data[key] = value;
-          }
-          console.log('Form Data:', data);
-          successMessage.textContent = 'Form submitted successfully!';
-          // Optionally reset form: form.reset();
-        } else {
-          form.reportValidity();
-        }
+        // Since we're using two-way binding, the record is already updated
+        console.log('Form Data:', record);
+        successMessage.textContent = 'Form submitted successfully!';
       });
     })();
   </script>
 </body>
+
 </html>

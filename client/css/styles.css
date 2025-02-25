@@ -1,0 +1,247 @@
+/* Global Reset */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  background: #ecf0f1;
+  color: #333;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Draggable, Resizable Window Container */
+.window {
+  position: absolute;
+  top: 50px;
+  left: 50px;
+  width: 700px;
+  min-width: 300px;
+  min-height: 400px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+.window.hidden {
+  display: none;
+}
+
+.window-header {
+  background: #2c3e50;
+  color: #fff;
+  padding: 8px 12px;
+  cursor: move;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.window-header h2 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.window-controls button {
+  background: transparent;
+  border: none;
+  color: #ecf0f1;
+  font-size: 16px;
+  margin-left: 5px;
+  cursor: pointer;
+}
+
+/* In-window Menu Bar with Submenus */
+.menu-bar {
+  background: #34495e;
+  padding: 6px 12px;
+  position: relative;
+}
+
+.menu-bar ul {
+  list-style: none;
+  display: flex;
+  gap: 20px;
+}
+
+.menu-bar li {
+  font-size: 14px;
+  position: relative;
+}
+
+.menu-bar a {
+  color: #ecf0f1;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+.menu-bar a:hover {
+  color: #bdc3c7;
+}
+
+.menu-bar li ul {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: #34495e;
+  padding: 5px 0;
+  border-radius: 4px;
+  display: none;
+  min-width: 120px;
+  z-index: 10;
+}
+
+.menu-bar li:hover > ul {
+  display: block;
+}
+
+.menu-bar li ul li {
+  padding: 4px 15px;
+}
+
+.menu-bar li ul li a {
+  font-size: 13px;
+  display: block;
+}
+
+.menu-bar li ul li ul {
+  top: 0;
+  left: 100%;
+  margin-left: 1px;
+  display: none;
+}
+
+.menu-bar li ul li:hover > ul {
+  display: block;
+}
+
+/* Window Body */
+.window-body {
+  flex: 1;
+  padding: 10px 20px;
+  overflow-y: auto;
+}
+
+/* Window Footer */
+.window-footer {
+  background: #f9f9f9;
+  border-top: 1px solid #ddd;
+  padding: 5px 10px;
+  font-size: 13px;
+  color: #555;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Dynamic Form Styles */
+form {
+  font-size: 13px;
+}
+
+.form-section {
+  margin-bottom: 15px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 3px;
+  color: #2c3e50;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 15px;
+}
+
+.form-group {
+  display: flex;
+  align-items: center;
+}
+
+.form-group.full-width {
+  grid-column: span 2;
+}
+
+.form-group label {
+  width: 100px;
+  margin-right: 5px;
+  font-size: 13px;
+}
+
+/* Remove border/padding from the host element */
+.form-group bindable-input {
+  flex: 1;
+  padding: 0; /* Remove extra padding */
+  border: none; /* No border here */
+  border-radius: 4px; /* Retain border-radius if needed */
+  /* Optionally, add a subtle outer effect with box-shadow if desired */
+  /* box-shadow: 0 0 0 1px #ccc; */
+}
+
+/* Style only the inner element */
+.form-group bindable-input::part(input),
+.form-group bindable-input::part(textarea),
+.form-group bindable-input::part(select) {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #ccc; /* Single border only here */
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none; /* Remove default focus outline, if desired */
+}
+
+.form-group bindable-input::part(textarea) {
+  resize: vertical;
+  min-height: 50px;
+}
+
+button.submit-btn {
+  padding: 8px 14px;
+  font-size: 14px;
+  background: #2c3e50;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+  display: block;
+  margin: 10px auto 0;
+}
+
+button.submit-btn:hover {
+  background: #34495e;
+}
+
+.success {
+  color: #27ae60;
+  font-size: 14px;
+  text-align: center;
+  margin-top: 8px;
+}
+
+/* Resize Handle */
+.resize-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  right: 0;
+  bottom: 0;
+  cursor: se-resize;
+  background: transparent;
+  z-index: 101;
+}
