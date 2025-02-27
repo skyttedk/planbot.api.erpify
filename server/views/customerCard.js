@@ -14,31 +14,23 @@ export const customerCardForm = {
                       {
                         "name": "name",
                         "caption": { "key": "field.name", "default": "Name" },
-                        "type": "text",
-                        "required": true,
-                        "maxLength": 100
+                        "type": "text"
                     },
                     {
                         "name": "email",
                         "caption": { "key": "field.email", "default": "Email" },
                         "type": "email",
-                        "required": true,
-                        "pattern": "[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$",
                         "events": { "blur": "validateEmail" }
                     },
                     {
                         "name": "phone",
                         "caption": { "key": "field.phone", "default": "Phone" },
-                        "type": "tel",
-                        "required": true,
-                        "pattern": "^[0-9]{10}$"
+                        "type": "tel"
                     },
                     {
                         "name": "zip",
                         "caption": { "key": "field.zip", "default": "Zip" },
-                        "type": "text",
-                        "required": true,
-                        "pattern": "^[0-9]{5}$"
+                        "type": "text"
                     }
                     
                 ]

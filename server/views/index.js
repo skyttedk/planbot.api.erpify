@@ -21,6 +21,9 @@ class ViewLoader {
                 const viewName = path.basename(file, '.js');
                 const { default: view } = await import(`./${file}`);
                 
+                // Apply model validation properties to view fields
+                this._applyModelValidationToView(view, models);
+                
                 // Validate the view's fields against model schema
                 const validationResult = this._validateViewFields(view, models, viewName);
                 if (validationResult.valid) {
@@ -41,6 +44,95 @@ class ViewLoader {
         }
 
         return views;
+    }
+
+    /**
+     * Applies validation properties from the model to the view fields
+     * @param {Object|Array|Function} view - The view configuration object, array, or function
+     * @param {Object} models - All available models
+     */
+    _applyModelValidationToView(view, models) {
+        // Skip processing if view is a function (dynamically generated)
+        if (typeof view === 'function') {
+            return;
+        }
+        
+        // Process an array of window configurations
+        if (Array.isArray(view)) {
+            for (const windowConfig of view) {
+                this._applyValidationToWindowConfig(windowConfig, models);
+            }
+            return;
+        }
+        
+        // Process a single window configuration
+        this._applyValidationToWindowConfig(view, models);
+    }
+
+    /**
+     * Applies validation properties to fields in a window configuration
+     * @param {Object} windowConfig - Window configuration object
+     * @param {Object} models - All available models
+     */
+    _applyValidationToWindowConfig(windowConfig, models) {
+        // Check if this window has a form configuration
+        const formConfig = windowConfig.formConfig;
+        if (!formConfig) {
+            return;  // No form to process
+        }
+        
+        // Check if the form has a model specified
+        const modelName = formConfig.model;
+        if (!modelName) {
+            return;  // No model to get validation from
+        }
+        
+        // Check if the specified model exists
+        const ModelClass = models[modelName];
+        if (!ModelClass) {
+            return;
+        }
+        
+        // Get fields from the model
+        const modelFields = ModelClass.fields || {};
+        
+        // Process fields in form layout
+        if (formConfig.layout && formConfig.layout.groups) {
+            for (const group of formConfig.layout.groups) {
+                if (group.fields) {
+                    for (const field of group.fields) {
+                        // Skip processing for lookup fields with dataSource other than this model
+                        if (field.type === 'lookup' && field.dataSource && field.dataSource !== modelName) {
+                            continue;
+                        }
+                        
+                        const modelField = modelFields[field.name];
+                        if (modelField) {
+                            // Apply validation properties from model to view field
+                            // Only add properties that are not already defined in the view
+                            if (modelField.required !== undefined && field.required === undefined) {
+                                field.required = modelField.required;
+                            }
+                            
+                            if (modelField.length !== undefined && field.maxLength === undefined) {
+                                field.maxLength = modelField.length;
+                            }
+                            
+                            if (modelField.pattern !== undefined && field.pattern === undefined) {
+                                // Convert RegExp to string pattern if it exists
+                                if (modelField.pattern instanceof RegExp) {
+                                    const patternStr = modelField.pattern.toString();
+                                    // Extract the pattern between the forward slashes
+                                    field.pattern = patternStr.substring(1, patternStr.lastIndexOf('/'));
+                                } else if (typeof modelField.pattern === 'string') {
+                                    field.pattern = modelField.pattern;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /**
