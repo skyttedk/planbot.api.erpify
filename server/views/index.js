@@ -96,9 +96,33 @@ class ViewLoader {
         // Get fields from the model
         const modelFields = ModelClass.fields || {};
         
+        // Extract permissions to apply to individual fields
+        const fieldPermissions = {};
+        if (formConfig.permissions && formConfig.permissions.fields) {
+            Object.entries(formConfig.permissions.fields).forEach(([fieldName, permissions]) => {
+                fieldPermissions[fieldName] = permissions;
+            });
+            // Remove the separate permissions section after transferring
+            delete formConfig.permissions;
+        }
+        
         // Process fields in form layout
         if (formConfig.layout && formConfig.layout.groups) {
-            for (const group of formConfig.layout.groups) {
+            for (let i = 0; i < formConfig.layout.groups.length; i++) {
+                const group = formConfig.layout.groups[i];
+                
+                // Normalize group structure - support both new simple format and legacy format
+                // Convert caption object to plain string if needed
+                if (group.caption && typeof group.caption === 'object' && group.caption.default) {
+                    group.caption = group.caption.default;
+                }
+                
+                // Add auto-generated ID if missing
+                if (!group.id) {
+                    group.id = `group_${i + 1}`;
+                }
+                
+                // Process fields in the group
                 if (group.fields) {
                     for (const field of group.fields) {
                         // Skip processing for lookup fields with dataSource other than this model
@@ -106,8 +130,29 @@ class ViewLoader {
                             continue;
                         }
                         
+                        // Apply permissions directly to the field
+                        if (fieldPermissions[field.name]) {
+                            Object.assign(field, fieldPermissions[field.name]);
+                        }
+                        
+                        // Normalize field caption if needed
+                        if (field.caption && typeof field.caption === 'object' && field.caption.default) {
+                            field.caption = field.caption.default;
+                        }
+                        
                         const modelField = modelFields[field.name];
                         if (modelField) {
+                            // If caption is not defined in the view, use caption from model or generate from field name
+                            if (field.caption === undefined) {
+                                if (modelField.caption) {
+                                    // Use caption from model if available
+                                    field.caption = modelField.caption;
+                                } else {
+                                    // Auto-generate caption from field name
+                                    field.caption = this._generateCaptionFromFieldName(field.name);
+                                }
+                            }
+                            
                             // Apply validation properties from model to view field
                             // Only add properties that are not already defined in the view
                             if (modelField.required !== undefined && field.required === undefined) {
@@ -128,10 +173,65 @@ class ViewLoader {
                                     field.pattern = modelField.pattern;
                                 }
                             }
+                            
+                            // Generate field type from model if not already defined
+                            if (field.type === undefined && modelField.type !== undefined) {
+                                field.type = this._mapModelTypeToFieldType(modelField.type, modelField.constructor.name);
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Maps model data types to appropriate HTML input types
+     * @param {string} modelType - The data type from the model
+     * @param {string} fieldClassName - The class name of the field (for special cases)
+     * @returns {string} The corresponding HTML input type
+     */
+    _mapModelTypeToFieldType(modelType, fieldClassName) {
+        // First check for special field classes that should override the type
+        switch (fieldClassName) {
+            case 'Email':
+                return 'email';
+            case 'PhoneField':
+                return 'tel';
+            case 'ZipField':
+                return 'text'; // Most ZIP codes need text format for leading zeros
+        }
+        
+        // Then check by data type
+        switch (modelType.toLowerCase()) {
+            case 'string':
+            case 'varchar':
+            case 'text':
+                return 'text';
+            case 'integer':
+            case 'int':
+            case 'bigint':
+            case 'numeric':
+            case 'float':
+            case 'double':
+                return 'number';
+            case 'boolean':
+                return 'checkbox';
+            case 'date':
+                return 'date';
+            case 'timestamp':
+            case 'datetime':
+                return 'datetime-local';
+            case 'time':
+                return 'time';
+            case 'password':
+                return 'password';
+            case 'color':
+                return 'color';
+            case 'url':
+                return 'url';
+            default:
+                return 'text'; // Default to text input for unknown types
         }
     }
 
@@ -205,6 +305,7 @@ class ViewLoader {
         // Check fields in form layout
         if (formConfig.layout && formConfig.layout.groups) {
             for (const group of formConfig.layout.groups) {
+                // Normalize field structure - support both new simple format and legacy format
                 if (group.fields) {
                     for (const field of group.fields) {
                         // Skip validation for lookup fields with dataSource other than this model
@@ -232,6 +333,21 @@ class ViewLoader {
         }
         
         return result;
+    }
+
+    /**
+     * Generates a caption from a field name
+     * @param {string} fieldName - The name of the field
+     * @returns {string} The generated caption
+     */
+    _generateCaptionFromFieldName(fieldName) {
+        if (!fieldName) return '';
+        
+        // Replace underscores with spaces and capitalize each word
+        return fieldName
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
     }
 }
 

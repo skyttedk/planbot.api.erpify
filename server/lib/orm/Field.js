@@ -13,6 +13,7 @@ import crypto from 'crypto'; // Ensure this import is available if using Node.js
  * @param {number} [options.precision] - Precision for numeric fields.
  * @param {number} [options.scale] - Scale for numeric fields.
  * @param {string} [options.uid] - Unique identifier for the field (must be provided manually).
+ * @param {string} [options.caption] - User-friendly caption for the field for UI display.
  * @param {function} [options.onSet] - Transformation function applied before saving.
  * @param {function} [options.onGet] - Transformation function applied after retrieval.
  * @param {string} [fieldName='Field'] - Name of the field for error reporting.
@@ -27,6 +28,7 @@ export default class Field {
         this.precision = options.precision;
         this.scale = options.scale;
         this.uid = options.uid; // UID must be provided manually
+        this.caption = options.caption; // User-friendly display name
         this.onSet = options.onSet || ((value) => value);
         this.onGet = options.onGet || ((value) => value);
         this.fieldName = fieldName;

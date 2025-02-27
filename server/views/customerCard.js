@@ -2,69 +2,48 @@
 
 export const customerCardForm = {
     "id": "customerForm",
-    "caption": { "key": "customerForm.caption", "default": "Customer Details" },
+    "caption": "Customer Details",
     "type": "form",
     "model": "Customer",
     "layout": {
         "groups": [
             {
-                "id": "generalInfo",
-                "caption": { "key": "group.generalInfo", "default": "General Information" },
+                "caption": "General Information",
                 "fields": [
-                      {
-                        "name": "name",
-                        "caption": { "key": "field.name", "default": "Name" },
-                        "type": "text"
+                    {
+                        "name": "name"
                     },
                     {
                         "name": "email",
-                        "caption": { "key": "field.email", "default": "Email" },
-                        "type": "email",
-                        "events": { "blur": "validateEmail" }
+                        "caption": "Email Address",
+                        "editable": false
                     },
                     {
-                        "name": "phone",
-                        "caption": { "key": "field.phone", "default": "Phone" },
-                        "type": "tel"
-                    },
-                    {
-                        "name": "zip",
-                        "caption": { "key": "field.zip", "default": "Zip" },
-                        "type": "text"
+                        "name": "phone"
                     }
-                    
                 ]
             },
             {
-                "id": "billingInfo",
-                "caption": { "key": "group.billingInfo", "default": "Billing Information" },
+                "caption": "Billing Information",
                 "fields": [
-                  
+                    {
+                        "name": "zip"
+                    }
                 ]
             },
             {
-                "id": "businessInfo",
-                "caption": { "key": "group.businessInfo", "default": "Business Information" },
-                "conditional": {
-                    "showWhen": { "field": "isBusiness", "operator": "equals", "value": true }
-                },
+                "caption": "Business Information",
                 "fields": [
-                  
+
                 ]
             },
             {
-                "id": "additionalInfo",
-                "caption": { "key": "group.additionalInfo", "default": "Additional Information" },
+                "caption": "Additional Information",
                 "fields": [
-                    
+
                 ]
             }
         ]
-    },
-    "permissions": {
-        "fields": {
-            "email": { "editable": true },
-        }
     }
 };
 

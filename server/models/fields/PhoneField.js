@@ -9,6 +9,7 @@ import Field from '../../lib/orm/Field.js';
  * @param {Object} options - Configuration options.
  * @param {boolean} [options.required=false] - Whether the field is required.
  * @param {string} [options.default] - Default value if none is provided.
+ * @param {string} [options.caption] - Caption for the field.
  */
 class PhoneField extends Field {
     constructor(options = {}) {
@@ -17,6 +18,7 @@ class PhoneField extends Field {
             uid: '{2880f18c-87a7-4ca9-9029-64969bfb4335}',
             type: 'string',
             length: 15,
+            caption: 'Phone Number',
             //pattern: /^\+?\d{10,15}$/, // e.g. allows an optional '+' followed by 10 to 15 digits
         };
 
@@ -24,6 +26,7 @@ class PhoneField extends Field {
         const allowedOverrides = {
             required: options.required,
             default: options.default,
+            caption: options.caption, // Allow caption to be overridden
         };
 
         const documentation = {

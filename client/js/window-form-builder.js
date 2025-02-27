@@ -151,7 +151,7 @@ export class WindowForm {
         // Form title inside the form (or you can display it in the window header)
         const formTitle = document.createElement('div');
         formTitle.id = 'formTitle';
-        formTitle.textContent = (formCfg.caption && formCfg.caption.default) || 'Form';
+        formTitle.textContent = formCfg.caption || 'Form';
         this.formElement.appendChild(formTitle);
 
         const fieldMap = {};
@@ -166,7 +166,7 @@ export class WindowForm {
 
             const title = document.createElement('div');
             title.className = 'section-title';
-            title.textContent = (group.caption && group.caption.default) || '';
+            title.textContent = group.caption || '';
             section.appendChild(title);
 
             const grid = document.createElement('div');
@@ -182,7 +182,7 @@ export class WindowForm {
 
                 const label = document.createElement('label');
                 label.htmlFor = field.name;
-                label.textContent = (field.caption && field.caption.default) || field.name;
+                label.textContent = field.caption || field.name;
                 groupDiv.appendChild(label);
 
                 // Create bindable-input element
@@ -192,7 +192,7 @@ export class WindowForm {
                 input.setAttribute('type', inputType);
                 input.setAttribute('field', field.name);
                 input.setAttribute('name', field.name);
-                input.setAttribute('aria-label', (field.caption && field.caption.default) || field.name);
+                input.setAttribute('aria-label', field.caption || field.name);
                 if (field.required) input.setAttribute('required', '');
                 if (field.maxLength) input.setAttribute('maxLength', field.maxLength);
                 if (field.pattern) input.setAttribute('pattern', field.pattern);
@@ -225,7 +225,7 @@ export class WindowForm {
                     } else {
                         options = field.options.map(opt => ({
                             value: opt.value,
-                            label: (opt.label && opt.label.default) || opt.value
+                            label: opt.caption || opt.label || opt.value
                         }));
                     }
                     input.setAttribute('options', JSON.stringify(options));
