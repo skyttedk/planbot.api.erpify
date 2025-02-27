@@ -9,6 +9,9 @@ export class WindowForm {
         this.record = {};
         this._createWindow();
         this._generateForm();
+        
+        // Load default record after form is generated
+        this._loadDefaultRecord();
     }
 
     _createWindow() {
@@ -188,6 +191,7 @@ export class WindowForm {
                 const inputType = (field.type === 'lookup') ? 'select' : field.type;
                 input.setAttribute('type', inputType);
                 input.setAttribute('field', field.name);
+                input.setAttribute('name', field.name);
                 input.setAttribute('aria-label', (field.caption && field.caption.default) || field.name);
                 if (field.required) input.setAttribute('required', '');
                 if (field.maxLength) input.setAttribute('maxLength', field.maxLength);
@@ -208,15 +212,16 @@ export class WindowForm {
                 if (field.type === 'select' || field.type === 'lookup') {
                     let options = [];
                     if (field.type === 'lookup') {
-                        // For lookup fields, you might fetch real data; here we use mock data
-                        const mockOptions = [
-                            { id: '1', name: 'John Doe' },
-                            { id: '2', name: 'Jane Smith' }
-                        ];
-                        options = mockOptions.map(opt => ({
-                            value: opt[field.valueField || 'id'],
-                            label: opt[field.displayField || 'name']
-                        }));
+                        // For lookup fields, we'll fetch data from the server
+                        // Set empty options initially, they will be populated when data is fetched
+                        options = [];
+                        
+                        // Request data from the server for this lookup field
+                        if (field.dataSource) {
+                            this._fetchLookupOptions(field, input);
+                        } else {
+                            console.warn(`Lookup field ${field.name} has no dataSource specified`);
+                        }
                     } else {
                         options = field.options.map(opt => ({
                             value: opt.value,
@@ -302,16 +307,102 @@ export class WindowForm {
         });
 
         // Set up auto-save functionality. Each bindable-input's "data-changed" event will trigger autoSave.
-        const autoSave = this._debounce(() => {
-            console.log("Auto-saving record", this.record);
+        const autoSave = this._debounce((event) => {
+            // Get the field that was changed from the event detail
+            const changedField = event?.detail?.field || event?.target?.name;
+            if (!changedField) {
+                console.warn("Auto-save triggered but couldn't determine which field changed");
+                return;
+            }
+            
+            // Get the model name from the form config
+            const modelName = formCfg.model;
+            if (!modelName) {
+                console.error("Cannot update record: model name is missing in form configuration");
+                this._showFormError("Cannot save: Form configuration is incomplete");
+                return;
+            }
+            
+            console.log(`Auto-saving field ${changedField} for model ${modelName}`, this.record[changedField]);
+            
+            // Get the record ID
+            const recordId = this.record.id;
+            if (!recordId) {
+                console.warn("Cannot update record: record ID is missing");
+                this._showFormError("Cannot save: No record ID found");
+                return;
+            }
+            
+            // Create an object with only the changed field
+            const changedData = {
+                [changedField]: this.record[changedField]
+            };
+            
+            // Show saving indicator
+            statusDiv.textContent = 'Saving...';
+            statusDiv.className = 'saving';
+            
+            // Set a timeout for the save operation
+            const saveTimeout = setTimeout(() => {
+                statusDiv.textContent = 'Save operation timed out';
+                statusDiv.className = 'error';
+                setTimeout(() => {
+                    statusDiv.textContent = '';
+                    statusDiv.className = '';
+                }, 3000);
+            }, 10000);
+            
+            // Generate a unique request ID for this update
+            const requestId = `req-update-${modelName}-${Date.now()}`;
+            
+            // Send the update request with the correct format for the server
+            // The server expects parameters as an object with id and data properties
             this.socketService.sendMessage({
-                action: 'updateRecord',
-                data: this.record,
-                requestId: `req-update-record-${this.config.windowId}`
+                type: 'model',
+                name: modelName,
+                action: 'update',
+                parameters: {
+                    id: recordId,
+                    data: changedData
+                },
+                requestId: requestId
             });
-            // Optionally show a brief "Saved" message
-            statusDiv.textContent = 'Record saved';
-            setTimeout(() => (statusDiv.textContent = ''), 1500);
+            
+            // Listen for the response to this specific update request
+            const responseHandler = (message) => {
+                if (message.requestId === requestId) {
+                    // Remove the listener and clear the timeout
+                    this.socketService.off('message', responseHandler);
+                    clearTimeout(saveTimeout);
+                    
+                    if (message.success) {
+                        // Update was successful
+                        statusDiv.textContent = 'Saved';
+                        statusDiv.className = 'success';
+                        setTimeout(() => {
+                            statusDiv.textContent = '';
+                            statusDiv.className = '';
+                        }, 1500);
+                        
+                        // Update record with any returned data from server
+                        if (message.result) {
+                            Object.assign(this.record, message.result);
+                        }
+                    } else {
+                        // Update failed
+                        console.error('Error updating record:', message.error);
+                        statusDiv.textContent = `Error: ${message.error || 'Save failed'}`;
+                        statusDiv.className = 'error';
+                        setTimeout(() => {
+                            statusDiv.textContent = '';
+                            statusDiv.className = '';
+                        }, 3000);
+                    }
+                }
+            };
+            
+            // Add the response handler
+            this.socketService.on('message', responseHandler);
         }, 500);
 
         // Attach auto-save listener to each field
@@ -323,11 +414,180 @@ export class WindowForm {
         this.body.appendChild(this.formElement);
     }
 
+    // Load the first record from the model
+    _loadDefaultRecord() {
+        const formCfg = this.config.formConfig;
+        if (!formCfg || !formCfg.model) {
+            console.warn('Cannot load default record: model name is missing in form configuration');
+            return;
+        }
+        
+        const modelName = formCfg.model;
+        console.log(`Loading default record for model ${modelName}`);
+        
+        // Request the first record from the server with the correct format
+        this.socketService.sendMessage({
+            type: 'model',
+            name: modelName,
+            action: 'findFirst',
+            parameters: {}, // Server expects parameters as an object
+            requestId: `req-find-first-${modelName}-${Date.now()}`
+        });
+        
+        // Set a timeout to prevent hanging if the server doesn't respond
+        const timeoutId = setTimeout(() => {
+            this.socketService.off('message', responseHandler);
+            console.warn(`findFirst request for ${modelName} timed out after 10 seconds`);
+            this._showFormError(`Failed to load data. Please try again later.`);
+        }, 10000);
+        
+        // Listen for the response
+        const responseHandler = (message) => {
+            // Check if this is the response to our findFirst request
+            if (message.requestId && message.requestId.startsWith(`req-find-first-${modelName}`)) {
+                // Clear timeout and remove the event listener
+                clearTimeout(timeoutId);
+                this.socketService.off('message', responseHandler);
+                
+                if (message.success && message.result) {
+                    console.log(`Received default record for ${modelName}:`, message.result);
+                    
+                    // Update the record with the received data
+                    Object.assign(this.record, message.result);
+                    
+                    // Update all form fields with the new data
+                    this._updateFormFields();
+                } else {
+                    console.warn(`Failed to load default record for ${modelName}:`, message.error || 'Unknown error');
+                    this._showFormError(`Error loading data: ${message.error || 'Unknown error'}`);
+                }
+            }
+        };
+        
+        // Add the event listener
+        this.socketService.on('message', responseHandler);
+    }
+    
+    // Update all form fields with the current record data
+    _updateFormFields() {
+        // Find all bindable-input elements in the form
+        const inputs = this.formElement.querySelectorAll('bindable-input');
+        
+        // Update each input with the current record
+        inputs.forEach(input => {
+            input.record = this.record;
+            input.updateValue();
+        });
+    }
+
+    // Fetch lookup options from the server
+    _fetchLookupOptions(field, inputElement) {
+        const modelName = field.dataSource;
+        const displayField = field.displayField || 'name';
+        const valueField = field.valueField || 'id';
+        
+        console.log(`Fetching lookup options for ${field.name} from model ${modelName}`);
+        
+        // Generate a unique request ID for this lookup
+        const requestId = `req-find-all-${modelName}-${field.name}-${Date.now()}`;
+        
+        // Send request to get all records for this model
+        this.socketService.sendMessage({
+            type: 'model',
+            name: modelName,
+            action: 'findAll', // Using findAll to get all records for this model
+            parameters: {},
+            requestId: requestId
+        });
+        
+        // Set a timeout to prevent hanging if the server doesn't respond
+        const timeoutId = setTimeout(() => {
+            this.socketService.off('message', responseHandler);
+            console.warn(`Lookup request for ${field.name} timed out after 10 seconds`);
+            // Update the input element with an error message
+            inputElement.setAttribute('options', JSON.stringify([
+                { value: '', label: `Error: Timeout loading ${field.name} options` }
+            ]));
+        }, 10000);
+        
+        // Listen for the response
+        const responseHandler = (message) => {
+            // Check if this is the response to our lookup request
+            if (message.requestId === requestId) {
+                // Clear the timeout and remove the event listener
+                clearTimeout(timeoutId);
+                this.socketService.off('message', responseHandler);
+                
+                if (message.success && Array.isArray(message.result)) {
+                    console.log(`Received lookup options for ${field.name}:`, message.result);
+                    
+                    // Format the options for the input element
+                    const options = message.result.map(item => ({
+                        value: item[valueField] !== undefined ? item[valueField] : '',
+                        label: item[displayField] !== undefined ? item[displayField] : '(No name)'
+                    }));
+                    
+                    // Update the input element with the new options
+                    inputElement.setAttribute('options', JSON.stringify(options));
+                    
+                    // If the record already has a value for this field, make sure it's selected
+                    if (this.record && this.record[field.name]) {
+                        inputElement.updateValue();
+                    }
+                } else {
+                    console.warn(`Failed to load lookup options for ${field.name}:`, message.error || 'Unknown error');
+                    // Show empty options with an error message
+                    inputElement.setAttribute('options', JSON.stringify([
+                        { value: '', label: `Error loading ${field.name} options: ${message.error || 'Unknown error'}` }
+                    ]));
+                }
+            }
+        };
+        
+        // Add the event listener
+        this.socketService.on('message', responseHandler);
+    }
+
+    // Helper method to show an error message in the form
+    _showFormError(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'form-error';
+        errorDiv.textContent = message;
+        
+        // Find the form title element and add the error after it
+        const formTitle = this.formElement.querySelector('#formTitle');
+        if (formTitle && formTitle.parentNode) {
+            formTitle.parentNode.insertBefore(errorDiv, formTitle.nextSibling);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+    }
+
     getElement() {
         return this.windowElement;
     }
 
     close() {
+        // Clean up event listeners to prevent memory leaks
+        this._cleanupEventListeners();
+        
+        // Remove the window from the DOM
         this.windowElement.remove();
+    }
+    
+    // Clean up event listeners to prevent memory leaks
+    _cleanupEventListeners() {
+        // Find all bindable inputs and remove record references
+        const inputs = this.formElement.querySelectorAll('bindable-input');
+        inputs.forEach(input => {
+            input.record = null; // Break circular references
+        });
+        
+        // Remove all message event listeners from the socket service
+        // This is a defensive approach since we might not have all references to added listeners
+        this.socketService.off('message');
     }
 }

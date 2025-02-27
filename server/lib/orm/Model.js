@@ -53,6 +53,9 @@ export default class Model {
    * @returns {Promise<Object[]>} Array of records.
    */
   static async find(options = {}) {
+    // Ensure options is an object, not null
+    options = options || {};
+    
     const { where = {}, limit, offset, orderBy } = options;
     const { whereClause, values } = this.buildWhere(where);
     let query = `SELECT * FROM ${this._quoteIdentifier(this.tableName)} ${whereClause}`;
@@ -88,12 +91,12 @@ export default class Model {
   }
 
   /**
-   * Alias for findOne.
-   * @param {Object} [options={}] - Query options.
-   * @returns {Promise<Object|null>} The first record or null.
+   * Alias for find. Retrieves all records matching the options.
+   * @param {Object} [options={}] - Query options including `where`, `orderBy`, `limit`, and `offset`.
+   * @returns {Promise<Array>} Array of matching records.
    */
-  static async findFirst(options = {}) {
-    return this.findOne(options);
+  static async findAll(options = {}) {
+    return this.find(options);
   }
 
   /**
@@ -289,6 +292,20 @@ export default class Model {
     `;
     const result = await this.query(query, values);
     return result.map(row => this._processOnGet(row));
+  }
+
+  /**
+   * Alias for findOne.
+   * @param {Object} [options={}] - Query options.
+   * @returns {Promise<Object|null>} The first record or null.
+   */
+  static async findFirst(options = {}) {
+    // Ensure options is an object, not null
+    options = options || {};
+    
+    // Ensure we always order by ID in ascending order by default
+    const orderBy = options.orderBy || { column: this.primaryKey, direction: 'ASC' };
+    return this.findOne({ ...options, orderBy });
   }
 
   /* ==================== Query Helpers ==================== */

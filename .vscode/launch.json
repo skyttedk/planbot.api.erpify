@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Server",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/server/index.js",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "runtimeExecutable": "node",
+            "runtimeArgs": [
+                "--experimental-modules",
+                "--es-module-specifier-resolution=node"
+            ],
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "outputCapture": "std",
+            "restart": true
+        }
+    ]
+} 

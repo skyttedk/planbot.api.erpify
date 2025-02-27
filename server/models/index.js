@@ -4,6 +4,7 @@ const modelPaths = {
     Customer: './Customer.js',
     Log: './Log.js',
     Log2: './Log2.js',
+    Employee: './Employee.js',
     // Add more models here as needed
 
 };

@@ -1,10 +1,10 @@
 // js/configs/form-config.js
 
-export const formConfig = {
+export const customerCardForm = {
     "id": "customerForm",
     "caption": { "key": "customerForm.caption", "default": "Customer Details" },
     "type": "form",
-    "dataSource": "customers",
+    "model": "Customer",
     "layout": {
         "groups": [
             {
@@ -127,7 +127,7 @@ export const formConfig = {
                         "caption": { "key": "field.salesRep", "default": "Sales Representative" },
                         "type": "lookup",
                         "required": false,
-                        "dataSource": "employees",
+                        "dataSource": "Employee",
                         "displayField": "name",
                         "valueField": "id",
                         "defaultValue": null
@@ -144,3 +144,28 @@ export const formConfig = {
         }
     }
 };
+
+// Create a window configuration that includes the form
+const customerCardView = [
+    {
+        "id": "customerWindow",
+        "type": "window",
+        "title": "Customer Record",
+        "width": 800,
+        "height": 600,
+        "resizable": true,
+        "movable": true,
+        "position": {
+            "top": 50,
+            "left": 50
+        },
+        "size": {
+            "width": 800,
+            "height": 600
+        },
+        "formConfig": customerCardForm
+    }
+];
+
+// Export the window configuration as the default export
+export default customerCardView;

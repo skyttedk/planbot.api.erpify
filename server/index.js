@@ -1,11 +1,15 @@
 import { WebSocketServer } from 'ws';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
-import { asyncLocalStorage } from '../server/lib/orm/asyncContext.js'; // Import from new file
-
+import { asyncLocalStorage } from '../server/lib/orm/asyncContext.js';
 import pool from './config/db.js';
-
 import modelLoader from './models/index.js';
+import viewLoader from './views/index.js';
+import controllerLoader from './controllers/index.js';
+
+// Load all models, views, and controllers
 const models = await modelLoader.init();
+const views = await viewLoader.init();
+const controllers = await controllerLoader.init();
 
 const rateLimiter = new RateLimiterMemory({ points: 100, duration: 60 });
 const clients = new Set();
@@ -38,24 +42,32 @@ async function handleClientConnection(ws) {
       await asyncLocalStorage.run({ client }, async () => {
         await client.query('BEGIN');
 
-        const { model, action, parameters = {}, requestId } = request;
-        const ModelClass = models[model];
+        // Extract common request properties
+        const { type, name, action, parameters = {}, requestId } = request;
+        let result;
 
-        if (!ModelClass) {
-          throw new Error(`Model "${model}" not found`);
+        // Process request based on type (model, view, or controller)
+        switch (type) {
+          case 'model':
+            result = await handleModelRequest(name, action, parameters);
+            break;
+          
+          case 'view':
+            result = await handleViewRequest(name, parameters);
+            break;
+          
+          case 'controller':
+            result = await handleControllerRequest(name, action, parameters);
+            break;
+          
+          default:
+            // For backward compatibility, assume it's a model request if no type specified
+            if (request.model) {
+              result = await handleModelRequest(request.model, action, parameters);
+            } else {
+              throw new Error('Invalid request type. Must be "model", "view", or "controller"');
+            }
         }
-        if (typeof ModelClass[action] !== 'function') {
-          throw new Error(`Action "${action}" not available for model "${model}"`);
-        }
-
-        // Construct parameters array
-        const expectedParams = getFunctionParameters(ModelClass[action]);
-        const paramArray = expectedParams.map((name) =>
-          parameters[name] !== undefined ? parameters[name] : null
-        );
-
-        // Call the method without passing the client
-        const result = await ModelClass[action](...paramArray);
 
         await client.query('COMMIT');
         ws.send(
@@ -84,10 +96,64 @@ async function handleClientConnection(ws) {
   ws.on('error', (error) => console.error('WebSocket error:', error));
 }
 
+// Handle model requests (CRUD operations)
+async function handleModelRequest(modelName, action, parameters) {
+  const ModelClass = models[modelName];
+  
+  if (!ModelClass) {
+    throw new Error(`Model "${modelName}" not found`);
+  }
+  if (typeof ModelClass[action] !== 'function') {
+    throw new Error(`Action "${action}" not available for model "${modelName}"`);
+  }
+  
+  // Construct parameters array
+  const expectedParams = getFunctionParameters(ModelClass[action]);
+  const paramArray = expectedParams.map((name) =>
+    parameters[name] !== undefined ? parameters[name] : null
+  );
+  
+  // Call the method
+  return await ModelClass[action](...paramArray);
+}
+
+// Handle view requests (returning UI configurations)
+async function handleViewRequest(viewName, parameters) {
+  if (!views[viewName]) {
+    throw new Error(`View "${viewName}" not found`);
+  }
+  
+  // Views might be static configs or functions that generate configs
+  if (typeof views[viewName] === 'function') {
+    return await views[viewName](parameters);
+  } else {
+    return views[viewName];
+  }
+}
+
+// Handle controller requests (business logic actions)
+async function handleControllerRequest(controllerName, action, parameters) {
+  const ControllerClass = controllers[controllerName];
+  
+  if (!ControllerClass) {
+    throw new Error(`Controller "${controllerName}" not found`);
+  }
+  if (typeof ControllerClass[action] !== 'function') {
+    throw new Error(`Action "${action}" not available for controller "${controllerName}"`);
+  }
+  
+  // Construct parameters array
+  const expectedParams = getFunctionParameters(ControllerClass[action]);
+  const paramArray = expectedParams.map((name) =>
+    parameters[name] !== undefined ? parameters[name] : null
+  );
+  
+  // Call the controller method
+  return await ControllerClass[action](...paramArray);
+}
+
 // Main function to start the server (unchanged)
 async function main() {
-
-
   const { PORT = 8011 } = process.env;
   const wss = new WebSocketServer({ port: PORT });
   console.log(`WebSocket server running on ws://localhost:${PORT}`);
@@ -102,6 +168,7 @@ async function main() {
     console.log('Server shut down');
     process.exit(0);
   }
+  
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 
@@ -115,7 +182,6 @@ async function main() {
 
 main().catch(console.error);
 
-
 function getFunctionParameters(fn) {
   const fnStr = fn.toString();
   const paramStr = fnStr.slice(fnStr.indexOf('(') + 1, fnStr.indexOf(')'));
@@ -125,8 +191,5 @@ function getFunctionParameters(fn) {
     return name;
   });
 }
-
-
-
 
 export { handleClientConnection, main };
