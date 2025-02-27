@@ -12,6 +12,7 @@ const fieldPaths = {
     JsonField: './JsonField.js',
     PathField: './PathField.js',
     NameField: './NameField.js',
+    Email: './Email.js',
 };
 
 // Dynamically import each module based on the above configuration.

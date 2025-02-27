@@ -385,16 +385,30 @@ export default class Model {
     try {
       await client.query('BEGIN');
 
+      // Add debugging log to see table name
+      console.log(`Syncing schema for table: ${this.tableName}`);
+
       const tableExists = (await client.query(
         `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)`,
         [this.tableName]
       )).rows[0].exists;
 
       if (!tableExists) {
-        const columns = Object.entries(schema).map(([name, def]) =>
-          def.sql ? `${this._quoteIdentifier(name)} ${def.sql}` : this._getColumnDefinition(name, def)
-        );
-        await client.query(`CREATE TABLE ${quotedTableName} (${columns.join(', ')})`);
+        // Debug the CREATE TABLE statement
+        const columns = Object.entries(schema).map(([name, def]) => {
+          let columnDef;
+          if (def.sql) {
+            columnDef = `${this._quoteIdentifier(name)} ${def.sql}`;
+          } else {
+            // Use the newly improved _getColumnDefinition method
+            columnDef = this._getColumnDefinition(name, def);
+          }
+          console.log(`Column definition for ${name}: ${columnDef}`);
+          return columnDef;
+        });
+        const createTableSQL = `CREATE TABLE ${quotedTableName} (${columns.join(', ')})`;
+        console.log(`CREATE TABLE SQL: ${createTableSQL}`);
+        await client.query(createTableSQL);
       } else {
         const dbColumns = {};
         (await client.query(
@@ -413,7 +427,11 @@ export default class Model {
               delete dbColumns[oldKey];
               continue;
             }
-            const defString = fieldDef.sql || this._getColumnDefinition(fieldName, fieldDef);
+            const defString = fieldDef.sql ? 
+              `${fieldDef.sql}` : 
+              this._getColumnDefinition(fieldName, fieldDef).replace(`${this._quoteIdentifier(fieldName)} `, '');
+            
+            console.log(`Adding column ${fieldName}, SQL: ALTER TABLE ${quotedTableName} ADD COLUMN ${this._quoteIdentifier(fieldName)} ${defString}`);
             await client.query(`ALTER TABLE ${quotedTableName} ADD COLUMN ${this._quoteIdentifier(fieldName)} ${defString}`);
             if (fieldDef.required && fieldDef.default === undefined) {
               const safeDefault = this._getSafeDefault(fieldDef);
@@ -425,17 +443,35 @@ export default class Model {
           } else if (!fieldDef.sql) {
             const dbCol = dbColumns[key];
             const desiredDef = this._parseFieldDefinition(fieldDef);
+            
+            // Debug field and desired definition
+            console.log(`Field ${fieldName} current: ${dbCol.data_type}(${dbCol.character_maximum_length}), desired: ${desiredDef.dataType}(${desiredDef.maxLength})`);
+            
             if (
               desiredDef.dataType !== dbCol.data_type ||
               (desiredDef.maxLength && parseInt(dbCol.character_maximum_length, 10) !== desiredDef.maxLength)
             ) {
               let typeClause = desiredDef.dataType + (desiredDef.maxLength ? `(${desiredDef.maxLength})` : '');
+              console.log(`Type change needed for ${fieldName}, type clause: ${typeClause}`);
+              
               try {
-                await client.query(`ALTER TABLE ${quotedTableName} ALTER COLUMN ${this._quoteIdentifier(fieldName)} TYPE ${typeClause} USING ${this._quoteIdentifier(fieldName)}::${typeClause}`);
+                const usingClause = desiredDef.dataType === 'character varying' ? 
+                  `${this._quoteIdentifier(fieldName)}::text` : 
+                  `${this._quoteIdentifier(fieldName)}::${typeClause}`;
+                
+                const alterSQL = `ALTER TABLE ${quotedTableName} ALTER COLUMN ${this._quoteIdentifier(fieldName)} TYPE ${typeClause} USING ${usingClause}`;
+                console.log(`Executing SQL: ${alterSQL}`);
+                await client.query(alterSQL);
               } catch (error) {
+                console.log(`Error changing type of ${fieldName}, falling back to simpler approach: ${error.message}`);
                 const safeDefault = this._getSafeDefault(fieldDef);
-                await client.query(`UPDATE ${quotedTableName} SET ${this._quoteIdentifier(fieldName)} = ${safeDefault} WHERE ${this._quoteIdentifier(fieldName)} IS NOT NULL`);
-                await client.query(`ALTER TABLE ${quotedTableName} ALTER COLUMN ${this._quoteIdentifier(fieldName)} TYPE ${typeClause}`);
+                const updateSQL = `UPDATE ${quotedTableName} SET ${this._quoteIdentifier(fieldName)} = ${safeDefault} WHERE ${this._quoteIdentifier(fieldName)} IS NOT NULL`;
+                console.log(`Executing SQL: ${updateSQL}`);
+                await client.query(updateSQL);
+                
+                const alterSQL = `ALTER TABLE ${quotedTableName} ALTER COLUMN ${this._quoteIdentifier(fieldName)} TYPE ${typeClause}`;
+                console.log(`Executing SQL: ${alterSQL}`);
+                await client.query(alterSQL);
               }
             }
             if (desiredDef.notNull && dbCol.is_nullable === 'YES') {
@@ -491,6 +527,15 @@ export default class Model {
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
+      console.error(`Schema sync error for table ${this.tableName}:`, error);
+      if (error.message && error.message.includes('syntax error at or near "VARCHAR"')) {
+        console.error('VARCHAR syntax error details:', {
+          table: this.tableName,
+          errorDetail: error.detail,
+          errorHint: error.hint,
+          errorPosition: error.position
+        });
+      }
       throw error;
     } finally {
       client.release();
@@ -504,13 +549,22 @@ export default class Model {
   }
 
   static _getColumnDefinition(fieldName, fieldDef) {
-    if (fieldDef.sql) return `${this._quoteIdentifier(fieldName)} ${fieldDef.sql}`;
-    let sql = `${this._quoteIdentifier(fieldName)} `;
+    if (fieldDef.sql) return fieldDef.sql;
+    
+    // First get the quoted field name
+    const quotedName = this._quoteIdentifier(fieldName);
+    let sql = '';
+    
+    // Handle the type
     switch (fieldDef.type.toLowerCase()) {
       case 'string':
-      case 'varchar':
-        sql += `VARCHAR(${fieldDef.length || 255})`;
+      case 'varchar': {
+        // Parse length to ensure it's a valid number
+        const length = parseInt(fieldDef.length, 10);
+        const validLength = isNaN(length) || length <= 0 ? 255 : length;
+        sql += `VARCHAR(${validLength})`;
         break;
+      }
       case 'text':
         sql += `TEXT`;
         break;
@@ -536,13 +590,23 @@ export default class Model {
       default:
         sql += fieldDef.type.toUpperCase();
     }
+    
+    // Add NOT NULL constraint if required
     if (fieldDef.required) sql += ' NOT NULL';
+    
+    // Add DEFAULT clause if specified
     if (fieldDef.default !== undefined) {
-      sql += typeof fieldDef.default === 'string' && !/^'.*'$/.test(fieldDef.default) && ['string', 'varchar', 'text'].includes(fieldDef.type.toLowerCase())
-        ? ` DEFAULT '${fieldDef.default}'`
-        : ` DEFAULT ${fieldDef.default}`;
+      if (typeof fieldDef.default === 'string' && 
+          !/^'.*'$/.test(fieldDef.default) && 
+          ['string', 'varchar', 'text'].includes(fieldDef.type.toLowerCase())) {
+        // Properly quote string defaults
+        sql += ` DEFAULT '${fieldDef.default.replace(/'/g, "''")}'`;
+      } else {
+        sql += ` DEFAULT ${fieldDef.default}`;
+      }
     }
-    return sql;
+    
+    return `${quotedName} ${sql}`;
   }
 
   static _parseFieldDefinition(fieldDef) {
@@ -551,7 +615,9 @@ export default class Model {
       case 'string':
       case 'varchar':
         dataType = 'character varying';
-        maxLength = fieldDef.length || 255;
+        maxLength = parseInt(fieldDef.length, 10);
+        // Ensure maxLength is a valid positive number
+        if (isNaN(maxLength) || maxLength <= 0) maxLength = 255;
         break;
       case 'text':
         dataType = 'text';

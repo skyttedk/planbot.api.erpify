@@ -18,6 +18,7 @@ class Customer extends Model {
         age: new fields.AgeField(),
         phone: new fields.PhoneField(),
         zip: new fields.ZipField(),
+        email: new fields.Email(),
     };
 
     // Optionally add renameMap, indexes, etc.
