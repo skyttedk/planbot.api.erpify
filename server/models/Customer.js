@@ -32,33 +32,35 @@ class Customer extends Model {
     // Hooks
     // --------------------------
 
-    static async onBeforeCreate(record) {
-        console.log('Before creating customer:', record);
-        return record;
+    static async onBeforeCreate(customer) {
+        console.log('Before creating customer:', customer);
+        return customer;
     }
 
-    static async onAfterCreate(record) {
-        console.log('Customer created:', record);
+    static async onAfterCreate(customer) {
+        console.log('Customer created:', customer);
 
         // Add a log entry
         //let a = models
-        await Log.create({ path: '/customers', data: record });
+        await Log.create({ path: '/customers', data: customer });
 
         throw new Error('Test error'); // Test error handling
 
     }
 
-    static async onBeforeUpdate(record) {
-        console.log('Before updating customer:', record);
-        //record.age += 1; // Increment age
+    static async onBeforeUpdate(customer) {
+        console.log('Before updating customer:', customer);
 
-        this.fields.age.validate(1); // Validate age
+        customer.age += 1; // Increment age
+        //this.fields.age.validate(1); // Validate age
 
-        return record;
+        //customer.fields.age.validate(1); // Validate ag
+        // e
+        return customer;
     }
 
-    static async onAfterUpdate(record) {
-        console.log('Customer updated:', record);
+    static async onAfterUpdate(customer) {
+        console.log('Customer updated:', customer);
     }
 
     static async onBeforeDelete(id) {

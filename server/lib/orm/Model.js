@@ -160,6 +160,8 @@ export default class Model {
    */
   static async update(id, data) {
     const schema = this.getSchema();
+    
+    // Validate the input data
     for (const [key, value] of Object.entries(data)) {
       if (schema[key]?.validate) {
         try {
@@ -169,20 +171,69 @@ export default class Model {
         }
       }
     }
-    if (this.onBeforeUpdate) data = await this.onBeforeUpdate(data);
-    const processedData = this._processOnSet(data, schema);
-    const updateKeys = Object.keys(processedData).filter(k => k !== this.primaryKey);
-    if (updateKeys.length === 0) throw new Error(`No data provided for update in table '${this.tableName}'`);
+    
+    // First retrieve the current complete record
+    const currentRecord = await this.findById(id);
+    if (!currentRecord) {
+      throw new Error(`Record with id ${id} not found in table '${this.tableName}'`);
+    }
+    
+    // Merge the update data with the current record to get a complete record
+    const completeData = { ...currentRecord, ...data };
+    
+    // Save a copy of the original merged data to compare after the trigger
+    const beforeTriggerData = { ...completeData };
+    
+    // Call onBeforeUpdate with the complete record
+    let processedData = completeData;
+    if (this.onBeforeUpdate) {
+      processedData = await this.onBeforeUpdate(completeData);
+    }
+    
+    // Determine which fields were actually changed, either by the original update
+    // or by the onBeforeUpdate trigger
+    const fieldsToUpdate = {};
+    
+    // Include all original fields from the update
+    for (const key of Object.keys(data)) {
+      fieldsToUpdate[key] = processedData[key];
+    }
+    
+    // Also include any fields modified by the onBeforeUpdate trigger
+    for (const key of Object.keys(processedData)) {
+      // Skip the primary key
+      if (key === this.primaryKey) continue;
+      
+      // If this field wasn't in the original update data but was changed by the trigger,
+      // include it in the update
+      if (!data.hasOwnProperty(key) && 
+          JSON.stringify(beforeTriggerData[key]) !== JSON.stringify(processedData[key])) {
+        fieldsToUpdate[key] = processedData[key];
+      }
+    }
+    
+    // Process the final data for database update
+    const finalData = this._processOnSet(fieldsToUpdate, schema);
+    const updateKeys = Object.keys(finalData).filter(k => k !== this.primaryKey);
+    
+    if (updateKeys.length === 0) {
+      throw new Error(`No data provided for update in table '${this.tableName}'`);
+    }
+    
     const query = `
       UPDATE ${this._quoteIdentifier(this.tableName)}
       SET ${updateKeys.map((k, i) => `${this._quoteIdentifier(k)} = $${i + 1}`).join(', ')}
       WHERE ${this._quoteIdentifier(this.primaryKey)} = $${updateKeys.length + 1}
       RETURNING *
     `;
-    const values = [...updateKeys.map(k => processedData[k]), id];
+    
+    const values = [...updateKeys.map(k => finalData[k]), id];
     const result = await this.query(query, values);
+    
     if (result.length === 0) return null;
+    
     if (this.onAfterUpdate) await this.onAfterUpdate(result[0]);
+    
     return this._processOnGet(result[0]);
   }
 

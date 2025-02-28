@@ -1,0 +1,18 @@
+
+
+calling action from pages...
+  also, how to send current rec.. with it!!
+
+user table
+
+login form
+
+delete record
+create new record
+
+
+list forms
+
+
+
+

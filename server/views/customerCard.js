@@ -34,6 +34,11 @@ export const customerCardForm = {
             {
                 "caption": "Business Information",
                 "fields": [
+                    {
+                        "name": "age",
+                        "caption": "Age",
+                        "editable": true
+                    }
 
                 ]
             },
