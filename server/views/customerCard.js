@@ -15,7 +15,7 @@ export const customerCardForm = {
                     },
                     {
                         "name": "email",
-                        "caption": "Email Address",
+                        "caption": "Email Addresssss",
                         "editable": false
                     },
                     {

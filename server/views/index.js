@@ -1,14 +1,20 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { watch } from 'fs'; // Import for file watching
 import modelLoader from '../models/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 class ViewLoader {
+    constructor() {
+        this.views = {};
+        this.models = null;
+        this.watchers = new Map(); // Store file watchers
+    }
+
     async init() {
-        const views = {};
-        const models = await modelLoader.init();
+        this.models = await modelLoader.init();
 
         try {
             const files = await fs.readdir(__dirname);
@@ -18,22 +24,13 @@ class ViewLoader {
                     continue;
                 }
 
-                const viewName = path.basename(file, '.js');
-                const { default: view } = await import(`./${file}`);
-                
-                // Apply model validation properties to view fields
-                this._applyModelValidationToView(view, models);
-                
-                // Validate the view's fields against model schema
-                const validationResult = this._validateViewFields(view, models, viewName);
-                if (validationResult.valid) {
-                    views[viewName] = view;
-                } else {
-                    console.error(`\x1b[31mSkipping view "${viewName}" due to field validation errors: ${validationResult.errors.join(', ')}\x1b[0m`);
-                }
+                await this._loadViewFile(file);
             }
 
-            console.log(`Loaded ${Object.keys(views).length} views`);
+            console.log(`Loaded ${Object.keys(this.views).length} views`);
+            
+            // Set up file watchers after initial load
+            this._setupFileWatchers();
         } catch (error) {
             // If views directory doesn't exist yet, just return empty object
             if (error.code === 'ENOENT') {
@@ -43,7 +40,148 @@ class ViewLoader {
             }
         }
 
-        return views;
+        return this.views;
+    }
+    
+    /**
+     * Set up file watchers for the views directory
+     */
+    _setupFileWatchers() {
+        // Clean up any existing watchers
+        this.watchers.forEach(watcher => watcher.close());
+        this.watchers.clear();
+        
+        // Setup watcher for the views directory
+        const directoryWatcher = watch(__dirname, async (eventType, filename) => {
+            // Skip non-JavaScript files and index.js
+            if (!filename || !filename.endsWith('.js') || filename === 'index.js') {
+                return;
+            }
+            
+            // Debounce changes - wait a short time to ensure file write is complete
+            clearTimeout(this._fileChangeTimeout);
+            this._fileChangeTimeout = setTimeout(async () => {
+                const viewName = path.basename(filename, '.js');
+                
+                // When a file changes
+                if (eventType === 'change') {
+                    console.log(`View file changed: ${filename}`);
+                    
+                    try {
+                        // Check if the file still exists (could have been temporarily renamed)
+                        const filePath = path.join(__dirname, filename);
+                        try {
+                            await fs.access(filePath);
+                        } catch (e) {
+                            console.log(`File ${filename} not accessible, skipping reload`);
+                            return;
+                        }
+                        
+                        // Reload the view file
+                        await this._loadViewFile(filename, true);
+                        console.log(`Reloaded view: ${filename}`);
+                    } catch (error) {
+                        console.error(`Error reloading view ${filename}:`, error);
+                    }
+                }
+                // Handle file deletion/renaming
+                else if (eventType === 'rename') {
+                    try {
+                        // Check if the file exists (to distinguish between creation and deletion)
+                        const filePath = path.join(__dirname, filename);
+                        try {
+                            await fs.access(filePath);
+                            
+                            // File exists, it's a new file or renamed file
+                            if (!this.views[viewName]) {
+                                console.log(`New view file detected: ${filename}`);
+                                await this._loadViewFile(filename);
+                                console.log(`Loaded new view: ${filename}`);
+                            } else {
+                                // It could be that the file was renamed but the content is the same
+                                // We'll treat it as a change
+                                console.log(`View file renamed or created: ${filename}`);
+                                await this._loadViewFile(filename, true);
+                                console.log(`Reloaded view: ${filename}`);
+                            }
+                        } catch (e) {
+                            // File doesn't exist, it was deleted
+                            if (this.views[viewName]) {
+                                console.log(`View file deleted: ${filename}`);
+                                delete this.views[viewName];
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`Error handling view file rename/delete ${filename}:`, error);
+                    }
+                }
+            }, 100); // Small debounce delay
+        });
+        
+        this.watchers.set('directory', directoryWatcher);
+        console.log('Set up view file watcher');
+    }
+    
+    /**
+     * Load a single view file
+     * @param {string} file - Filename to load
+     * @param {boolean} isReload - Whether this is a reload of an existing view
+     */
+    async _loadViewFile(file, isReload = false) {
+        const viewName = path.basename(file, '.js');
+        
+        try {
+            // For reloading, we need to bypass the module cache
+            if (isReload) {
+                // For ES modules, we'll use a query parameter to bypass cache
+                // This adds a timestamp to the import URL to make it unique each time
+                const timestamp = Date.now();
+                const moduleUrl = `${file}?t=${timestamp}`;
+                
+                try {
+                    // Import with the timestamp query to bypass cache
+                    const { default: view } = await import(`./${moduleUrl}`);
+                    
+                    // Apply model validation properties to view fields
+                    this._applyModelValidationToView(view, this.models);
+                    
+                    // Validate the view's fields against model schema
+                    const validationResult = this._validateViewFields(view, this.models, viewName);
+                    
+                    if (validationResult.valid) {
+                        this.views[viewName] = view;
+                        console.log(`Updated view "${viewName}" in views collection`);
+                        return this.views[viewName];
+                    } else {
+                        console.error(`\x1b[31mSkipping view "${viewName}" due to field validation errors: ${validationResult.errors.join(', ')}\x1b[0m`);
+                        return null;
+                    }
+                } catch (error) {
+                    console.error(`Error reloading view ${file}:`, error);
+                    throw error;
+                }
+            } else {
+                // Regular first-time loading without cache concerns
+                const { default: view } = await import(`./${file}`);
+                
+                // Apply model validation properties to view fields
+                this._applyModelValidationToView(view, this.models);
+                
+                // Validate the view's fields against model schema
+                const validationResult = this._validateViewFields(view, this.models, viewName);
+                
+                if (validationResult.valid) {
+                    this.views[viewName] = view;
+                } else {
+                    console.error(`\x1b[31mSkipping view "${viewName}" due to field validation errors: ${validationResult.errors.join(', ')}\x1b[0m`);
+                }
+                
+                return this.views[viewName];
+            }
+        } catch (error) {
+            console.error(`Error loading view ${file}:`, error);
+            throw error;
+        }
     }
 
     /**
