@@ -381,9 +381,18 @@ export class WindowForm {
                             statusDiv.className = '';
                         }, 1500);
                         
-                        // Update record with any returned data from server
+                        // Update the entire record with the returned data from server
                         if (message.result) {
+                            // Store the previously changed field name to check if it was visually updated
+                            const changedFieldName = changedField;
+                            
+                            // Update the complete record with server response
                             Object.assign(this.record, message.result);
+                            
+                            // Update all form fields to reflect the new data
+                            // This ensures any server-side changes (like field value transformations
+                            // or changes to other fields from triggers) are immediately visible
+                            this._updateFormFields();
                         }
                     } else {
                         // Update failed
