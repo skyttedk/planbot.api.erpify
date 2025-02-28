@@ -148,11 +148,8 @@ export class WindowForm {
         this.formElement = document.createElement('form');
         this.formElement.id = formCfg.id || 'recordForm';
 
-        // Form title inside the form (or you can display it in the window header)
-        const formTitle = document.createElement('div');
-        formTitle.id = 'formTitle';
-        formTitle.textContent = formCfg.caption || 'Form';
-        this.formElement.appendChild(formTitle);
+        // Form title has been removed to avoid duplication with window header
+        // The caption is now displayed only in the window title bar
 
         const fieldMap = {};
         const groupMap = {};

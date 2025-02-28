@@ -52,14 +52,13 @@ const customerCardView = [
     {
         "id": "customerWindow",
         "type": "window",
-        "title": "Customer Record",
         "width": 800,
         "height": 600,
         "resizable": true,
         "movable": true,
         "position": {
-            "top": 50,
-            "left": 50
+            "top": 100,
+            "left": 200
         },
         "size": {
             "width": 800,

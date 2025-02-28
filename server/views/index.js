@@ -231,6 +231,11 @@ class ViewLoader {
             return;
         }
         
+        // Use the form's caption as the window title if available
+        if (formConfig.caption && !windowConfig.useCustomTitle) {
+            windowConfig.title = formConfig.caption;
+        }
+        
         // Get fields from the model
         const modelFields = ModelClass.fields || {};
         
