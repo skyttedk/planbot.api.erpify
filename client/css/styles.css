@@ -5,24 +5,51 @@
   padding: 0;
 }
 
+:root {
+  /* Font variables */
+  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-secondary: 'Source Sans 3', 'Roboto', sans-serif;
+  --font-headings: 'Inter', sans-serif;
+  
+  /* Color variables */
+  --color-primary: #2c3e50;
+  --color-secondary: #34495e;
+  --color-accent: #3498db;
+  --color-text: #333;
+  --color-text-light: #ecf0f1;
+  --color-bg: #ecf0f1;
+  --color-error: #e74c3c;
+  --color-success: #2ecc71;
+  
+  /* Shadow variables */
+  --shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.2), 0 5px 10px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 15px 35px rgba(0, 0, 0, 0.25), 0 8px 15px rgba(0, 0, 0, 0.15);
+}
+
 body {
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  background: #ecf0f1;
-  color: #333;
+  font-family: var(--font-primary);
+  background: var(--color-bg);
+  color: var(--color-text);
   height: 100vh;
   overflow: hidden;
   position: relative;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Top Menu Bar */
 .top-menu-bar {
-  background: #2c3e50;
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-text-light);
   width: 100%;
-  height: 40px;
+  height: 42px;
   position: relative;
   z-index: 1000;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25), 0 2px 5px rgba(0, 0, 0, 0.15);
 }
 
 /* Main menu list */
@@ -46,15 +73,18 @@ body {
   align-items: center;
   height: 100%;
   padding: 0 20px;
-  color: #fff;
+  color: var(--color-text-light);
   text-decoration: none;
   font-size: 14px;
-  transition: background-color 0.2s;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 /* Main menu hover effect */
 .top-menu-bar > ul > li:hover > a {
-  background-color: #34495e;
+  background-color: var(--color-secondary);
+  color: white;
 }
 
 /* Submenu container */
@@ -62,15 +92,21 @@ body {
   position: absolute;
   top: 100%;
   left: 0;
-  background: #34495e;
-  min-width: 180px;
+  background: var(--color-secondary);
+  min-width: 200px;
   display: none;
   list-style: none;
   margin: 0;
-  padding: 0;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+  padding: 5px 0;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 4px 8px rgba(0, 0, 0, 0.15);
   border-radius: 0 0 4px 4px;
   z-index: 1001;
+  animation: submenuFadeIn 0.2s ease-out;
+}
+
+@keyframes submenuFadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Show submenu on hover */
@@ -88,15 +124,17 @@ body {
 .top-menu-bar ul ul li a {
   display: block;
   padding: 10px 15px;
-  color: #fff;
+  color: var(--color-text-light);
   text-decoration: none;
   font-size: 13px;
-  transition: background-color 0.2s;
+  font-weight: 400;
+  transition: background-color 0.2s, padding-left 0.2s;
 }
 
 /* Submenu hover effect */
 .top-menu-bar ul ul li a:hover {
-  background-color: #2c3e50;
+  background-color: rgba(255, 255, 255, 0.1);
+  padding-left: 18px;
 }
 
 /* Loading Indicator */
@@ -113,7 +151,7 @@ body {
   flex-direction: column;
   align-items: center;
   z-index: 2000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.35), 0 5px 10px rgba(0, 0, 0, 0.2);
 }
 
 .loading-spinner {
@@ -141,13 +179,15 @@ body {
   top: 60px; /* Below the menu bar */
   left: 50%;
   transform: translateX(-50%);
-  background-color: #e74c3c;
+  background-color: var(--color-error);
   color: white;
   padding: 12px 20px;
-  border-radius: 4px;
+  border-radius: 6px;
   z-index: 1500;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25), 0 4px 8px rgba(0, 0, 0, 0.15);
+  font-family: var(--font-primary);
   font-size: 14px;
+  font-weight: 500;
   max-width: 80%;
   text-align: center;
   animation: fadeIn 0.3s ease-out;
@@ -161,11 +201,13 @@ body {
 /* Desktop area - adjust to account for top menu bar */
 #desktop {
   position: absolute;
-  top: 40px; /* Height of the top menu bar */
+  top: 42px; /* Match the height of the top menu bar */
   left: 0;
   right: 0;
   bottom: 0;
   overflow: hidden;
+  background-color: var(--color-bg);
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0));
 }
 
 /* Draggable, Resizable Window Container */
@@ -178,7 +220,7 @@ body {
   min-height: 400px;
   background: #fff;
   border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2), 0 8px 15px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   z-index: 100;
   display: flex;
@@ -190,9 +232,9 @@ body {
 }
 
 .window-header {
-  background: #2c3e50;
-  color: #fff;
-  padding: 8px 12px;
+  background: var(--color-primary);
+  color: var(--color-text-light);
+  padding: 10px 14px;
   cursor: move;
   display: flex;
   align-items: center;
@@ -201,17 +243,27 @@ body {
 }
 
 .window-header h2 {
-  font-size: 16px;
+  font-family: var(--font-headings);
+  font-size: 15px;
+  font-weight: 600;
   margin: 0;
+  letter-spacing: 0.3px;
 }
 
 .window-controls button {
   background: transparent;
   border: none;
-  color: #ecf0f1;
+  color: var(--color-text-light);
   font-size: 16px;
-  margin-left: 5px;
+  margin-left: 8px;
+  padding: 4px 6px;
+  border-radius: 3px;
   cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.window-controls button:hover {
+  background-color: rgba(255, 255, 255, 0.15);
 }
 
 /* In-window Menu Bar with Submenus */
@@ -282,8 +334,9 @@ body {
 /* Window Body */
 .window-body {
   flex: 1;
-  padding: 10px 20px;
-  overflow-y: auto;
+  padding: 20px;
+  overflow: auto;
+  background-color: #f8f9fa;
 }
 
 /* Window Footer */
@@ -300,92 +353,111 @@ body {
 
 /* Dynamic Form Styles */
 form {
-  font-size: 13px;
+  width: 100%;
 }
 
 .form-section {
-  margin-bottom: 15px;
+  margin-bottom: 25px;
+  background: white;
+  border-radius: 6px;
+  padding: 15px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1), 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
 .section-title {
-  font-size: 14px;
-  font-weight: bold;
-  margin-bottom: 8px;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 3px;
-  color: #2c3e50;
+  font-family: var(--font-headings);
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 15px;
+  color: var(--color-primary);
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .field-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 15px;
+  grid-template-columns: repeat(2, 1fr);
+  grid-gap: 16px;
 }
 
 .form-group {
-  display: flex;
-  align-items: center;
+  margin-bottom: 15px;
 }
 
 .form-group.full-width {
-  grid-column: span 2;
+  grid-column: 1 / -1;
 }
 
 .form-group label {
-  width: 100px;
-  margin-right: 5px;
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--font-secondary);
+  font-weight: 500;
   font-size: 13px;
+  color: #555;
 }
 
-/* Remove border/padding from the host element */
 .form-group bindable-input {
-  flex: 1;
-  padding: 0; /* Remove extra padding */
-  border: none; /* No border here */
-  border-radius: 4px; /* Retain border-radius if needed */
-  /* Optionally, add a subtle outer effect with box-shadow if desired */
-  /* box-shadow: 0 0 0 1px #ccc; */
+  width: 100%;
+  display: block;
 }
 
-/* Style only the inner element */
 .form-group bindable-input::part(input),
-.form-group bindable-input::part(textarea),
 .form-group bindable-input::part(select) {
   width: 100%;
-  padding: 4px 6px;
-  border: 1px solid #ccc; /* Single border only here */
+  padding: 8px 10px;
+  border: 1px solid #ddd;
   border-radius: 4px;
-  font-size: 13px;
-  outline: none; /* Remove default focus outline, if desired */
+  font-family: var(--font-primary);
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.form-group bindable-input::part(textarea) {
-  resize: vertical;
-  min-height: 50px;
+.form-group bindable-input::part(input):focus,
+.form-group bindable-input::part(select):focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.25);
 }
 
 button.submit-btn {
-  padding: 8px 14px;
-  font-size: 14px;
-  background: #2c3e50;
-  color: #fff;
+  background-color: var(--color-accent);
+  color: white;
   border: none;
+  padding: 10px 15px;
   border-radius: 4px;
   cursor: pointer;
-  transition: background 0.3s ease;
-  display: block;
-  margin: 10px auto 0;
+  font-family: var(--font-primary);
+  font-weight: 500;
+  transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+  margin-top: 10px;
+  box-shadow: 0 2px 5px rgba(52, 152, 219, 0.3);
 }
 
 button.submit-btn:hover {
-  background: #34495e;
+  background-color: #2980b9;
+  box-shadow: 0 4px 8px rgba(52, 152, 219, 0.4);
+  transform: translateY(-1px);
 }
 
-.success {
-  color: #27ae60;
-  font-size: 14px;
+/* Form notification styles for view updates */
+.form-notification {
+  background-color: var(--color-success);
+  color: white;
+  padding: 12px;
+  margin: 10px 0;
+  border-radius: 4px;
   text-align: center;
-  margin-top: 8px;
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.2), 0 2px 5px rgba(0, 0, 0, 0.1);
+  animation: fadeOut 3s forwards;
+  font-family: var(--font-primary);
+  font-weight: 500;
+}
+
+@keyframes fadeOut {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* Resize Handle */
@@ -402,13 +474,14 @@ button.submit-btn:hover {
 
 /* Form Status and Error Messages */
 .form-error {
-  background-color: #fff0f0;
-  color: #e74c3c;
-  padding: 10px;
+  background-color: rgba(231, 76, 60, 0.1);
+  border-left: 3px solid var(--color-error);
+  color: var(--color-error);
+  padding: 10px 15px;
   margin: 10px 0;
-  border-left: 4px solid #e74c3c;
-  font-size: 13px;
-  animation: fadeIn 0.3s ease-out;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: var(--font-primary);
 }
 
 #statusMessage {
