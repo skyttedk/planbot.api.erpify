@@ -63,7 +63,16 @@ export class WindowForm {
         // Create footer (can be used for status messages or controls)
         const footer = document.createElement('div');
         footer.className = 'window-footer';
-        footer.textContent = this.config.footerText || '';
+        
+        // Create the navigation toolbar in the footer
+        this._createNavigationToolbar(footer);
+        
+        // Add footer text if specified
+        const footerText = document.createElement('div');
+        footerText.className = 'footer-text';
+        footerText.textContent = this.config.footerText || '';
+        footer.appendChild(footerText);
+        
         this.windowElement.appendChild(footer);
 
         // Add resize handle and initialize resizing behavior
@@ -393,6 +402,9 @@ export class WindowForm {
                             // This ensures any server-side changes (like field value transformations
                             // or changes to other fields from triggers) are immediately visible
                             this._updateFormFields();
+                            
+                            // Update the record indicator
+                            this._updateRecordIndicator();
                         }
                     } else {
                         // Update failed
@@ -463,6 +475,9 @@ export class WindowForm {
                     
                     // Update all form fields with the new data
                     this._updateFormFields();
+                    
+                    // Update the record indicator
+                    this._updateRecordIndicator();
                 } else {
                     console.warn(`Failed to load default record for ${modelName}:`, message.error || 'Unknown error');
                     this._showFormError(`Error loading data: ${message.error || 'Unknown error'}`);
@@ -595,5 +610,175 @@ export class WindowForm {
         // Remove all message event listeners from the socket service
         // This is a defensive approach since we might not have all references to added listeners
         this.socketService.off('message');
+    }
+
+    /**
+     * Creates a record navigation toolbar with buttons for first, previous, next, and last record
+     * @param {HTMLElement} container - The container element to append the toolbar to
+     */
+    _createNavigationToolbar(container) {
+        const formCfg = this.config.formConfig;
+        
+        // Only create the toolbar if we have a model defined
+        if (!formCfg || !formCfg.model) return;
+        
+        const navToolbar = document.createElement('div');
+        navToolbar.className = 'record-navigation-toolbar';
+        
+        // First record button
+        const firstButton = document.createElement('button');
+        firstButton.className = 'nav-button first-record';
+        firstButton.innerHTML = '&laquo;'; // Double left arrow
+        firstButton.title = 'First Record';
+        firstButton.addEventListener('click', () => this._navigateToRecord('first'));
+        navToolbar.appendChild(firstButton);
+        
+        // Previous record button
+        const prevButton = document.createElement('button');
+        prevButton.className = 'nav-button prev-record';
+        prevButton.innerHTML = '&lsaquo;'; // Single left arrow
+        prevButton.title = 'Previous Record';
+        prevButton.addEventListener('click', () => this._navigateToRecord('previous'));
+        navToolbar.appendChild(prevButton);
+        
+        // Record indicator
+        this.recordIndicator = document.createElement('span');
+        this.recordIndicator.className = 'record-indicator';
+        this.recordIndicator.textContent = 'Record: -';
+        navToolbar.appendChild(this.recordIndicator);
+        
+        // Next record button
+        const nextButton = document.createElement('button');
+        nextButton.className = 'nav-button next-record';
+        nextButton.innerHTML = '&rsaquo;'; // Single right arrow
+        nextButton.title = 'Next Record';
+        nextButton.addEventListener('click', () => this._navigateToRecord('next'));
+        navToolbar.appendChild(nextButton);
+        
+        // Last record button
+        const lastButton = document.createElement('button');
+        lastButton.className = 'nav-button last-record';
+        lastButton.innerHTML = '&raquo;'; // Double right arrow
+        lastButton.title = 'Last Record';
+        lastButton.addEventListener('click', () => this._navigateToRecord('last'));
+        navToolbar.appendChild(lastButton);
+        
+        container.appendChild(navToolbar);
+    }
+
+    /**
+     * Navigates to a specific record based on the direction
+     * @param {string} direction - 'first', 'previous', 'next', or 'last'
+     */
+    _navigateToRecord(direction) {
+        const formCfg = this.config.formConfig;
+        if (!formCfg || !formCfg.model) {
+            console.warn('Cannot navigate: model name is missing in form configuration');
+            return;
+        }
+        
+        // Check if we have a current record and ID
+        if (!this.record || !this.record.id) {
+            console.warn('Cannot navigate: no current record or record ID');
+            // In this case, attempt to load the first record anyway
+            if (direction === 'first') {
+                this._loadDefaultRecord();
+            }
+            return;
+        }
+        
+        const modelName = formCfg.model;
+        const currentId = this.record.id;
+        let action;
+        let parameters = {};
+        
+        // Determine which action to use based on the direction
+        switch (direction) {
+            case 'first':
+                action = 'findFirst';
+                // Empty parameters object is fine for findFirst
+                break;
+                
+            case 'previous':
+                action = 'findPrevious';
+                parameters = {
+                    id: currentId
+                };
+                break;
+                
+            case 'next':
+                action = 'findNext';
+                parameters = {
+                    id: currentId
+                };
+                break;
+                
+            case 'last':
+                action = 'findLast';
+                // Empty parameters object is fine for findLast
+                break;
+                
+            default:
+                console.warn(`Unknown navigation direction: ${direction}`);
+                return;
+        }
+        
+        // Generate a unique request ID
+        const requestId = `req-${action}-${modelName}-${Date.now()}`;
+        
+        // Send the request to the server
+        this.socketService.sendMessage({
+            type: 'model',
+            name: modelName,
+            action: action,
+            parameters: parameters,
+            requestId: requestId
+        });
+        
+        // Set up a timeout
+        const timeoutId = setTimeout(() => {
+            this.socketService.off('message', responseHandler);
+            console.warn(`${action} request for ${modelName} timed out after 10 seconds`);
+            this._showFormError(`Failed to navigate ${direction}. Please try again later.`);
+        }, 10000);
+        
+        // Listen for the response
+        const responseHandler = (message) => {
+            if (message.requestId === requestId) {
+                // Clear the timeout and remove the event listener
+                clearTimeout(timeoutId);
+                this.socketService.off('message', responseHandler);
+                
+                if (message.success && message.result) {
+                    console.log(`Received ${direction} record for ${modelName}:`, message.result);
+                    
+                    // Update the record with the received data
+                    Object.assign(this.record, message.result);
+                    
+                    // Update all form fields with the new data
+                    this._updateFormFields();
+                    
+                    // Update the record indicator
+                    this._updateRecordIndicator();
+                } else {
+                    console.warn(`Failed to navigate ${direction} for ${modelName}:`, message.error || 'Unknown error');
+                    this._showFormError(`Error navigating ${direction}: ${message.error || 'Unknown error'}`);
+                }
+            }
+        };
+        
+        // Add the event listener
+        this.socketService.on('message', responseHandler);
+    }
+
+    /**
+     * Updates the record indicator with the current record ID
+     */
+    _updateRecordIndicator() {
+        if (this.recordIndicator && this.record && this.record.id) {
+            this.recordIndicator.textContent = `Record: ${this.record.id}`;
+        } else if (this.recordIndicator) {
+            this.recordIndicator.textContent = 'Record: -';
+        }
     }
 }

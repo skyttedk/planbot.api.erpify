@@ -107,8 +107,19 @@ export default class Model {
    * @returns {Promise<Object|null>} The last record or null.
    */
   static async findLast(options = {}) {
-    const { where = {}, orderBy = { column: 'id', direction: 'DESC' }, ...otherOptions } = options;
-    const results = await this.find({ where, orderBy, limit: 1, ...otherOptions });
+    // Ensure options is an object, not null
+    options = options || {};
+    
+    // Use descending order by ID to get the last record
+    const { where = {}, ...otherOptions } = options;
+    const lastOptions = {
+      where,
+      orderBy: { column: this.primaryKey, direction: 'DESC' },
+      limit: 1,
+      ...otherOptions
+    };
+    
+    const results = await this.find(lastOptions);
     return results[0] || null;
   }
 
@@ -130,7 +141,7 @@ export default class Model {
     const nextOptions = {
       where: {
         ...where,
-        [this.primaryKey]: { '>' : id }
+        [this.primaryKey]: { operator: '>', value: id }
       },
       orderBy: { column: this.primaryKey, direction: 'ASC' },
       limit: 1,
@@ -166,7 +177,7 @@ export default class Model {
     const prevOptions = {
       where: {
         ...where,
-        [this.primaryKey]: { '<' : id }
+        [this.primaryKey]: { operator: '<', value: id }
       },
       orderBy: { column: this.primaryKey, direction: 'DESC' },
       limit: 1,

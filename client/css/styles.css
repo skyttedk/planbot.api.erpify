@@ -510,3 +510,58 @@ button.submit-btn:hover {
   background-color: #f0f8ff;
   border-left: 4px solid #3498db;
 }
+
+/* Record Navigation Toolbar Styles */
+/* Window footer */
+.window-footer {
+    border-top: 1px solid #ddd;
+    padding: 8px 12px;
+    background-color: #f5f5f5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Record navigation toolbar */
+.record-navigation-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.record-navigation-toolbar .nav-button {
+    width: 32px;
+    height: 32px;
+    border: 1px solid #ccc;
+    background-color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 18px;
+    color: #333;
+}
+
+.record-navigation-toolbar .nav-button:hover {
+    background-color: #f0f0f0;
+    border-color: #999;
+}
+
+.record-navigation-toolbar .nav-button:active {
+    background-color: #e0e0e0;
+}
+
+.record-navigation-toolbar .record-indicator {
+    padding: 0 12px;
+    min-width: 100px;
+    text-align: center;
+    font-size: 14px;
+    color: #555;
+}
+
+/* Footer text */
+.footer-text {
+    color: #777;
+    font-size: 12px;
+}

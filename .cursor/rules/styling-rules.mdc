@@ -1,0 +1,9 @@
+---
+description: General rules when dealing with styling
+globs: 
+alwaysApply: false
+---
+
+lets keep all styling rules in 1 file client/css/style.css
+
+in general we strive for a professional,compact design suitable for an erp application that deals with a lot of data. Meaning the application should be responsive, cleam and no unnessescary features.
