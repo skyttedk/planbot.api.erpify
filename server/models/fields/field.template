@@ -1,0 +1,71 @@
+// models/fields/<FieldName>.js
+import Field from '../../lib/orm/Field.js';
+
+/**
+ * A custom field class for storing <FieldDescription>, extending the base Field class.
+ * This field enforces a fixed type ('<fixedType>'), a fixed length (<fixedLength>), and optionally other properties,
+ * with optional overrides for 'required', 'default', and 'caption'.
+ *
+ * @param {Object} options - Configuration options.
+ * @param {boolean} [options.required=false] - Whether the field is required.
+ * @param {string} [options.default] - Default value if none is provided.
+ * @param {string} [options.caption] - Caption for the field.
+ */
+class <FieldName> extends Field {
+    constructor(options = {}) {
+        // Fixed properties for a <FieldDescription> field.
+        const fixedProperties = {
+            uid: '{<unique-identifier>
+            }',
+            type: '<fixedType>',
+            length: <fixedLength>,
+            caption: '<Default Caption>',
+            // Optionally include additional fixed properties such as a validation pattern:
+            // pattern: /<regex>/,
+        };
+
+        // Only allow specific properties to be overridden by options.
+        const allowedOverrides = {
+            required: options.required,
+            default: options.default,
+            caption: options.caption, // This allows the caption to be overridden.
+        };
+
+        // Field documentation provides metadata about the field.
+        const documentation = {
+            description: '<FieldDescription>',
+            examples: ['<example1>', '<example2>'
+            ],
+            usage: '<Usage description>',
+        };
+
+        // Merge fixed properties and allowed overrides and pass them to the base Field constructor.
+        super({ ...fixedProperties, ...allowedOverrides, documentation
+        }, '<FieldName>');
+    }
+    /**
+     * Custom setter logic: transforms the input value if necessary.
+     *
+     * @param {any} value - The value to be set.
+     * @returns {any} The transformed value.
+     */
+    onSet(value) {
+        // For example, if the value is a string, trim whitespace.
+        if (typeof value === 'string') {
+            return value.trim();
+        }
+        return value;
+    }
+    /**
+     * Custom getter logic: processes the value when it is retrieved.
+     *
+     * @param {any} value - The stored value.
+     * @returns {any} The processed value.
+     */
+    onGet(value) {
+        // Return the value as-is or perform additional processing if needed.
+        return value;
+    }
+}
+
+export default <FieldName>;

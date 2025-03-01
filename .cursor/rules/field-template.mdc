@@ -10,9 +10,9 @@ field templates are located in server/models/fields
 
 if a user request a new field template, then create a new file in this directory based upon
 
-[schema.json](mdc:server/models/fields/schema.json)
+[field templates.txt](mdc:ai.design.desc/server.orm.field.template/field templates.txt)
 
-and examples  : [AgeField.js](mdc:server/models/fields/AgeField.js) [Email.js](mdc:server/models/fields/Email.js) [NameField.js](mdc:server/models/fields/NameField.js) [String250.js](mdc:server/models/fields/String250.js)
+and examples  : [AgeField.js](mdc:server/models/fields/AgeField.js) [Email.js](mdc:server/models/fields/Email.js) [NameField.js](mdc:server/models/fields/NameField.js) [String250.js](mdc:server/models/fields/String250.js) [PhoneField.js](mdc:server/models/fields/PhoneField.js) [CurrencyField.js](mdc:server/models/fields/CurrencyField.js)
 
 remember to add the field to fieldPaths in [index.js](mdc:server/models/fields/index.js)
 
