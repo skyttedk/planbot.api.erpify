@@ -176,7 +176,6 @@ class ViewLoader {
                     
                     if (validationResult.valid) {
                         this.views[viewName] = view;
-                        logger.info(`Loaded view "${viewName}" into views collection`);
                     } else {
                         logger.error(`Skipping view "${viewName}" due to field validation errors: ${validationResult.errors.join(', ')}`);
                     }

@@ -20,57 +20,53 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.appendChild(desktop);
     }
     
-    // Create top menu bar
-    if (!document.getElementById('top-menu-bar')) {
-        createTopMenuBar();
-    }
+    // Fetch menu from server and create top menu bar
+    fetchMenuFromServer().then(() => {
+        // Menu is created by the fetchMenuFromServer function
+        console.log('Menu loaded successfully');
+    }).catch(error => {
+        console.error('Failed to load menu from server:', error);
+        // Show error message to user
+        showErrorMessage('Failed to load application menu. Please check your connection and try again.');
+    });
 });
 
+// Function to fetch menu structure from server
+async function fetchMenuFromServer() {
+    try {
+        // Request menu structure from server
+        const response = await socketService.request({
+            type: 'menu',
+            token: socketService.config.authToken,
+        });
+        
+        if (response.success && Array.isArray(response.result)) {
+            createTopMenuBar(response.result);
+            return response.result;
+        } else {
+            throw new Error('Invalid menu structure received from server');
+        }
+    } catch (error) {
+        console.error('Error fetching menu from server:', error);
+        throw error;
+    }
+}
+
 // Function to create the top menu bar
-function createTopMenuBar() {
+function createTopMenuBar(serverMenuStructure) {
+    // If there's no menu structure, show an error and return
+    if (!serverMenuStructure || !Array.isArray(serverMenuStructure) || serverMenuStructure.length === 0) {
+        console.error('No valid menu structure available');
+        showErrorMessage('Failed to load application menu. Please refresh the page or contact support.');
+        return;
+    }
+
     const menuBar = document.createElement('div');
     menuBar.id = 'top-menu-bar';
     menuBar.className = 'top-menu-bar';
     
-    // Create menu structure
-    const menuStructure = [
-        {
-            label: 'Customers',
-            submenu: [
-                { label: 'Customer Card', viewName: 'customerCard' },
-                { label: 'Customer List', viewName: 'customerList' }
-            ]
-        },
-        {
-            label: 'Sales',
-            submenu: [
-                { label: 'Sales Invoices', viewName: 'salesInvoices' },
-                { label: 'Sales Orders', viewName: 'salesOrders' }
-            ]
-        },
-        {
-            label: 'Purchases',
-            submenu: [
-                { label: 'Purchase Invoices', viewName: 'purchaseInvoices' },
-                { label: 'Purchase Orders', viewName: 'purchaseOrders' }
-            ]
-        },
-        {
-            label: 'Inventory',
-            submenu: [
-                { label: 'Items', viewName: 'items' },
-                { label: 'Stock Movements', viewName: 'stockMovements' }
-            ]
-        },
-        {
-            label: 'Reports',
-            submenu: [
-                { label: 'Sales Report', viewName: 'salesReport' },
-                { label: 'Inventory Report', viewName: 'inventoryReport' },
-                { label: 'Financial Report', viewName: 'financialReport' }
-            ]
-        }
-    ];
+    // Create menu structure - use server-provided menu
+    const menuStructure = serverMenuStructure;
     
     // Create main menu list
     const menuList = document.createElement('ul');

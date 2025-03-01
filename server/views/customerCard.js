@@ -5,6 +5,7 @@ export const customerCardForm = {
     "caption": "Customer Information",
     "type": "form",
     "model": "Customer",
+    "menuLocation": "Customers.CustomerCard",
     "layout": {
         "groups": [
             {

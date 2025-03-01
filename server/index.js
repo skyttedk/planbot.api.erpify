@@ -6,6 +6,7 @@ import modelLoader from './models/index.js';
 import viewLoader from './views/index.js';
 import controllerLoader from './controllers/index.js';
 import logger from './lib/logger.js';
+import { buildMenuStructure } from './lib/menuBuilder.js';
 
 // Check for command line arguments
 const args = process.argv.slice(2);
@@ -63,6 +64,10 @@ async function handleClientConnection(ws) {
           
           case 'controller':
             result = await handleControllerRequest(name, action, parameters);
+            break;
+          
+          case 'menu':
+            result = await handleMenuRequest();
             break;
           
           default:
@@ -155,6 +160,14 @@ async function handleControllerRequest(controllerName, action, parameters) {
   
   // Call the controller method
   return await ControllerClass[action](...paramArray);
+}
+
+// Handle menu requests (returning the dynamically built menu structure)
+async function handleMenuRequest() {
+  logger.info('Handling menu request');
+  // Build and return the menu structure from all views
+  const menuStructure = buildMenuStructure(views);
+  return menuStructure;
 }
 
 // Main function to start the server (unchanged)
