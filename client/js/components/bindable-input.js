@@ -181,8 +181,27 @@ class BindableInput extends HTMLElement {
     }
 
     _createInputHandlerWithDebounce() {
+        // Still debounce the input handler for updating the record data locally
         this._inputHandler = this._debounce(() => this.onInput(), this._debounceDelay);
-        this._onBlur = () => this._updateFormValidity();
+        
+        // Create a separate blur handler for saving to server
+        this._onBlur = () => {
+            this._updateFormValidity();
+            
+            // Only trigger data-changed on blur (which will trigger auto-save)
+            if (this._record && this._field) {
+                const value = this._getValueFromPath(this._record, this._field);
+                this.dispatchEvent(new CustomEvent('data-changed', {
+                    bubbles: true,
+                    composed: true,
+                    detail: { 
+                        field: this._field, 
+                        value,
+                        record: this._record
+                    }
+                }));
+            }
+        };
     }
 
     _createInput() {
@@ -295,7 +314,7 @@ class BindableInput extends HTMLElement {
     }
     
     _addInputEventListeners(inputType) {
-        if (inputType === 'checkbox' || inputType === 'radio') {
+        if (inputType === 'checkbox' || inputType === 'radio' || inputType === 'select') {
             this.inputElement.addEventListener('change', this._inputHandler);
         } else {
             this.inputElement.addEventListener('input', this._inputHandler);
@@ -531,16 +550,22 @@ class BindableInput extends HTMLElement {
                     this.setAttribute('name', this._field);
                 }
                 
-                // Notify about the change
-                this.dispatchEvent(new CustomEvent('data-changed', {
-                    bubbles: true,
-                    composed: true,
-                    detail: { 
-                        field: this._field, 
-                        value,
-                        record: this._record
-                    }
-                }));
+                // For checkbox, radio, and select, still fire data-changed immediately
+                // since these typically change on direct user action
+                if (inputType === 'checkbox' || inputType === 'radio' || inputType === 'select') {
+                    this.dispatchEvent(new CustomEvent('data-changed', {
+                        bubbles: true,
+                        composed: true,
+                        detail: { 
+                            field: this._field, 
+                            value,
+                            record: this._record
+                        }
+                    }));
+                }
+                
+                // Otherwise, we'll only fire data-changed on blur
+                // Local record data is still updated immediately
             }
             
             this._updateFormValidity();
