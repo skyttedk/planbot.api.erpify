@@ -181,11 +181,23 @@ class BindableInput extends HTMLElement {
     }
 
     _createInputHandlerWithDebounce() {
-        // Still debounce the input handler for updating the record data locally
-        this._inputHandler = this._debounce(() => this.onInput(), this._debounceDelay);
+        // Store the timeout ID so we can access it in the blur handler
+        let timeoutId;
+        
+        // The input handler with debounce
+        this._inputHandler = () => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => this.onInput(), this._debounceDelay);
+        };
         
         // Create a separate blur handler for saving to server
         this._onBlur = () => {
+            // If there's a pending input handler timeout, cancel it and run the handler immediately
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                this.onInput(); // Run the input handler synchronously
+            }
+            
             this._updateFormValidity();
             
             // Only trigger data-changed on blur (which will trigger auto-save)
@@ -324,6 +336,7 @@ class BindableInput extends HTMLElement {
         this.inputElement.addEventListener('blur', this._onBlur);
     }
 
+    // This method is kept for backward compatibility or potential future use
     _debounce(fn, delay) {
         let timeoutId;
         return () => {
