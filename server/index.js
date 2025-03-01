@@ -11,9 +11,15 @@ import { buildMenuStructure } from './lib/menuBuilder.js';
 // Check for command line arguments
 const args = process.argv.slice(2);
 const forceSyncSchema = args.includes('--sync-schema') || args.includes('-s');
+const forceReseed = args.includes('--seed') || args.includes('-d');
+const skipSeeders = args.includes('--no-seed');
 
 // Load all models, views, and controllers
-const models = await modelLoader.init({ forceSyncSchema });
+const models = await modelLoader.init({ 
+    forceSyncSchema,
+    runSeeders: !skipSeeders,
+    forceReseed
+});
 const views = await viewLoader.init();
 const controllers = await controllerLoader.init();
 

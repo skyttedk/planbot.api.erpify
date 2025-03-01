@@ -1,5 +1,7 @@
 // Define a configuration object that maps model names to their module paths
 import logger from '../lib/logger.js';
+import ora from 'ora';
+import seeders from '../seeders/index.js';
 
 const modelPaths = {
     User: './User.js',
@@ -85,7 +87,7 @@ class ModelLoader {
     }
 
     // Call this method to initialize the models (or await an ongoing init)
-    async init(options = { forceSyncSchema: false }) {
+    async init(options = { forceSyncSchema: false, runSeeders: true, forceReseed: false }) {
         if (this._models) return this._models;
         if (!this._initializationPromise) {
             this._initializationPromise = (async () => {
@@ -100,6 +102,13 @@ class ModelLoader {
                     }
                     
                     await syncSchemas(models, { force: options.forceSyncSchema });
+                    
+                    // Run seeders if enabled
+                    if (options.runSeeders) {
+                        initSpinner.text = 'Running database seeders';
+                        await seeders.runSeeders(models, { force: options.forceReseed });
+                    }
+                    
                     this._models = models;
                     
                     initSpinner.succeed('Models initialized successfully');
