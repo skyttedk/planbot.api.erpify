@@ -409,7 +409,7 @@ export class WindowForm {
             
             // Add the response handler
             this.socketService.on('message', responseHandler);
-        }, 500);
+        }, 10);
 
         // Attach auto-save listener to each field
         Object.values(fieldMap).forEach(input => {
