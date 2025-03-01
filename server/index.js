@@ -41,6 +41,17 @@ async function handleClientConnection(ws) {
         return;
       }
 
+      // Special handling for heartbeat messages
+      if (request.type === 'heartbeat') {
+        // Send heartbeat response
+        ws.send(JSON.stringify({ 
+          type: 'heartbeat_response',
+          timestamp: Date.now(),
+          success: true
+        }));
+        return; // Don't proceed with normal request processing
+      }
+
       // Acquire a client from the pool
       client = await pool.connect();
 

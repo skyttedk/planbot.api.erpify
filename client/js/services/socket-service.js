@@ -235,7 +235,7 @@ export class SocketService {
         }
         
         // Handle heartbeat response
-        if (message.type === 'pong') {
+        if (message.type === 'pong' || message.type === 'heartbeat_response') {
             clearTimeout(this.heartbeatTimeoutTimer);
             return;
         }
@@ -331,7 +331,13 @@ export class SocketService {
             this._log('Sending heartbeat ping');
             
             try {
-                this.ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+                // Include authentication token in the ping message
+                // Use a format that doesn't require model resolution
+                this.ws.send(JSON.stringify({ 
+                    type: 'heartbeat',    // Changed from 'ping' to a self-contained type
+                    timestamp: Date.now(),
+                    token: this.config.authToken
+                }));
                 
                 // Set timeout for expecting pong response
                 this.heartbeatTimeoutTimer = setTimeout(() => {
