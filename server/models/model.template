@@ -42,7 +42,6 @@ class <ModelName> extends Model {
      * @returns {Object} The processed record data.
      */
     static async onBeforeCreate(<instanceName>) {
-        logger.model('beforeCreate', '<instanceName>', <instanceName>);
         return <instanceName>;
     }
 
@@ -51,9 +50,6 @@ class <ModelName> extends Model {
      * @param {Object} <instanceName> - The created record data.
      */
     static async onAfterCreate(<instanceName>) {
-        logger.model('afterCreate', '<instanceName>', <instanceName>);
-        // Optionally add log entries or trigger additional actions.
-        // Example: await Log.create({ path: '/<tableName>', data: <instanceName> });
     }
 
     /**
@@ -62,9 +58,6 @@ class <ModelName> extends Model {
      * @returns {Object} The processed record data.
      */
     static async onBeforeUpdate(<instanceName>) {
-        logger.model('beforeUpdate', '<instanceName>', <instanceName>);
-        // Example modification:
-        // <instanceName>.age = (<instanceName>.age || 0) + 1;
         return <instanceName>;
     }
 
@@ -73,7 +66,7 @@ class <ModelName> extends Model {
      * @param {Object} <instanceName> - The updated record data.
      */
     static async onAfterUpdate(<instanceName>) {
-        logger.model('afterUpdate', '<instanceName>', <instanceName>);
+        
     }
 
     /**
@@ -81,7 +74,7 @@ class <ModelName> extends Model {
      * @param {any} id - The identifier of the record to delete.
      */
     static async onBeforeDelete(id) {
-        logger.model('beforeDelete', '<instanceName>', { id });
+        
     }
 
     /**
@@ -89,7 +82,7 @@ class <ModelName> extends Model {
      * @param {Object} result - The result of the deletion operation.
      */
     static async onAfterDelete(result) {
-        logger.model('afterDelete', '<instanceName>', result);
+        
     }
 }
 
