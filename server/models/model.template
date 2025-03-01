@@ -1,0 +1,96 @@
+// models/<ModelName>.js
+import Model from '../lib/orm/Model.js';
+import logger from '../lib/logger.js';
+// Optional: import additional models or helpers as needed.
+// For example, to log changes using a Log model, you might include:
+// import Log from './Log.js';
+import fields from './fields/index.js'; // Adjust the path if needed
+
+/**
+ * Model class for <ModelName>.
+ */
+class <ModelName> extends Model {
+    // The database table name for the model.
+    static tableName = '<tableName>';
+
+    // Field definitions using domain-specific field templates.
+    // Only `required` and `default` can be overridden in each field instance.
+    static fields = {
+        // Example field definitions:
+        // name: new fields.NameField({ required: true }),
+        // address: new fields.String250(),
+        // age: new fields.AgeField({ default: 0 }),
+        // phone: new fields.PhoneField({ required: true }),
+        // zip: new fields.ZipField(),
+        // email: new fields.Email(),
+    };
+
+    // Optional: Define indexes for performance and uniqueness.
+    static indexes = [
+        // Example indexes:
+        // { name: 'idx_name', columns: ['name'], unique: true },
+        // { name: 'idx_zip', columns: ['zip'], unique: false },
+    ];
+
+    // --------------------------
+    // Hooks
+    // --------------------------
+
+    /**
+     * Hook executed before creating a new record.
+     * @param {Object} <instanceName> - The record data.
+     * @returns {Object} The processed record data.
+     */
+    static async onBeforeCreate(<instanceName>) {
+        logger.model('beforeCreate', '<instanceName>', <instanceName>);
+        return <instanceName>;
+    }
+
+    /**
+     * Hook executed after a new record is created.
+     * @param {Object} <instanceName> - The created record data.
+     */
+    static async onAfterCreate(<instanceName>) {
+        logger.model('afterCreate', '<instanceName>', <instanceName>);
+        // Optionally add log entries or trigger additional actions.
+        // Example: await Log.create({ path: '/<tableName>', data: <instanceName> });
+    }
+
+    /**
+     * Hook executed before updating an existing record.
+     * @param {Object} <instanceName> - The record data to update.
+     * @returns {Object} The processed record data.
+     */
+    static async onBeforeUpdate(<instanceName>) {
+        logger.model('beforeUpdate', '<instanceName>', <instanceName>);
+        // Example modification:
+        // <instanceName>.age = (<instanceName>.age || 0) + 1;
+        return <instanceName>;
+    }
+
+    /**
+     * Hook executed after a record is updated.
+     * @param {Object} <instanceName> - The updated record data.
+     */
+    static async onAfterUpdate(<instanceName>) {
+        logger.model('afterUpdate', '<instanceName>', <instanceName>);
+    }
+
+    /**
+     * Hook executed before deleting a record.
+     * @param {any} id - The identifier of the record to delete.
+     */
+    static async onBeforeDelete(id) {
+        logger.model('beforeDelete', '<instanceName>', { id });
+    }
+
+    /**
+     * Hook executed after a record is deleted.
+     * @param {Object} result - The result of the deletion operation.
+     */
+    static async onAfterDelete(result) {
+        logger.model('afterDelete', '<instanceName>', result);
+    }
+}
+
+export default <ModelName>;

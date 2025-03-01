@@ -10,11 +10,10 @@ models  are located in server/models
 
 if a user request a new model, then create a new file in this directory based upon
 
-[schema.json](mdc:server/models/schema.json)
+[model.template](mdc:server/models/model.template)
 
-and examples  : [Customer.js](mdc:server/models/Customer.js) [User.js](mdc:server/models/User.js)
 
-remember to add the field to fieldPaths in @index.js
+remember to add the model to modelPaths in [model.template](mdc:server/models/model.template)
 
 if a user requests to update a model, then just update the model requested with the changes requested.
 
