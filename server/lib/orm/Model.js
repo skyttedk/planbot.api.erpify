@@ -428,21 +428,82 @@ export default class Model {
    * @param {Object} [options={dropExtraColumns: false}] - Sync options.
    * @returns {Promise<void>}
    */
-  static async syncSchema(options = { dropExtraColumns: false }) {
+  static async syncSchema(options = { dropExtraColumns: false, force: false }) {
     const schema = { ...this.defaultFields, ...(this.fields || this.schema) };
     const quotedTableName = this._quoteIdentifier(this.tableName);
     const client = await pool.connect();
+    let clientReleased = false;
 
     try {
       await client.query('BEGIN');
 
-      // Add debugging log to see table name
-      console.log(`Syncing schema for table: ${this.tableName}`);
-
+      // Calculate schema hash to detect changes
+      const schemaHash = this._calculateSchemaHash(schema);
+      
+      // Check if we need to sync by comparing schema hash with stored hash
       const tableExists = (await client.query(
         `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)`,
         [this.tableName]
       )).rows[0].exists;
+      
+      let needsSync = options.force || !tableExists;
+      
+      if (tableExists && !options.force) {
+        // Check if schema_versions table exists
+        const versionTableExists = (await client.query(
+          `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'schema_versions')`,
+          []
+        )).rows[0].exists;
+        
+        if (!versionTableExists) {
+          // Create schema_versions table if it doesn't exist
+          await client.query(`
+            CREATE TABLE schema_versions (
+              table_name VARCHAR(255) PRIMARY KEY,
+              hash VARCHAR(64) NOT NULL,
+              updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+          `);
+          needsSync = true;
+        } else {
+          // Check if there's a hash for this table
+          const versionResult = await client.query(
+            `SELECT hash FROM schema_versions WHERE table_name = $1`,
+            [this.tableName]
+          );
+          
+          if (versionResult.rows.length === 0) {
+            // No record for this table, we should sync
+            needsSync = true;
+          } else {
+            // Compare stored hash with current hash
+            const storedHash = versionResult.rows[0].hash;
+            needsSync = storedHash !== schemaHash;
+            
+            if (!needsSync) {
+              console.log(`Schema for table ${this.tableName} is up to date, skipping synchronization`);
+            }
+          }
+        }
+      }
+      
+      if (!needsSync) {
+        await client.query('COMMIT');
+        client.release();
+        clientReleased = true;
+        return;
+      }
+
+      // Add debugging log to see table name
+      console.log(`Syncing schema for table: ${this.tableName}`);
+
+      // Check if JSON type exists before proceeding
+      const jsonTypeExists = (await client.query(
+        `SELECT EXISTS (SELECT FROM pg_type WHERE typname = 'json')`,
+        []
+      )).rows[0].exists;
+
+      console.log(`JSON type exists in database: ${jsonTypeExists}`);
 
       if (!tableExists) {
         // Debug the CREATE TABLE statement
@@ -496,7 +557,7 @@ export default class Model {
             const desiredDef = this._parseFieldDefinition(fieldDef);
             
             // Debug field and desired definition
-            console.log(`Field ${fieldName} current: ${dbCol.data_type}(${dbCol.character_maximum_length}), desired: ${desiredDef.dataType}(${desiredDef.maxLength})`);
+            //console.log(`Field ${fieldName} current: ${dbCol.data_type}(${dbCol.character_maximum_length}), desired: ${desiredDef.dataType}(${desiredDef.maxLength})`);
             
             if (
               desiredDef.dataType !== dbCol.data_type ||
@@ -574,6 +635,14 @@ export default class Model {
           await client.query(`COMMENT ON COLUMN ${quotedTableName}.${this._quoteIdentifier(fieldName)} IS 'uid: ${fieldDef.uid}'`);
         }
       }
+      
+      // Update schema version
+      await client.query(`
+        INSERT INTO schema_versions (table_name, hash, updated_at)
+        VALUES ($1, $2, NOW())
+        ON CONFLICT (table_name) 
+        DO UPDATE SET hash = $2, updated_at = NOW()
+      `, [this.tableName, schemaHash]);
 
       await client.query('COMMIT');
     } catch (error) {
@@ -589,8 +658,37 @@ export default class Model {
       }
       throw error;
     } finally {
-      client.release();
+      if (!clientReleased) {
+        client.release();
+      }
     }
+  }
+  
+  /**
+   * Calculate a hash of the schema definition to detect changes
+   * @param {Object} schema - The schema object
+   * @returns {string} A hash string representing the schema
+   */
+  static _calculateSchemaHash(schema) {
+    // Convert schema to a stable JSON string (sorted keys)
+    const schemaStr = JSON.stringify(schema, (key, value) => {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        return Object.keys(value).sort().reduce((result, key) => {
+          result[key] = value[key];
+          return result;
+        }, {});
+      }
+      return value;
+    });
+    
+    // Use a simple hash function
+    let hash = 0;
+    for (let i = 0; i < schemaStr.length; i++) {
+      const char = schemaStr.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash.toString(16).padStart(8, '0');
   }
 
   /* ==================== Utility Methods ==================== */

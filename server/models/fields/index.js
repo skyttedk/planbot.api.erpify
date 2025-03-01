@@ -13,6 +13,7 @@ const fieldPaths = {
     PathField: './PathField.js',
     NameField: './NameField.js',
     Email: './Email.js',
+    String250: './String250.js',
 };
 
 // Dynamically import each module based on the above configuration.
@@ -41,7 +42,7 @@ await Promise.all(
         try {
             const instance = new fields[key](); // instantiate with default options
             const uid = instance.uid;
-            console.log(`  Field "${key}" has UID ${uid}`);
+            
             if (uid) {
                 uidMap[uid] = uidMap[uid] || [];
                 uidMap[uid].push(key);

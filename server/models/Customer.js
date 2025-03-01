@@ -15,6 +15,8 @@ class Customer extends Model {
     // Use the domain‑specific field templates; you can override only `required` and `default`
     static fields = {
         name: new fields.NameField(),
+        address: new fields.String250(),
+        adress2: new fields.String250(),
         age: new fields.AgeField(),
         phone: new fields.PhoneField(),
         zip: new fields.ZipField(),

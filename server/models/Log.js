@@ -1,7 +1,6 @@
 import Model from '../lib/orm/Model.js';
 import fields from './fields/index.js'; // Import field definitions
 
-import Log2 from './Log2.js'; // Corrected import path
 
 class Log extends Model {
     static tableName = 'logs';
@@ -27,7 +26,7 @@ class Log extends Model {
         console.log('onAfterCreate: Log record created:', record);
 
         // Add a log entry
-        Log2.create({ path: '/logs', data: record });
+        
 
         return record;
     }

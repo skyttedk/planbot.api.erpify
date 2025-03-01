@@ -3,7 +3,7 @@ const modelPaths = {
     User: './User.js',
     Customer: './Customer.js',
     Log: './Log.js',
-    Log2: './Log2.js',
+    
     // Add more models here as needed
 
 };
@@ -26,14 +26,14 @@ async function loadModels() {
 }
 
 // Function to synchronize the schema for each model
-async function syncSchemas(models) {
+async function syncSchemas(models, options = { force: false }) {
     try {
-        console.log('Synchronizing database schemas...');
+        console.log('Checking database schemas...');
         const syncPromises = Object.values(models).map((model) =>
-            typeof model.syncSchema === 'function' ? model.syncSchema() : Promise.resolve()
+            typeof model.syncSchema === 'function' ? model.syncSchema(options) : Promise.resolve()
         );
         await Promise.all(syncPromises);
-        console.log('All schemas have been synchronized.');
+        console.log('Schema check completed.');
     } catch (err) {
         console.error('Failed to synchronize schemas:', err);
         throw err;
@@ -53,12 +53,12 @@ class ModelLoader {
     }
 
     // Call this method to initialize the models (or await an ongoing init)
-    async init() {
+    async init(options = { forceSyncSchema: false }) {
         if (this._models) return this._models;
         if (!this._initializationPromise) {
             this._initializationPromise = (async () => {
                 const models = await loadModels();
-                await syncSchemas(models);
+                await syncSchemas(models, { force: options.forceSyncSchema });
                 this._models = models;
                 return models;
             })();

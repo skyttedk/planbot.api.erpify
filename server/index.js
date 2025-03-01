@@ -6,8 +6,12 @@ import modelLoader from './models/index.js';
 import viewLoader from './views/index.js';
 import controllerLoader from './controllers/index.js';
 
+// Check for command line arguments
+const args = process.argv.slice(2);
+const forceSyncSchema = args.includes('--sync-schema') || args.includes('-s');
+
 // Load all models, views, and controllers
-const models = await modelLoader.init();
+const models = await modelLoader.init({ forceSyncSchema });
 const views = await viewLoader.init();
 const controllers = await controllerLoader.init();
 

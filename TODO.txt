@@ -1,4 +1,15 @@
 
+menu....
+
+   if a form/Vew should have ha s a menuLocation
+
+   menuLocation : Sales.SalesDocuments.SalesOrderCard
+                  Sales.Reports.OpenSalesOrders
+                  
+   the it will be located at
+
+   Sales -> Sales Documents -> Sales Order Card
+
 
 calling action from pages...
   also, how to send current rec.. with it!!
