@@ -18,6 +18,7 @@ const fieldPaths = {
     CurrencyField: './CurrencyField.js',
     Code10: './Code10.js',
     PasswordField: './PasswordField.js',
+    BooleanField: './BooleanField.js',
 };
 
 // Dynamically import each module based on the above configuration.

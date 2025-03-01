@@ -1,14 +1,13 @@
 
 menu....
 
-   if a form/Vew should have ha s a menuLocation
+   documentation for fields is in field template,   wich makes no sence...
+   it should be on the model....
 
-   menuLocation : Sales.SalesDocuments.SalesOrderCard
-                  Sales.Reports.OpenSalesOrders
-                  
-   the it will be located at
+   also... documentation  should be just one field
+   
+   documentation should be exported as tool top to client
 
-   Sales -> Sales Documents -> Sales Order Card
 
 
 calling action from pages...
