@@ -2,7 +2,7 @@
 
 export const customerCardForm = {
     "id": "customerForm",
-    "caption": "Customer Details",
+    "caption": "Customer Information",
     "type": "form",
     "model": "Customer",
     "layout": {
@@ -14,9 +14,14 @@ export const customerCardForm = {
                         "name": "name"
                     },
                     {
+                        "name": "address"
+
+                    },
+                    {
+                        "name": "address2"
+                    },
+                    {
                         "name": "email",
-                        "caption": "Email Addresssss",
-                        "editable": false
                     },
                     {
                         "name": "phone"
@@ -36,7 +41,7 @@ export const customerCardForm = {
                 "fields": [
                     {
                         "name": "age",
-                        "caption": "Age",
+                        "caption": "Customer Age",
                         "editable": true
                     }
 

@@ -74,8 +74,12 @@ class ViewLoader {
                     // Small delay to ensure file is completely written
                     await new Promise(resolve => setTimeout(resolve, 100));
                     
-                    await this._reloadViewFile(filename);
-                    logger.success(`Reloaded view: ${filename}`);
+                    try {
+                        await this._reloadViewFile(filename);
+                        logger.success(`Reloaded view: ${filename}`);
+                    } catch (reloadError) {
+                        logger.error(`Error reloading view ${filename}:`, reloadError);
+                    }
                 }
                 // File rename or creation event
                 else if (eventType === 'rename') {
@@ -85,14 +89,22 @@ class ViewLoader {
                         // New file created
                         if (!this.views[path.basename(filename, '.js')]) {
                             logger.info(`New view file detected: ${filename}`);
-                            await this._loadViewFile(filename);
-                            logger.success(`Loaded new view: ${filename}`);
+                            try {
+                                await this._loadViewFile(filename);
+                                logger.success(`Loaded new view: ${filename}`);
+                            } catch (loadError) {
+                                logger.error(`Error loading new view ${filename}:`, loadError);
+                            }
                         }
                         // Existing file renamed
                         else {
                             logger.info(`View file renamed or created: ${filename}`);
-                            await this._reloadViewFile(filename);
-                            logger.success(`Reloaded view: ${filename}`);
+                            try {
+                                await this._reloadViewFile(filename);
+                                logger.success(`Reloaded view: ${filename}`);
+                            } catch (reloadError) {
+                                logger.error(`Error reloading view ${filename}:`, reloadError);
+                            }
                         }
                     } catch (error) {
                         // File was deleted
@@ -104,7 +116,7 @@ class ViewLoader {
                     }
                 }
             } catch (error) {
-                logger.error(`Error handling view file rename/delete ${filename}:`, error);
+                logger.error(`Error handling view file change for ${filename}:`, error);
             }
         });
         
@@ -127,11 +139,11 @@ class ViewLoader {
                 // For ES modules, we'll use a query parameter to bypass cache
                 // This adds a timestamp to the import URL to make it unique each time
                 const timestamp = Date.now();
-                const moduleUrl = `${file}?t=${timestamp}`;
+                const importUrl = `./${file}?t=${timestamp}`;
                 
                 try {
                     // Import with the timestamp query to bypass cache
-                    const { default: view } = await import(`./${moduleUrl}`);
+                    const { default: view } = await import(importUrl);
                     
                     // Apply model validation properties to view fields
                     this._applyModelValidationToView(view, this.models);
@@ -153,24 +165,30 @@ class ViewLoader {
                 }
             } else {
                 // Regular first-time loading without cache concerns
-                const { default: view } = await import(`./${file}`);
-                
-                // Apply model validation properties to view fields
-                this._applyModelValidationToView(view, this.models);
-                
-                // Validate the view's fields against model schema
-                const validationResult = this._validateViewFields(view, this.models, viewName);
-                
-                if (validationResult.valid) {
-                    this.views[viewName] = view;
-                } else {
-                    logger.error(`Skipping view "${viewName}" due to field validation errors: ${validationResult.errors.join(', ')}`);
+                try {
+                    const { default: view } = await import(`./${file}`);
+                    
+                    // Apply model validation properties to view fields
+                    this._applyModelValidationToView(view, this.models);
+                    
+                    // Validate the view's fields against model schema
+                    const validationResult = this._validateViewFields(view, this.models, viewName);
+                    
+                    if (validationResult.valid) {
+                        this.views[viewName] = view;
+                        logger.info(`Loaded view "${viewName}" into views collection`);
+                    } else {
+                        logger.error(`Skipping view "${viewName}" due to field validation errors: ${validationResult.errors.join(', ')}`);
+                    }
+                    
+                    return this.views[viewName];
+                } catch (error) {
+                    logger.error(`Error loading view ${file}:`, error);
+                    throw error;
                 }
-                
-                return this.views[viewName];
             }
         } catch (error) {
-            logger.error(`Error loading view ${file}:`, error);
+            logger.error(`Error in _loadViewFile for ${file}:`, error);
             throw error;
         }
     }
@@ -486,28 +504,35 @@ class ViewLoader {
 
     async _reloadViewFile(file) {
         try {
-            // Clear the module cache to force a fresh import
-            const modulePath = path.join(__dirname, file);
+            // We're using ES modules, so we don't need to clear require.cache
             const viewName = path.basename(file, '.js');
             
-            // Delete the cached module
-            delete require.cache[require.resolve(modulePath)];
+            // Add a timestamp query parameter to force a fresh import and bypass module cache
+            const importUrl = `./${file}?update=${Date.now()}`;
             
-            // Re-import the module
-            const { default: viewModule } = await import(`${modulePath}?update=${Date.now()}`);
-            
-            // Validate view fields if present
-            if (viewModule.fields) {
-                const validationResult = this._validateViewFields(viewModule.fields);
-                if (validationResult.valid) {
-                    this.views[viewName] = viewModule;
-                    logger.info(`Updated view "${viewName}" in views collection`);
+            try {
+                // Import with the timestamp query to bypass module cache
+                const { default: viewModule } = await import(importUrl);
+                
+                // Apply model validation properties to view fields
+                this._applyModelValidationToView(viewModule, this.models);
+                
+                // Validate view fields if present
+                if (viewModule) {
+                    const validationResult = this._validateViewFields(viewModule, this.models, viewName);
+                    if (validationResult.valid) {
+                        this.views[viewName] = viewModule;
+                        logger.info(`Updated view "${viewName}" in views collection`);
+                    } else {
+                        logger.error(`Skipping view "${viewName}" due to field validation errors: ${validationResult.errors.join(', ')}`);
+                    }
                 } else {
-                    logger.error(`Skipping view "${viewName}" due to field validation errors: ${validationResult.errors.join(', ')}`);
+                    // No fields to validate, just update the view
+                    this.views[viewName] = viewModule;
                 }
-            } else {
-                // No fields to validate, just update the view
-                this.views[viewName] = viewModule;
+            } catch (importError) {
+                logger.error(`Error importing updated view ${file}:`, importError);
+                throw importError;
             }
         } catch (error) {
             logger.error(`Error reloading view ${file}:`, error);
