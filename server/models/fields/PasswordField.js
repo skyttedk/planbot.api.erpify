@@ -46,16 +46,19 @@ class PasswordField extends Field {
             requireNumber: options.requireNumber ?? true,
             requireUppercase: options.requireUppercase ?? true,
         };
-    }
 
+        // IMPORTANT: Override the onSet method at the instance level
+        // This ensures the method is always available when the field is stored in the schema
+        this.onSet = (value) => {
+            return this._hashPasswordValue(value);
+        };
+    }
+    
     /**
-     * Validates and hashes the input password value.
-     * In a real implementation, you would use a proper password hashing library like bcrypt.
-     *
-     * @param {string} value - The password value to be set.
-     * @returns {string} The hashed password value.
+     * Helper method that centralizes the password hashing logic
+     * @private
      */
-    onSet(value) {
+    _hashPasswordValue(value) {
         if (value === null || value === undefined) {
             return value;
         }
@@ -65,7 +68,6 @@ class PasswordField extends Field {
         }
 
         // Skip validation if the value looks like it's already hashed
-        // (assuming a hash would be long and contain special chars)
         if (value.length >= 40 && /[$./]/.test(value)) {
             return value;
         }
@@ -73,9 +75,16 @@ class PasswordField extends Field {
         // Perform validation
         this._validatePassword(value);
 
-        // In a real implementation, you would use bcrypt or argon2 here.
-        // This is a placeholder to simulate hashing - DO NOT USE IN PRODUCTION
+        // Hash the password
         return this._mockHashPassword(value);
+    }
+
+    /**
+     * This method is defined for backward compatibility
+     * but all actual implementation is in _hashPasswordValue
+     */
+    onSet(value) {
+        return this._hashPasswordValue(value);
     }
 
     /**

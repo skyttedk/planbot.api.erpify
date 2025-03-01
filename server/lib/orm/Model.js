@@ -906,7 +906,13 @@ export default class Model {
   static _processOnSet(data, schema) {
     const processed = {};
     for (const key in data) {
-      processed[key] = schema[key]?.onSet ? schema[key].onSet(data[key]) : data[key];
+      if (schema[key] && typeof schema[key].setValue === 'function') {
+        processed[key] = schema[key].setValue(data[key]);
+      } else if (schema[key]?.onSet && typeof schema[key].onSet === 'function') {
+        processed[key] = schema[key].onSet(data[key]);
+      } else {
+        processed[key] = data[key];
+      }
     }
     return processed;
   }
@@ -915,7 +921,11 @@ export default class Model {
     const schema = this.getSchema();
     const processed = { ...row };
     for (const key in processed) {
-      if (schema[key]?.onGet) processed[key] = schema[key].onGet(processed[key]);
+      if (schema[key] && typeof schema[key].getValue === 'function') {
+        processed[key] = schema[key].getValue(processed[key]);
+      } else if (schema[key]?.onGet && typeof schema[key].onGet === 'function') {
+        processed[key] = schema[key].onGet(processed[key]);
+      }
     }
     return processed;
   }
