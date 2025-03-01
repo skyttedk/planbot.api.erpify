@@ -1,7 +1,7 @@
 ---
 description: Creating Field Templates
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 
 # Your rule content
@@ -15,6 +15,8 @@ if a user request a new field template, then create a new file in this directory
 and examples  : [AgeField.js](mdc:server/models/fields/AgeField.js) [Email.js](mdc:server/models/fields/Email.js) [NameField.js](mdc:server/models/fields/NameField.js) [String250.js](mdc:server/models/fields/String250.js)
 
 remember to add the field to fieldPaths in [index.js](mdc:server/models/fields/index.js)
+
+Note: Stick to the schema and examples, dont add un nessecary methods and stuff.
 
 
 
