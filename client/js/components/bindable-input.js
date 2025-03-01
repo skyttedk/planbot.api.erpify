@@ -530,6 +530,10 @@ class BindableInput extends HTMLElement {
                 }
             }
             
+            // Check if value has actually changed to avoid unnecessary events
+            const currentValue = this._getValueFromPath(this._record, this._field);
+            const hasChanged = this._hasValueChanged(currentValue, value);
+            
             if (this._immutable) {
                 // For immutable mode, don't modify the original object
                 this.dispatchEvent(new CustomEvent('value-change', {
@@ -542,18 +546,18 @@ class BindableInput extends HTMLElement {
                     }
                 }));
             } else {
-                // Update the data directly
-                this._setValueAtPath(this._record, this._field, value);
-                
-                // Make sure the name attribute is set for easier access in event handlers
-                if (!this.hasAttribute('name')) {
-                    this.setAttribute('name', this._field);
-                }
-                
-                // For checkbox, radio, and select, still fire data-changed immediately
-                // since these typically change on direct user action
-                if (inputType === 'checkbox' || inputType === 'radio' || inputType === 'select') {
-                    this.dispatchEvent(new CustomEvent('data-changed', {
+                // Only update and dispatch events if the value has actually changed
+                if (hasChanged) {
+                    // Update the data directly in the record
+                    this._setValueAtPath(this._record, this._field, value);
+                    
+                    // Make sure the name attribute is set for easier access in event handlers
+                    if (!this.hasAttribute('name')) {
+                        this.setAttribute('name', this._field);
+                    }
+                    
+                    // Dispatch an input event for dirty tracking
+                    this.dispatchEvent(new CustomEvent('input', {
                         bubbles: true,
                         composed: true,
                         detail: { 
@@ -562,10 +566,24 @@ class BindableInput extends HTMLElement {
                             record: this._record
                         }
                     }));
+                    
+                    // For checkbox, radio, and select, still fire data-changed immediately
+                    // since these typically change on direct user action
+                    if (inputType === 'checkbox' || inputType === 'radio' || inputType === 'select') {
+                        this.dispatchEvent(new CustomEvent('data-changed', {
+                            bubbles: true,
+                            composed: true,
+                            detail: { 
+                                field: this._field, 
+                                value,
+                                record: this._record
+                            }
+                        }));
+                    }
+                    
+                    // Otherwise, we'll only fire data-changed on blur
+                    // Local record data is still updated immediately
                 }
-                
-                // Otherwise, we'll only fire data-changed on blur
-                // Local record data is still updated immediately
             }
             
             this._updateFormValidity();
@@ -573,6 +591,27 @@ class BindableInput extends HTMLElement {
             console.error(`Error processing input for field ${this._field}:`, error);
             this._reportError(`Failed to process input: ${error.message}`);
         }
+    }
+    
+    // Helper to check if a value has actually changed, including handling of special cases
+    _hasValueChanged(currentValue, newValue) {
+        // Handle null/undefined equality
+        if (currentValue == null && newValue == null) {
+            return false;
+        }
+        
+        // Handle simple string/number/boolean equality
+        if (currentValue === newValue) {
+            return false;
+        }
+        
+        // Handle Date objects
+        if (currentValue instanceof Date && newValue instanceof Date) {
+            return currentValue.getTime() !== newValue.getTime();
+        }
+        
+        // For other types, use simple inequality
+        return true;
     }
 }
 

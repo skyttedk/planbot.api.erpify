@@ -7,8 +7,17 @@ export class WindowForm {
         this.config = config;
         this.socketService = socketService;
         this.record = {};
+        this.dirtyFields = new Set(); // Track which fields have unsaved changes
+        this.isSaving = false; // Track if save operation is in progress
+        this.isClosing = false; // Track if form is in the process of closing
+        this.currentFocusElement = null; // Track currently focused element
+        this.messageHandlers = []; // Track added message handlers
+        
         this._createWindow();
         this._generateForm();
+        
+        // Add escape key handler
+        this._setupKeyboardHandlers();
         
         // Load default record after form is generated
         this._loadDefaultRecord();
@@ -148,6 +157,174 @@ export class WindowForm {
             clearTimeout(timeoutId);
             timeoutId = setTimeout(() => fn.apply(this, args), delay);
         };
+    }
+
+    _setupKeyboardHandlers() {
+        // Add keyboard event listener to the document with capture:true to ensure we get the event first
+        this.keydownHandler = this._handleKeydown.bind(this);
+        document.addEventListener('keydown', this.keydownHandler, { capture: true });
+        
+        // Track focused element
+        this.focusHandler = (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+                this.currentFocusElement = e.target;
+            }
+        };
+        this.windowElement.addEventListener('focusin', this.focusHandler);
+    }
+    
+    _handleKeydown(event) {
+        // Only process if the form is actually visible in the DOM
+        if (!this.windowElement.isConnected) {
+            return;
+        }
+        
+        // Check if Escape key was pressed
+        if (event.key === 'Escape') {
+            // Immediately stop propagation to prevent other handlers from processing it
+            event.stopPropagation();
+            event.preventDefault();
+            
+            // Handle the escape key immediately
+            this._handleEscapeKey();
+        }
+    }
+    
+    _handleEscapeKey() {
+        // Prevent processing if form is already closing or saving
+        if (this.isClosing || this.isSaving) {
+            return;
+        }
+        
+        // If the form has unsaved changes
+        if (this.dirtyFields.size > 0) {
+            // Show confirmation dialog
+            const confirmAction = window.confirm('You have unsaved changes! Do you want to save before closing?');
+            
+            if (confirmAction) {
+                // User wants to save changes
+                this._saveAndClose();
+            } else {
+                // User doesn't want to save changes
+                this.close();
+            }
+        } else {
+            // No unsaved changes, close directly
+            this.close();
+        }
+    }
+    
+    _saveAndClose() {
+        if (this.isClosing || this.isSaving) {
+            return; // Prevent multiple save attempts or saving when already closing
+        }
+        
+        // Mark form as closing to prevent other operations
+        this.isClosing = true;
+        
+        const formCfg = this.config.formConfig;
+        if (!formCfg || !formCfg.model) {
+            console.error("Cannot save: model name is missing in form configuration");
+            this._showFormError("Cannot save: Form configuration is incomplete");
+            this.isClosing = false; // Reset closing state if we can't proceed
+            return;
+        }
+        
+        const recordId = this.record.id;
+        if (!recordId) {
+            console.warn("Cannot update record: record ID is missing");
+            this._showFormError("Cannot save: No record ID found");
+            this.isClosing = false; // Reset closing state if we can't proceed
+            return;
+        }
+        
+        // Create an object with only the dirty fields
+        const changedData = {};
+        this.dirtyFields.forEach(field => {
+            changedData[field] = this.record[field];
+        });
+        
+        if (Object.keys(changedData).length === 0) {
+            // No changes to save
+            this.close();
+            return;
+        }
+        
+        // Show saving indicator
+        const statusDiv = this.formElement.querySelector('#statusMessage');
+        if (statusDiv) {
+            statusDiv.textContent = 'Saving...';
+            statusDiv.className = 'saving';
+        }
+        
+        // Set saving flag
+        this.isSaving = true;
+        
+        // Generate a unique request ID for this update
+        const modelName = formCfg.model;
+        const requestId = `req-update-close-${modelName}-${Date.now()}`;
+        
+        // Send the update request
+        this.socketService.sendMessage({
+            type: 'model',
+            name: modelName,
+            action: 'update',
+            parameters: {
+                id: recordId,
+                data: changedData
+            },
+            requestId: requestId
+        });
+        
+        // Set a timeout for the save operation
+        const saveTimeout = setTimeout(() => {
+            this.isSaving = false;
+            this.isClosing = false; // Reset closing state on timeout
+            if (statusDiv) {
+                statusDiv.textContent = 'Save operation timed out';
+                statusDiv.className = 'error';
+            }
+            
+            // Return focus to the element that had focus when escape was pressed
+            if (this.currentFocusElement) {
+                this.currentFocusElement.focus();
+            }
+        }, 10000);
+        
+        // Listen for the response
+        const responseHandler = (message) => {
+            if (message.requestId === requestId) {
+                // Remove the listener and clear the timeout
+                this.socketService.off('message', responseHandler);
+                clearTimeout(saveTimeout);
+                this.isSaving = false;
+                
+                if (message.success) {
+                    // Update was successful, close the form
+                    this.close(); // This already sets isClosing to true
+                } else {
+                    // Update failed, show error and return focus
+                    console.error('Error updating record:', message.error);
+                    this.isClosing = false; // Reset closing state on error
+                    
+                    if (statusDiv) {
+                        statusDiv.textContent = `Error: ${message.error || 'Save failed'}`;
+                        statusDiv.className = 'error';
+                    } else {
+                        this._showFormError(`Error: ${message.error || 'Save failed'}`);
+                    }
+                    
+                    // Return focus to the element that had focus when escape was pressed
+                    if (this.currentFocusElement) {
+                        this.currentFocusElement.focus();
+                    }
+                }
+            }
+        };
+        
+        // Add the response handler and track it
+        this.socketService.on('message', responseHandler);
+        this.messageHandlers.push(responseHandler);
     }
 
     _generateForm() {
@@ -314,12 +491,20 @@ export class WindowForm {
 
         // Set up auto-save functionality. Each bindable-input's "data-changed" event will trigger autoSave.
         const autoSave = this._debounce((event) => {
+            // Skip auto-save if form is closing or already saving
+            if (this.isClosing || this.isSaving) {
+                return;
+            }
+            
             // Get the field that was changed from the event detail
             const changedField = event?.detail?.field || event?.target?.name;
             if (!changedField) {
                 console.warn("Auto-save triggered but couldn't determine which field changed");
                 return;
             }
+            
+            // Remove field from dirty fields list since we're about to save it
+            this.dirtyFields.delete(changedField);
             
             // Get the model name from the form config
             const modelName = formCfg.model;
@@ -411,6 +596,10 @@ export class WindowForm {
                         console.error('Error updating record:', message.error);
                         statusDiv.textContent = `Error: ${message.error || 'Save failed'}`;
                         statusDiv.className = 'error';
+                        
+                        // Add the field back to dirtyFields because the save failed
+                        this.dirtyFields.add(changedField);
+                        
                         setTimeout(() => {
                             statusDiv.textContent = '';
                             statusDiv.className = '';
@@ -419,12 +608,26 @@ export class WindowForm {
                 }
             };
             
-            // Add the response handler
+            // Add the response handler and track it
             this.socketService.on('message', responseHandler);
+            this.messageHandlers.push(responseHandler);
         }, 10);
 
-        // Attach auto-save listener to each field
+        // Track input changes for dirty state and attach auto-save listener to each field
+        const trackChangesHandler = (event) => {
+            const changedField = event?.detail?.field;
+            if (changedField) {
+                // Mark the field as dirty
+                this.dirtyFields.add(changedField);
+            }
+        };
+
+        // Attach change tracking and auto-save to all inputs
         Object.values(fieldMap).forEach(input => {
+            // Add change tracking to all inputs (happens on every input change)
+            input.addEventListener('input', trackChangesHandler);
+            
+            // Add auto-save listener (this will trigger on data-changed events)
             input.addEventListener('data-changed', autoSave);
         });
 
@@ -485,8 +688,9 @@ export class WindowForm {
             }
         };
         
-        // Add the event listener
+        // Add the event listener and track it
         this.socketService.on('message', responseHandler);
+        this.messageHandlers.push(responseHandler);
     }
     
     // Update all form fields with the current record data
@@ -565,8 +769,9 @@ export class WindowForm {
             }
         };
         
-        // Add the event listener
+        // Add the event listener and track it
         this.socketService.on('message', responseHandler);
+        this.messageHandlers.push(responseHandler);
     }
 
     // Helper method to show an error message in the form
@@ -587,11 +792,18 @@ export class WindowForm {
         }
     }
 
+    /**
+     * Returns the window element to be added to the DOM
+     * @returns {HTMLElement} The window element
+     */
     getElement() {
         return this.windowElement;
     }
 
     close() {
+        // Mark form as closing to prevent further auto-saves
+        this.isClosing = true;
+        
         // Clean up event listeners to prevent memory leaks
         this._cleanupEventListeners();
         
@@ -601,15 +813,35 @@ export class WindowForm {
     
     // Clean up event listeners to prevent memory leaks
     _cleanupEventListeners() {
+        // Remove global keyboard handler
+        if (this.keydownHandler) {
+            document.removeEventListener('keydown', this.keydownHandler);
+        }
+        
+        // Remove focus tracking handler
+        if (this.focusHandler) {
+            this.windowElement.removeEventListener('focusin', this.focusHandler);
+        }
+        
         // Find all bindable inputs and remove record references
         const inputs = this.formElement.querySelectorAll('bindable-input');
         inputs.forEach(input => {
-            input.record = null; // Break circular references
+            // Don't use the setter which has validation
+            // Instead, directly set the internal property or use a property we know exists
+            if (input._record) {
+                // Create a temporary empty object to satisfy the non-null requirement
+                input._record = {};
+            }
         });
         
-        // Remove all message event listeners from the socket service
-        // This is a defensive approach since we might not have all references to added listeners
-        this.socketService.off('message');
+        // Remove only the message event listeners we've explicitly added
+        // instead of removing all message listeners from the socket service
+        if (this.messageHandlers && this.messageHandlers.length > 0) {
+            this.messageHandlers.forEach(handler => {
+                this.socketService.off('message', handler);
+            });
+            this.messageHandlers = []; // Clear the handlers array
+        }
     }
 
     /**
@@ -767,8 +999,9 @@ export class WindowForm {
             }
         };
         
-        // Add the event listener
+        // Add the event listener and track it
         this.socketService.on('message', responseHandler);
+        this.messageHandlers.push(responseHandler);
     }
 
     /**
