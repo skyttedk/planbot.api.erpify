@@ -48,7 +48,12 @@ async function syncSchemas(models, options = { force: false }) {
         const syncPromises = Object.entries(models).map(async ([name, model]) => {
             if (typeof model.syncSchema === 'function') {
                 schemaSpinner.text = `Syncing schema for ${name}`;
-                await model.syncSchema(options);
+                // When force is true, also drop extra columns
+                const syncOptions = { 
+                    force: options.force,
+                    dropExtraColumns: options.force || options.dropExtraColumns
+                };
+                await model.syncSchema(syncOptions);
                 syncedCount++;
                 schemaSpinner.text = `Synced ${syncedCount}/${modelNames.length} schemas`;
             }
