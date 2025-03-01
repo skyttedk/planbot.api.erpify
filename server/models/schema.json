@@ -1,0 +1,78 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "CustomerModel",
+    "description": "JSON Schema for the Customer model as defined in models/Customer.js.",
+    "type": "object",
+    "properties": {
+      "tableName": {
+        "type": "string",
+        "const": "customers",
+        "description": "The database table name for the Customer model."
+      },
+      "fields": {
+        "type": "object",
+        "description": "The field definitions for the Customer model.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Customer's name."
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 250,
+            "description": "Primary address of the customer."
+          },
+          "address2": {
+            "type": "string",
+            "maxLength": 250,
+            "description": "Secondary address of the customer."
+          },
+          "age": {
+            "type": "integer",
+            "description": "Customer's age."
+          },
+          "phone": {
+            "type": "string",
+            "description": "Customer's phone number."
+          },
+          "zip": {
+            "type": "string",
+            "description": "Customer's ZIP code."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Customer's email address."
+          }
+        },
+        "required": ["name", "address", "address2", "age", "phone", "zip", "email"]
+      },
+      "indexes": {
+        "type": "array",
+        "description": "Indexes defined for the Customer model.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the index."
+            },
+            "columns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "The fields that are part of the index."
+            },
+            "unique": {
+              "type": "boolean",
+              "description": "Indicates whether the index enforces uniqueness."
+            }
+          },
+          "required": ["name", "columns", "unique"]
+        }
+      }
+    },
+    "required": ["tableName", "fields", "indexes"]
+  }
+  
