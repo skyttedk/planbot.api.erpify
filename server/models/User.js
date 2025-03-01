@@ -12,17 +12,28 @@ class User extends Model {
 
     // Field definitions using domain-specific field templates.
     static fields = {
-        username: new fields.String250({ 
+        name: new fields.NameField({
+            required: false,
+            caption: 'Full Name'
+        }),
+
+        username: new fields.String250({
             required: true,
             caption: 'Username'
         }),
-        password: new fields.PasswordField({ 
+        password: new fields.PasswordField({
             required: true,
             caption: 'Password'
         }),
         email: new fields.Email({
             required: true,
             caption: 'Email Address'
+        }),
+        isAdmin: new fields.BooleanField({
+            caption: 'Administrator',
+            default: false,
+            trueLabel: 'Admin',
+            falseLabel: 'Regular User'
         }),
         lastLoginDate: new fields.Field({
             type: 'timestamp',
@@ -130,18 +141,22 @@ class User extends Model {
             // In a real implementation, you would use a password field method to verify
             // This should be handled by the PasswordField implementation
             const passwordField = this.fields.password;
-            
+
             // Get the raw hashed password from the database
             // Note: This assumes we have a way to get the raw value,
             // bypassing the onGet masking in PasswordField
             const hashedPassword = await this.getRawFieldValue(user.id, 'password');
-            
+
             if (passwordField.verifyPassword(password, hashedPassword)) {
                 // Update the last login date
                 await this.updateLastLogin(user.id);
+
+                // Add admin status information to the user object
+                user.isAdminUser = user.isAdmin?.value === true && user.isActive === true;
+
                 return user;
             }
-            
+
             return null;
         } catch (error) {
             logger.error('Authentication error:', error);
@@ -162,6 +177,29 @@ class User extends Model {
         const query = `SELECT ${fieldName} FROM ${this.tableName} WHERE id = ?`;
         const result = await this.db.raw(query, [id]);
         return result[0]?.[fieldName];
+    }
+
+    /**
+     * Checks if a user has admin privileges
+     * @param {number|string} userId - The ID of the user to check
+     * @returns {Promise<boolean>} True if the user is an admin, false otherwise
+     */
+    static async isAdmin(userId) {
+        try {
+            const user = await this.findById(userId);
+            if (!user) {
+                return false;
+            }
+
+            // Get the raw boolean value
+            // BooleanField's onGet returns an object with value, display, and raw properties
+            const isAdmin = user.isAdmin?.value === true;
+
+            return isAdmin && user.isActive === true;
+        } catch (error) {
+            logger.error(`Error checking admin status for user ${userId}:`, error);
+            return false;
+        }
     }
 }
 

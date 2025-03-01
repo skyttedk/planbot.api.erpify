@@ -42,7 +42,12 @@ class <FieldName> extends Field {
         // Merge fixed properties and allowed overrides and pass them to the base Field constructor.
         super({ ...fixedProperties, ...allowedOverrides, documentation
         }, '<FieldName>');
+        
+        // IMPORTANT: Any property assignments using 'this' MUST come AFTER the super() call above
+        // Example:
+        // this._customProperty = options.customProperty || defaultValue;
     }
+    
     /**
      * Custom setter logic: transforms the input value if necessary.
      *
@@ -56,6 +61,7 @@ class <FieldName> extends Field {
         }
         return value;
     }
+    
     /**
      * Custom getter logic: processes the value when it is retrieved.
      *

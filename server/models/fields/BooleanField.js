@@ -27,10 +27,6 @@ class BooleanField extends Field {
             caption: options.caption,
         };
 
-        // Store display labels
-        this._trueLabel = options.trueLabel || 'Yes';
-        this._falseLabel = options.falseLabel || 'No';
-
         // Field documentation provides metadata about the field.
         const documentation = {
             description: 'Stores boolean (true/false) values with proper type conversion',
@@ -40,6 +36,10 @@ class BooleanField extends Field {
 
         // Merge fixed properties and allowed overrides and pass them to the base Field constructor.
         super({ ...fixedProperties, ...allowedOverrides, documentation });
+        
+        // Store display labels - MUST BE AFTER super() call
+        this._trueLabel = options.trueLabel || 'Yes';
+        this._falseLabel = options.falseLabel || 'No';
     }
 
     /**
