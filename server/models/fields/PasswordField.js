@@ -29,14 +29,6 @@ class PasswordField extends Field {
             caption: options.caption,
         };
 
-        // Store password validation options
-        this._validationOptions = {
-            minLength: options.minLength ?? 8,
-            requireSpecialChar: options.requireSpecialChar ?? true,
-            requireNumber: options.requireNumber ?? true,
-            requireUppercase: options.requireUppercase ?? true,
-        };
-
         // Field documentation provides metadata about the field.
         const documentation = {
             description: 'Securely stores password values with proper hashing and validation',
@@ -46,6 +38,14 @@ class PasswordField extends Field {
 
         // Merge fixed properties and allowed overrides and pass them to the base Field constructor.
         super({ ...fixedProperties, ...allowedOverrides, documentation });
+        
+        // Store password validation options - MOVED AFTER super() call
+        this._validationOptions = {
+            minLength: options.minLength ?? 8,
+            requireSpecialChar: options.requireSpecialChar ?? true,
+            requireNumber: options.requireNumber ?? true,
+            requireUppercase: options.requireUppercase ?? true,
+        };
     }
 
     /**
