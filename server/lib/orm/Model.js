@@ -113,6 +113,42 @@ export default class Model {
   }
 
   /**
+   * Finds the next record after the one with the specified ID.
+   * If no next record exists, returns the last record in the table.
+   * 
+   * @param {string|number} id - The reference ID to find the next record from.
+   * @param {Object} [options={}] - Additional query options.
+   * @param {Object} [options.where] - Additional conditions for filtering records.
+   * @returns {Promise<Object|null>} The next record or the last record if no next exists, or null if table is empty.
+   */
+  static async findNext(id, options = {}) {
+    // Ensure options is an object, not null
+    options = options || {};
+    
+    // Find the next record with ID > current ID
+    const { where = {}, ...otherOptions } = options;
+    const nextOptions = {
+      where: {
+        ...where,
+        [this.primaryKey]: { '>' : id }
+      },
+      orderBy: { column: this.primaryKey, direction: 'ASC' },
+      limit: 1,
+      ...otherOptions
+    };
+    
+    const nextRecord = await this.find(nextOptions);
+    
+    // If we found a next record, return it
+    if (nextRecord.length > 0) {
+      return nextRecord[0];
+    }
+    
+    // Otherwise, return the last record (which might be the current one if it's the last)
+    return this.findLast(options);
+  }
+
+  /**
    * Counts records matching the options.
    * @param {Object} [options={}] - Query options with `where`.
    * @returns {Promise<number>} The number of matching records.
