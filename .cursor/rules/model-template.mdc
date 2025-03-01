@@ -12,8 +12,18 @@ if a user request a new model, then create a new file in this directory based up
 
 [model.template](mdc:server/models/model.template)
 
-
 remember to add the model to modelPaths in [model.template](mdc:server/models/model.template)
+
+
+The user may suggest fields to add to the model, if not, feel free to look in the server/models/fields
+for fields that would be suitable. 
+
+for example, is user requests a Country model, then perhaps fields like
+
+ CountryCode :  new fields.Code10Field(),
+ Name :  new fields.String250Field()
+ 
+ would be suitable.
 
 if a user requests to update a model, then just update the model requested with the changes requested.
 
