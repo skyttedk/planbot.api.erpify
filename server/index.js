@@ -5,6 +5,7 @@ import pool from './config/db.js';
 import modelLoader from './models/index.js';
 import viewLoader from './views/index.js';
 import controllerLoader from './controllers/index.js';
+import logger from './lib/logger.js';
 
 // Check for command line arguments
 const args = process.argv.slice(2);
@@ -26,7 +27,7 @@ async function verifyToken(token) {
 // Handle individual client connections
 async function handleClientConnection(ws) {
   clients.add(ws);
-  console.log('Client connected');
+  logger.info('Client connected');
 
   ws.on('message', async (message) => {
     let client;
@@ -85,7 +86,7 @@ async function handleClientConnection(ws) {
       });
     } catch (error) {
       if (client) await client.query('ROLLBACK');
-      console.error('Error:', error);
+      logger.error('Request error:', error);
       ws.send(JSON.stringify({ success: false, message: error.message }));
     } finally {
       if (client) client.release();
@@ -94,10 +95,10 @@ async function handleClientConnection(ws) {
 
   ws.on('close', () => {
     clients.delete(ws);
-    console.log('Client disconnected');
+    logger.info('Client disconnected');
   });
 
-  ws.on('error', (error) => console.error('WebSocket error:', error));
+  ws.on('error', (error) => logger.error('WebSocket error:', error));
 }
 
 // Handle model requests (CRUD operations)
@@ -160,16 +161,16 @@ async function handleControllerRequest(controllerName, action, parameters) {
 async function main() {
   const { PORT = 8011 } = process.env;
   const wss = new WebSocketServer({ port: PORT });
-  console.log(`WebSocket server running on ws://localhost:${PORT}`);
+  logger.success(`WebSocket server running on ws://localhost:${PORT}`);
 
   wss.on('connection', handleClientConnection);
-  wss.on('error', (error) => console.error('Server error:', error));
-  pool.on('error', (error) => console.error('Pool error:', error));
+  wss.on('error', (error) => logger.error('Server error:', error));
+  pool.on('error', (error) => logger.error('Pool error:', error));
 
   async function shutdown() {
     wss.close();
     await pool.end();
-    console.log('Server shut down');
+    logger.info('Server shut down');
     process.exit(0);
   }
   
@@ -177,14 +178,14 @@ async function main() {
   process.on('SIGINT', shutdown);
 
   process.on('unhandledRejection', (reason) =>
-    console.error('Unhandled Rejection:', reason)
+    logger.error('Unhandled Rejection:', reason)
   );
   process.on('uncaughtException', (error) =>
-    console.error('Uncaught Exception:', error)
+    logger.error('Uncaught Exception:', error)
   );
 }
 
-main().catch(console.error);
+main().catch((error) => logger.error('Server startup error:', error));
 
 function getFunctionParameters(fn) {
   const fnStr = fn.toString();

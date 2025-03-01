@@ -2,6 +2,8 @@ import pool from '../../config/db.js';
 
 import { asyncLocalStorage } from '../../lib/orm/asyncContext.js';
 
+import logger from '../../lib/logger.js';
+
 
 export default class Model {
   static tableName = '';
@@ -414,7 +416,7 @@ export default class Model {
       if (error.column) enhancedError.field = error.column;
       else if (error.detail?.match(/column "([^"]+)"/i)) enhancedError.field = error.detail.match(/column "([^"]+)"/i)[1];
       enhancedError.originalError = error;
-      console.error('Database query error:', { tableName, text, params, error });
+      logger.error('Database query error:', { tableName, text, params, error });
       throw enhancedError;
     } finally {
       if (releaseClient) client.release();
@@ -479,10 +481,7 @@ export default class Model {
             // Compare stored hash with current hash
             const storedHash = versionResult.rows[0].hash;
             needsSync = storedHash !== schemaHash;
-            
-            if (!needsSync) {
-              console.log(`Schema for table ${this.tableName} is up to date, skipping synchronization`);
-            }
+
           }
         }
       }
@@ -495,7 +494,7 @@ export default class Model {
       }
 
       // Add debugging log to see table name
-      console.log(`Syncing schema for table: ${this.tableName}`);
+      logger.schema(`Syncing schema for table: ${this.tableName}`);
 
       // Check if JSON type exists before proceeding
       const jsonTypeExists = (await client.query(
@@ -503,7 +502,7 @@ export default class Model {
         []
       )).rows[0].exists;
 
-      console.log(`JSON type exists in database: ${jsonTypeExists}`);
+      logger.db(`JSON type exists in database: ${jsonTypeExists}`);
 
       if (!tableExists) {
         // Debug the CREATE TABLE statement
@@ -515,11 +514,11 @@ export default class Model {
             // Use the newly improved _getColumnDefinition method
             columnDef = this._getColumnDefinition(name, def);
           }
-          console.log(`Column definition for ${name}: ${columnDef}`);
+          logger.schema(`Column definition for ${name}: ${columnDef}`);
           return columnDef;
         });
         const createTableSQL = `CREATE TABLE ${quotedTableName} (${columns.join(', ')})`;
-        console.log(`CREATE TABLE SQL: ${createTableSQL}`);
+        logger.schema(`CREATE TABLE SQL: ${createTableSQL}`);
         await client.query(createTableSQL);
       } else {
         const dbColumns = {};
@@ -543,7 +542,7 @@ export default class Model {
               `${fieldDef.sql}` : 
               this._getColumnDefinition(fieldName, fieldDef).replace(`${this._quoteIdentifier(fieldName)} `, '');
             
-            console.log(`Adding column ${fieldName}, SQL: ALTER TABLE ${quotedTableName} ADD COLUMN ${this._quoteIdentifier(fieldName)} ${defString}`);
+            logger.schema(`Adding column ${fieldName}, SQL: ALTER TABLE ${quotedTableName} ADD COLUMN ${this._quoteIdentifier(fieldName)} ${defString}`);
             await client.query(`ALTER TABLE ${quotedTableName} ADD COLUMN ${this._quoteIdentifier(fieldName)} ${defString}`);
             if (fieldDef.required && fieldDef.default === undefined) {
               const safeDefault = this._getSafeDefault(fieldDef);
@@ -564,7 +563,7 @@ export default class Model {
               (desiredDef.maxLength && parseInt(dbCol.character_maximum_length, 10) !== desiredDef.maxLength)
             ) {
               let typeClause = desiredDef.dataType + (desiredDef.maxLength ? `(${desiredDef.maxLength})` : '');
-              console.log(`Type change needed for ${fieldName}, type clause: ${typeClause}`);
+              logger.schema(`Type change needed for ${fieldName}, type clause: ${typeClause}`);
               
               try {
                 const usingClause = desiredDef.dataType === 'character varying' ? 
@@ -572,17 +571,17 @@ export default class Model {
                   `${this._quoteIdentifier(fieldName)}::${typeClause}`;
                 
                 const alterSQL = `ALTER TABLE ${quotedTableName} ALTER COLUMN ${this._quoteIdentifier(fieldName)} TYPE ${typeClause} USING ${usingClause}`;
-                console.log(`Executing SQL: ${alterSQL}`);
+                logger.db(`Executing SQL: ${alterSQL}`);
                 await client.query(alterSQL);
               } catch (error) {
-                console.log(`Error changing type of ${fieldName}, falling back to simpler approach: ${error.message}`);
+                logger.warn(`Error changing type of ${fieldName}, falling back to simpler approach: ${error.message}`);
                 const safeDefault = this._getSafeDefault(fieldDef);
                 const updateSQL = `UPDATE ${quotedTableName} SET ${this._quoteIdentifier(fieldName)} = ${safeDefault} WHERE ${this._quoteIdentifier(fieldName)} IS NOT NULL`;
-                console.log(`Executing SQL: ${updateSQL}`);
+                logger.db(`Executing SQL: ${updateSQL}`);
                 await client.query(updateSQL);
                 
                 const alterSQL = `ALTER TABLE ${quotedTableName} ALTER COLUMN ${this._quoteIdentifier(fieldName)} TYPE ${typeClause}`;
-                console.log(`Executing SQL: ${alterSQL}`);
+                logger.db(`Executing SQL: ${alterSQL}`);
                 await client.query(alterSQL);
               }
             }
@@ -647,9 +646,9 @@ export default class Model {
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error(`Schema sync error for table ${this.tableName}:`, error);
+      logger.error(`Schema sync error for table ${this.tableName}:`, error);
       if (error.message && error.message.includes('syntax error at or near "VARCHAR"')) {
-        console.error('VARCHAR syntax error details:', {
+        logger.error('VARCHAR syntax error details:', {
           table: this.tableName,
           errorDetail: error.detail,
           errorHint: error.hint,

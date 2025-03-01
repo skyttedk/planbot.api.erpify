@@ -1,5 +1,6 @@
 import Model from '../lib/orm/Model.js';
 import fields from './fields/index.js'; // Import field definitions
+import logger from '../lib/logger.js';
 
 
 class Log extends Model {
@@ -15,7 +16,7 @@ class Log extends Model {
 
     // Create Hooks
     static async onBeforeCreate(data) {
-        console.log('onBeforeCreate: validating and transforming Log data:', data);
+        logger.model('beforeCreate', 'Log', data);
         if (typeof data.name === 'string') {
             data.name = data.name.trim();
         }
@@ -23,7 +24,7 @@ class Log extends Model {
     }
 
     static async onAfterCreate(record) {
-        console.log('onAfterCreate: Log record created:', record);
+        logger.model('afterCreate', 'Log', record);
 
         // Add a log entry
         
@@ -33,7 +34,7 @@ class Log extends Model {
 
     // Update Hooks
     static async onBeforeUpdate(data) {
-        console.log('onBeforeUpdate: validating and transforming update data:', data);
+        logger.model('beforeUpdate', 'Log', data);
         if (data.name && typeof data.name === 'string') {
             data.name = data.name.trim();
         }
@@ -41,18 +42,18 @@ class Log extends Model {
     }
 
     static async onAfterUpdate(record) {
-        console.log('onAfterUpdate: Log record updated:', record);
+        logger.model('afterUpdate', 'Log', record);
         return record;
     }
 
     // Delete Hooks
     static async onBeforeDelete(id) {
-        console.log('onBeforeDelete: about to delete Log with id:', id);
+        logger.model('beforeDelete', 'Log', { id });
         return id;
     }
 
     static async onAfterDelete(result) {
-        console.log('onAfterDelete: Log deletion result:', result);
+        logger.model('afterDelete', 'Log', result);
         return result;
     }
 }

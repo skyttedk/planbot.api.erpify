@@ -1,13 +1,12 @@
 // models/Customer.js
 import Model from '../lib/orm/Model.js';
-
 import Log from './Log.js'; // Corrected import path
+import fields from './fields/index.js'; // Corrected import path
+import logger from '../lib/logger.js'; // Import the logger
 
 //import models from './Log.js';
 //import modelLoader from '../../server/models/index.js';
 //const models = await modelLoader.init();
-
-import fields from './fields/index.js'; // Corrected import path
 
 class Customer extends Model {
     static tableName = 'customers';
@@ -35,23 +34,22 @@ class Customer extends Model {
     // --------------------------
 
     static async onBeforeCreate(customer) {
-        console.log('Before creating customer:', customer);
+        logger.model('beforeCreate', 'Customer', customer);
         return customer;
     }
 
     static async onAfterCreate(customer) {
-        console.log('Customer created:', customer);
+        logger.model('afterCreate', 'Customer', customer);
 
         // Add a log entry
         //let a = models
         await Log.create({ path: '/customers', data: customer });
 
         throw new Error('Test error'); // Test error handling
-
     }
 
     static async onBeforeUpdate(customer) {
-        console.log('Before updating customer:', customer);
+        logger.model('beforeUpdate', 'Customer', customer);
 
         customer.age += 1; // Increment age
         //this.fields.age.validate(1); // Validate age
@@ -62,15 +60,15 @@ class Customer extends Model {
     }
 
     static async onAfterUpdate(customer) {
-        console.log('Customer updated:', customer);
+        logger.model('afterUpdate', 'Customer', customer);
     }
 
     static async onBeforeDelete(id) {
-        console.log('Before deleting customer ID:', id);
+        logger.model('beforeDelete', 'Customer', { id });
     }
 
     static async onAfterDelete(result) {
-        console.log('Customer deleted:', result);
+        logger.model('afterDelete', 'Customer', result);
     }
 }
 

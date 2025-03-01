@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { watch } from 'fs'; // Import for file watching
 import modelLoader from '../models/index.js';
+import logger from '../lib/logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -15,111 +16,101 @@ class ViewLoader {
 
     async init() {
         this.models = await modelLoader.init();
+        const viewsSpinner = logger.spinner('Loading views');
 
         try {
             const files = await fs.readdir(__dirname);
+            let loadedCount = 0;
+            const totalViews = files.filter(file => file !== 'index.js' && file.endsWith('.js')).length;
 
             for (const file of files) {
                 if (file === 'index.js' || !file.endsWith('.js')) {
                     continue;
                 }
 
+                viewsSpinner.text = `Loading view: ${file}`;
                 await this._loadViewFile(file);
+                loadedCount++;
+                viewsSpinner.text = `Loaded ${loadedCount}/${totalViews} views`;
             }
 
-            console.log(`Loaded ${Object.keys(this.views).length} views`);
-            
-            // Set up file watchers after initial load
-            this._setupFileWatchers();
+            viewsSpinner.succeed(`Successfully loaded ${Object.keys(this.views).length} views`);
+            this._setupViewWatcher();
+            return this.views;
         } catch (error) {
-            // If views directory doesn't exist yet, just return empty object
             if (error.code === 'ENOENT') {
-                console.log('Views directory not found, creating empty views object');
-            } else {
-                console.error('Error loading views:', error);
+                viewsSpinner.warn('Views directory not found, creating empty views object');
+                return {};
             }
+            viewsSpinner.fail(`Failed to load views: ${error.message}`);
+            logger.error('Error loading views:', error);
+            throw error;
         }
-
-        return this.views;
     }
     
     /**
      * Set up file watchers for the views directory
      */
-    _setupFileWatchers() {
-        // Clean up any existing watchers
-        this.watchers.forEach(watcher => watcher.close());
-        this.watchers.clear();
-        
-        // Setup watcher for the views directory
-        const directoryWatcher = watch(__dirname, async (eventType, filename) => {
-            // Skip non-JavaScript files and index.js
+    _setupViewWatcher() {
+        // Create a watcher for the views directory
+        const viewsWatcher = watch(__dirname, { persistent: true }, async (eventType, filename) => {
             if (!filename || !filename.endsWith('.js') || filename === 'index.js') {
                 return;
             }
-            
-            // Debounce changes - wait a short time to ensure file write is complete
-            clearTimeout(this._fileChangeTimeout);
-            this._fileChangeTimeout = setTimeout(async () => {
-                const viewName = path.basename(filename, '.js');
-                
-                // When a file changes
+
+            try {
+                // File change event
                 if (eventType === 'change') {
-                    console.log(`View file changed: ${filename}`);
+                    logger.info(`View file changed: ${filename}`);
                     
+                    // Check if the file is accessible before trying to read it
                     try {
-                        // Check if the file still exists (could have been temporarily renamed)
-                        const filePath = path.join(__dirname, filename);
-                        try {
-                            await fs.access(filePath);
-                        } catch (e) {
-                            console.log(`File ${filename} not accessible, skipping reload`);
-                            return;
-                        }
-                        
-                        // Reload the view file
-                        await this._loadViewFile(filename, true);
-                        console.log(`Reloaded view: ${filename}`);
+                        await fs.access(path.join(__dirname, filename), fs.constants.R_OK);
                     } catch (error) {
-                        console.error(`Error reloading view ${filename}:`, error);
+                        logger.warn(`File ${filename} not accessible, skipping reload`);
+                        return;
                     }
+                    
+                    // Small delay to ensure file is completely written
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    await this._reloadViewFile(filename);
+                    logger.success(`Reloaded view: ${filename}`);
                 }
-                // Handle file deletion/renaming
+                // File rename or creation event
                 else if (eventType === 'rename') {
                     try {
-                        // Check if the file exists (to distinguish between creation and deletion)
-                        const filePath = path.join(__dirname, filename);
-                        try {
-                            await fs.access(filePath);
-                            
-                            // File exists, it's a new file or renamed file
-                            if (!this.views[viewName]) {
-                                console.log(`New view file detected: ${filename}`);
-                                await this._loadViewFile(filename);
-                                console.log(`Loaded new view: ${filename}`);
-                            } else {
-                                // It could be that the file was renamed but the content is the same
-                                // We'll treat it as a change
-                                console.log(`View file renamed or created: ${filename}`);
-                                await this._loadViewFile(filename, true);
-                                console.log(`Reloaded view: ${filename}`);
-                            }
-                        } catch (e) {
-                            // File doesn't exist, it was deleted
-                            if (this.views[viewName]) {
-                                console.log(`View file deleted: ${filename}`);
-                                delete this.views[viewName];
-                            }
+                        await fs.access(path.join(__dirname, filename), fs.constants.R_OK);
+                        
+                        // New file created
+                        if (!this.views[path.basename(filename, '.js')]) {
+                            logger.info(`New view file detected: ${filename}`);
+                            await this._loadViewFile(filename);
+                            logger.success(`Loaded new view: ${filename}`);
+                        }
+                        // Existing file renamed
+                        else {
+                            logger.info(`View file renamed or created: ${filename}`);
+                            await this._reloadViewFile(filename);
+                            logger.success(`Reloaded view: ${filename}`);
                         }
                     } catch (error) {
-                        console.error(`Error handling view file rename/delete ${filename}:`, error);
+                        // File was deleted
+                        const viewName = path.basename(filename, '.js');
+                        if (this.views[viewName]) {
+                            logger.info(`View file deleted: ${filename}`);
+                            delete this.views[viewName];
+                        }
                     }
                 }
-            }, 100); // Small debounce delay
+            } catch (error) {
+                logger.error(`Error handling view file rename/delete ${filename}:`, error);
+            }
         });
         
-        this.watchers.set('directory', directoryWatcher);
-        console.log('Set up view file watcher');
+        // Store the watcher to prevent garbage collection and allow cleanup later
+        this.watchers.set('views', viewsWatcher);
+        logger.info('Set up view file watcher');
     }
     
     /**
@@ -150,14 +141,14 @@ class ViewLoader {
                     
                     if (validationResult.valid) {
                         this.views[viewName] = view;
-                        console.log(`Updated view "${viewName}" in views collection`);
+                        logger.info(`Updated view "${viewName}" in views collection`);
                         return this.views[viewName];
                     } else {
-                        console.error(`\x1b[31mSkipping view "${viewName}" due to field validation errors: ${validationResult.errors.join(', ')}\x1b[0m`);
+                        logger.error(`Skipping view "${viewName}" due to field validation errors: ${validationResult.errors.join(', ')}`);
                         return null;
                     }
                 } catch (error) {
-                    console.error(`Error reloading view ${file}:`, error);
+                    logger.error(`Error reloading view ${file}:`, error);
                     throw error;
                 }
             } else {
@@ -173,13 +164,13 @@ class ViewLoader {
                 if (validationResult.valid) {
                     this.views[viewName] = view;
                 } else {
-                    console.error(`\x1b[31mSkipping view "${viewName}" due to field validation errors: ${validationResult.errors.join(', ')}\x1b[0m`);
+                    logger.error(`Skipping view "${viewName}" due to field validation errors: ${validationResult.errors.join(', ')}`);
                 }
                 
                 return this.views[viewName];
             }
         } catch (error) {
-            console.error(`Error loading view ${file}:`, error);
+            logger.error(`Error loading view ${file}:`, error);
             throw error;
         }
     }
@@ -491,6 +482,37 @@ class ViewLoader {
             .split('_')
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');
+    }
+
+    async _reloadViewFile(file) {
+        try {
+            // Clear the module cache to force a fresh import
+            const modulePath = path.join(__dirname, file);
+            const viewName = path.basename(file, '.js');
+            
+            // Delete the cached module
+            delete require.cache[require.resolve(modulePath)];
+            
+            // Re-import the module
+            const { default: viewModule } = await import(`${modulePath}?update=${Date.now()}`);
+            
+            // Validate view fields if present
+            if (viewModule.fields) {
+                const validationResult = this._validateViewFields(viewModule.fields);
+                if (validationResult.valid) {
+                    this.views[viewName] = viewModule;
+                    logger.info(`Updated view "${viewName}" in views collection`);
+                } else {
+                    logger.error(`Skipping view "${viewName}" due to field validation errors: ${validationResult.errors.join(', ')}`);
+                }
+            } else {
+                // No fields to validate, just update the view
+                this.views[viewName] = viewModule;
+            }
+        } catch (error) {
+            logger.error(`Error reloading view ${file}:`, error);
+            throw error;
+        }
     }
 }
 
