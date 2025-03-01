@@ -2,7 +2,7 @@
 import logger from '../lib/logger.js';
 
 const modelPaths = {
-    User: './User.js',
+    // User: './User.js', - Removed User model
     Customer: './Customer.js',
     Log: './Log.js',
     Country: './Country.js',
