@@ -149,6 +149,42 @@ export default class Model {
   }
 
   /**
+   * Finds the previous record before the one with the specified ID.
+   * If no previous record exists, returns the first record in the table.
+   * 
+   * @param {string|number} id - The reference ID to find the previous record from.
+   * @param {Object} [options={}] - Additional query options.
+   * @param {Object} [options.where] - Additional conditions for filtering records.
+   * @returns {Promise<Object|null>} The previous record or the first record if no previous exists, or null if table is empty.
+   */
+  static async findPrevious(id, options = {}) {
+    // Ensure options is an object, not null
+    options = options || {};
+    
+    // Find the previous record with ID < current ID
+    const { where = {}, ...otherOptions } = options;
+    const prevOptions = {
+      where: {
+        ...where,
+        [this.primaryKey]: { '<' : id }
+      },
+      orderBy: { column: this.primaryKey, direction: 'DESC' },
+      limit: 1,
+      ...otherOptions
+    };
+    
+    const prevRecord = await this.find(prevOptions);
+    
+    // If we found a previous record, return it
+    if (prevRecord.length > 0) {
+      return prevRecord[0];
+    }
+    
+    // Otherwise, return the first record (which might be the current one if it's the first)
+    return this.findFirst(options);
+  }
+
+  /**
    * Counts records matching the options.
    * @param {Object} [options={}] - Query options with `where`.
    * @returns {Promise<number>} The number of matching records.
