@@ -1,0 +1,75 @@
+---
+description: General Description of this project
+globs: 
+alwaysApply: false
+---
+erpify: Rapid Application Development Platform
+
+Core Purpose
+We are developing a modern, efficient Rapid Application Development (RAD) platform inspired by Microsoft Access and Dynamics NAV. This platform will empower system architects to quickly build, test, and deploy customized business applications with minimal coding requirements and development overhead.
+
+Target Users
+Primary users will be system architects and business solution developers who need to:
+
+Rapidly prototype and implement business applications
+
+Respond quickly to evolving business requirements
+
+Create functional solutions without extensive programming expertise
+
+Deliver value to their organizations with shorter time-to-market
+
+Speed of Implementation: Enable architects to create functional applications in hours, not days or weeks
+
+Low-Code Priority: Minimize programming requirements for basic and intermediate functionality
+
+Minimal Overhead: Reduce bureaucratic and technical obstacles to implementation
+
+Production Readiness: Ensure applications can transition seamlessly from development to production
+
+Core Capabilities
+The platform will enable rapid definition and integration of:
+
+Data Models & Fields:
+
+Smart field type recommendations and validation rules
+Automated relationship mapping
+Built-in data migration and versioning
+Controllers & Business Logic:
+
+Dynamic form generation from data models
+Reports & Analytics:
+Dynamic filtering and sorting
+Export capabilities (PDF, Excel, etc.)
+
+Integration Framework:
+
+API connectors for common services
+Batch processing utilities
+Authentication and security management
+
+
+Every feature implemented in the base application must be evaluated against this question: "How much overhead will this introduce when system architects implement their business logic?" Features that add significant complexity without proportional value should be reconsidered or reimagined.
+
+Success Metrics
+The platform will be considered successful when:
+
+System architects can implement basic business applications in hours, not days
+
+Users can test functional components immediately after creation
+
+The learning curve for new architects is less than one week
+
+Applications built on the platform can scale to enterprise needs
+
+Maintenance of built applications requires minimal specialized knowledge
+
+Implementation Priorities
+
+Core data modeling and relationship management
+Basic view generation and customization
+Simple business rule implementation
+Report generation capabilities
+Integration frameworks
+
+This vision serves as our guiding framework, ensuring we maintain focus on empowering system architects to deliver business value rapidly through an intuitive, low-overhead application development platform.

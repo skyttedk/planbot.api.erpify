@@ -1,4 +1,17 @@
 
+
+seperate database for unit test.
+in config file, define database name for running unit test.
+  then before test, db schemasync.. and use that db
+
+
+
+
+pasword hasing:
+
+     * Mock hash implementation for testing
+     * In production, this would use a proper hashing algorithm like bcrypt
+     
 menu....
 
    documentation for fields is in field template,   wich makes no sence...

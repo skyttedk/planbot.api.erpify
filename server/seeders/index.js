@@ -1,4 +1,7 @@
 import logger from '../lib/logger.js';
+import { asyncLocalStorage } from '../lib/orm/asyncContext.js';
+import  pool  from '../config/db.js'
+
 
 // Import all seeders here
 import userSeeder from './userSeeder.js';
@@ -17,6 +20,7 @@ const seeders = [
  * @returns {Promise<void>}
  */
 async function runSeeders(models, options = { force: false }) {
+    let client;
     try {
         const seederSpinner = logger.spinner('Running database seeders');
         
@@ -24,24 +28,49 @@ async function runSeeders(models, options = { force: false }) {
         let completedCount = 0;
         const totalSeeders = seeders.length;
         
-        // Execute each seeder in sequence
-        for (const seeder of seeders) {
-            seederSpinner.text = `Running seeder: ${seeder.name}`;
-            
-            try {
-                await seeder.run(models, options);
-                completedCount++;
-                seederSpinner.text = `Completed ${completedCount}/${totalSeeders} seeders`;
-            } catch (error) {
-                logger.error(`Error in seeder ${seeder.name}:`, error);
-                // Continue with other seeders even if one fails
+        // Acquire a database client
+        client = await pool.connect();
+        
+        // Start a transaction
+        await client.query('BEGIN');
+        
+        // Execute all seeders within the transaction context
+        await asyncLocalStorage.run({ client }, async () => {
+            // Execute each seeder in sequence
+            for (const seeder of seeders) {
+                seederSpinner.text = `Running seeder: ${seeder.name}`;
+                
+                try {
+                    await seeder.run(models, options);
+                    completedCount++;
+                    seederSpinner.text = `Completed ${completedCount}/${totalSeeders} seeders`;
+                } catch (error) {
+                    logger.error(`Error in seeder ${seeder.name}:`, error);
+                    // Instead of continuing, we'll throw to trigger transaction rollback
+                    throw error;
+                }
             }
-        }
+        });
+        
+        // If we got here, all seeders completed successfully, so commit the transaction
+        await client.query('COMMIT');
         
         seederSpinner.succeed(`Database seeding completed: ${completedCount}/${totalSeeders} seeders`);
     } catch (err) {
+        // Roll back the transaction if there was an error
+        if (client) {
+            await client.query('ROLLBACK').catch(rollbackErr => {
+                logger.error('Error rolling back seeder transaction:', rollbackErr);
+            });
+        }
+        
         logger.error('Failed to run seeders:', err);
         throw err;
+    } finally {
+        // Release the client back to the pool
+        if (client) {
+            client.release();
+        }
     }
 }
 

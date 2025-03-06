@@ -45,7 +45,7 @@ class Customer extends Model {
         //let a = models
         await Log.create({ path: '/customers', data: customer });
 
-        throw new Error('Test error'); // Test error handling
+        
     }
 
     static async onBeforeUpdate(customer) {

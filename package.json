@@ -6,8 +6,6 @@
   "scripts": {
     "dev": "nodemon server/index.js",
     "start": "node server/index.js",
-    "field:add": "npx mycli field:add",
-    "model:create": "node scripts/createModel.js",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules npx jest",
     "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules npx jest --watch",
     "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules npx jest --coverage --collectCoverageFrom='server/**/*.js'",

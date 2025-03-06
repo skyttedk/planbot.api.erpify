@@ -1,10 +1,10 @@
 // models/fields/Field.js
-import crypto from 'crypto'; // Ensure this import is available if using Node.js
 
 /**
  * Represents a field in an ORM model with validation and transformation capabilities.
  *
  * @param {Object} options - Configuration options for the field.
+ * @param {string} fieldName - Name of the field for error reporting.
  * @param {string} options.type - The native type (e.g., 'string', 'integer', 'numeric', 'boolean', 'date', 'timestamp').
  * @param {number} [options.length] - Maximum length for string fields.
  * @param {boolean} [options.required=false] - Whether the field is required.
@@ -16,10 +16,12 @@ import crypto from 'crypto'; // Ensure this import is available if using Node.js
  * @param {string} [options.caption] - User-friendly caption for the field for UI display.
  * @param {function} [options.onSet] - Transformation function applied before saving.
  * @param {function} [options.onGet] - Transformation function applied after retrieval.
- * @param {string} [fieldName='Field'] - Name of the field for error reporting.
+ * @param {boolean} [options.primary=false] - Whether this is a primary key field.
+ * @param {boolean} [options.nullable=true] - Whether this field can be null.
  */
 export default class Field {
     constructor(options = {}, fieldName = 'Field') {
+        this.fieldName = fieldName;
         this.type = options.type;
         this.length = options.length;
         this.required = options.required || false;
@@ -29,9 +31,9 @@ export default class Field {
         this.scale = options.scale;
         this.uid = options.uid; // UID must be provided manually
         this.caption = options.caption; // User-friendly display name
-        this.onSet = options.onSet || ((value) => value);
-        this.onGet = options.onGet || ((value) => value);
-        this.fieldName = fieldName;
+        this.options = options; // Store all options for reference
+        //this.onSet = options.onSet || ((value) => value);
+        //this.onGet = options.onGet || ((value) => value);
     }
 
     /**
@@ -54,55 +56,57 @@ export default class Field {
         }
 
         // Type-specific validation
-        switch (this.type.toLowerCase()) {
-            case 'string':
-            case 'varchar':
-            case 'text':
-                if (typeof value !== 'string') {
-                    throw new Error(`${name} must be a string.`);
-                }
-                if (this.length && value.length > this.length) {
-                    throw new Error(`${name} exceeds the maximum length of ${this.length}.`);
-                }
-                if (this.pattern && !this.pattern.test(value)) {
-                    throw new Error(`${name} does not match the required pattern.`);
-                }
-                break;
-            case 'integer':
-            case 'int':
-                if (!Number.isInteger(value)) {
-                    throw new Error(`${name} must be an integer.`);
-                }
-                break;
-            case 'bigint':
-                if (typeof value !== 'bigint' && !Number.isInteger(value)) {
-                    throw new Error(`${name} must be a bigint or integer.`);
-                }
-                break;
-            case 'numeric':
-                if (isNaN(Number(value))) {
-                    throw new Error(`${name} must be a number.`);
-                }
-                // Additional precision/scale checks can be added if needed
-                break;
-            case 'boolean':
-                if (typeof value !== 'boolean') {
-                    throw new Error(`${name} must be a boolean.`);
-                }
-                break;
-            case 'date':
-                if (!(value instanceof Date) || isNaN(value.getTime())) {
-                    throw new Error(`${name} must be a valid date.`);
-                }
-                break;
-            case 'timestamp':
-                if (!(value instanceof Date) || isNaN(value.getTime())) {
-                    throw new Error(`${name} must be a valid timestamp.`);
-                }
-                break;
-            default:
-                // No additional validation for unknown types
-                break;
+        if (this.type) {
+            switch (this.type.toLowerCase()) {
+                case 'string':
+                case 'varchar':
+                case 'text':
+                    if (typeof value !== 'string') {
+                        throw new Error(`${name} must be a string.`);
+                    }
+                    if (this.length && value.length > this.length) {
+                        throw new Error(`${name} exceeds the maximum length of ${this.length}.`);
+                    }
+                    if (this.pattern && !this.pattern.test(value)) {
+                        throw new Error(`${name} does not match the required pattern.`);
+                    }
+                    break;
+                case 'integer':
+                case 'int':
+                    if (!Number.isInteger(value)) {
+                        throw new Error(`${name} must be an integer.`);
+                    }
+                    break;
+                case 'bigint':
+                    if (typeof value !== 'bigint' && !Number.isInteger(value)) {
+                        throw new Error(`${name} must be a bigint or integer.`);
+                    }
+                    break;
+                case 'numeric':
+                    if (isNaN(Number(value))) {
+                        throw new Error(`${name} must be a number.`);
+                    }
+                    // Additional precision/scale checks can be added if needed
+                    break;
+                case 'boolean':
+                    if (typeof value !== 'boolean') {
+                        throw new Error(`${name} must be a boolean.`);
+                    }
+                    break;
+                case 'date':
+                    if (!(value instanceof Date) || isNaN(value.getTime())) {
+                        throw new Error(`${name} must be a valid date.`);
+                    }
+                    break;
+                case 'timestamp':
+                    if (!(value instanceof Date) || isNaN(value.getTime())) {
+                        throw new Error(`${name} must be a valid timestamp.`);
+                    }
+                    break;
+                default:
+                    // No additional validation for unknown types
+                    break;
+            }
         }
     }
 

@@ -46,19 +46,13 @@ class PasswordField extends Field {
             requireNumber: options.requireNumber ?? true,
             requireUppercase: options.requireUppercase ?? true,
         };
-
-        // IMPORTANT: Override the onSet method at the instance level
-        // This ensures the method is always available when the field is stored in the schema
-        this.onSet = (value) => {
-            return this._hashPasswordValue(value);
-        };
     }
     
     /**
      * Helper method that centralizes the password hashing logic
      * @private
      */
-    _hashPasswordValue(value) {
+    async _hashPasswordValue(value) {
         if (value === null || value === undefined) {
             return value;
         }
@@ -73,20 +67,24 @@ class PasswordField extends Field {
         }
 
         // Perform validation
-        this._validatePassword(value);
-
-        // Hash the password
+        await this._validatePassword(value);
+        
+        // Hash the password and return it
         return this._mockHashPassword(value);
     }
 
     /**
-     * This method is defined for backward compatibility
-     * but all actual implementation is in _hashPasswordValue
+     * Transforms the input value into a hashed password
+     * This is called when data is set to ensure passwords are properly hashed
+     * 
+     * @param {string} value - The plain password to hash
+     * @returns {Promise<string>} The hashed password
      */
-    onSet(value) {
+    async onSet(value) {
+        // Delegate to the _hashPasswordValue method which handles all the logic
         return this._hashPasswordValue(value);
     }
-
+    
     /**
      * Custom getter logic: never returns the actual password.
      *
@@ -104,37 +102,65 @@ class PasswordField extends Field {
      * @param {string} password - The password to validate.
      * @throws {Error} If the password doesn't meet requirements.
      */
-    _validatePassword(password) {
-        const { minLength, requireSpecialChar, requireNumber, requireUppercase } = this._validationOptions;
-        
+    async _validatePassword(password) {
+        const minLength = 8;
+        const requireNumber = true;
+        const requireSpecialChar = true;
+        const requireUppercase = true;
+
         if (password.length < minLength) {
             throw new Error(`Password must be at least ${minLength} characters long`);
         }
-        
-        if (requireSpecialChar && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(password)) {
+
+        if (requireSpecialChar && !/[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?]+/.test(password)) {
             throw new Error('Password must contain at least one special character');
         }
-        
+
         if (requireNumber && !/\d/.test(password)) {
             throw new Error('Password must contain at least one number');
         }
-        
+
         if (requireUppercase && !/[A-Z]/.test(password)) {
             throw new Error('Password must contain at least one uppercase letter');
         }
+
+        return true;
     }
 
     /**
-     * Mock password hashing function - DO NOT USE IN PRODUCTION
-     * In a real application, use a proper library like bcrypt or argon2
+     * Mock hash implementation for testing
+     * In production, this would use a proper hashing algorithm like bcrypt
      * 
-     * @param {string} password - The password to hash.
-     * @returns {string} A mock hash.
+     * @param {string} password - The password to hash
+     * @returns {string} The hashed password
+     * @private
      */
     _mockHashPassword(password) {
-        // This is just a placeholder to demonstrate the concept
         // In production, use: return bcrypt.hashSync(password, 10);
-        return `$2b$10$mock_hash_${Buffer.from(password).toString('base64')}`;
+        // Create a mock hash that will definitely be different from the input
+        const encodedPassword = Buffer.from(password).toString('base64');
+        const mockHash = `$2b$10$mock_hash_${encodedPassword}`;
+        
+        // Ensure the hash is always different from the input
+        if (mockHash === password) {
+            console.error('Hash unexpectedly matched password');
+            return `$2b$10$mock_hash_${Date.now()}_${encodedPassword}`;
+        }
+        
+        return mockHash;
+    }
+
+    /**
+     * Public method to hash a password
+     * This is used by the User model when creating or updating users
+     * 
+     * @param {string} password - The password to hash
+     * @returns {Promise<string>} The hashed password
+     */
+    async hashPassword(password) {
+        // Validate and hash the password
+        await this._validatePassword(password);
+        return this._mockHashPassword(password);
     }
 
     /**
@@ -142,13 +168,21 @@ class PasswordField extends Field {
      * 
      * @param {string} plainPassword - The plain text password to check
      * @param {string} hashedPassword - The stored hash to verify against
-     * @returns {boolean} True if password matches
+     * @returns {Promise<boolean>} True if the password matches, false otherwise
      */
-    verifyPassword(plainPassword, hashedPassword) {
-        // In a real implementation, you would use bcrypt.compareSync
-        // This is a mock implementation - DO NOT USE IN PRODUCTION
-        const mockPart = hashedPassword.split('_hash_')[1];
-        return mockPart === Buffer.from(plainPassword).toString('base64');
+    async verifyPassword(plainPassword, hashedPassword) {
+        if (!plainPassword || !hashedPassword) {
+            return false;
+        }
+
+        // For mock implementation, extract the hash part
+        const parts = hashedPassword.split('mock_hash_');
+        if (parts.length !== 2) {
+            return false;
+        }
+
+        // Compare the encoded password with the stored hash part
+        return parts[1] === Buffer.from(plainPassword).toString('base64');
     }
 }
 

@@ -106,98 +106,27 @@ class User extends Model {
      * @param {Object} result - The result of the deletion operation.
      */
     static async onAfterDelete(result) {
-        logger.info(`User deleted`);
+        logger.info('User deleted');
+        return result;
     }
 
     /**
-     * Updates the last login date for a user
-     * @param {string|number} userId - The ID of the user
-     * @returns {Promise<Object>} The updated user record
+     * Update the last login timestamp for a user
+     * @param {number|string} userId - The ID of the user to update
+     * @returns {Promise<boolean>} Success status
      */
     static async updateLastLogin(userId) {
-        const user = await this.findById(userId);
-        if (!user) {
-            throw new Error(`User with ID ${userId} not found`);
-        }
-
-        user.lastLoginDate = new Date();
-        return await this.update(userId, user);
-    }
-
-    /**
-     * Authenticates a user with username and password
-     * @param {string} username - The username to authenticate
-     * @param {string} password - The password to verify
-     * @returns {Promise<Object|null>} The authenticated user or null if authentication fails
-     */
-    static async authenticate(username, password) {
-        try {
-            // Find the user by username
-            const user = await this.findOne({ where: { username } });
-            if (!user) {
-                return null;
-            }
-
-            // In a real implementation, you would use a password field method to verify
-            // This should be handled by the PasswordField implementation
-            const passwordField = this.fields.password;
-
-            // Get the raw hashed password from the database
-            // Note: This assumes we have a way to get the raw value,
-            // bypassing the onGet masking in PasswordField
-            const hashedPassword = await this.getRawFieldValue(user.id, 'password');
-
-            if (passwordField.verifyPassword(password, hashedPassword)) {
-                // Update the last login date
-                await this.updateLastLogin(user.id);
-
-                // Add admin status information to the user object
-                user.isAdminUser = user.isAdmin?.value === true && user.isActive === true;
-
-                return user;
-            }
-
-            return null;
-        } catch (error) {
-            logger.error('Authentication error:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Helper method to get raw field value from database
-     * This bypasses the field's onGet transformation
-     * @param {number|string} id - Record ID
-     * @param {string} fieldName - Field name to retrieve
-     * @returns {Promise<any>} Raw field value
-     */
-    static async getRawFieldValue(id, fieldName) {
-        // Implementation would depend on your database access layer
-        // This is a placeholder for the concept
-        const query = `SELECT ${fieldName} FROM ${this.tableName} WHERE id = ?`;
-        const result = await this.db.raw(query, [id]);
-        return result[0]?.[fieldName];
-    }
-
-    /**
-     * Checks if a user has admin privileges
-     * @param {number|string} userId - The ID of the user to check
-     * @returns {Promise<boolean>} True if the user is an admin, false otherwise
-     */
-    static async isAdmin(userId) {
         try {
             const user = await this.findById(userId);
             if (!user) {
                 return false;
             }
-
-            // Get the raw boolean value
-            // BooleanField's onGet returns an object with value, display, and raw properties
-            const isAdmin = user.isAdmin?.value === true;
-
-            return isAdmin && user.isActive === true;
+            
+            user.data.lastLoginDate = new Date();
+            await user.save();
+            return true;
         } catch (error) {
-            logger.error(`Error checking admin status for user ${userId}:`, error);
+            logger.error('Error updating last login date:', error);
             return false;
         }
     }

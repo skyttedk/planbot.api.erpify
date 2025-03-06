@@ -29,6 +29,73 @@ export default class Model {
   };
 
   /**
+   * Constructor for Model instances
+   * @param {Object} data - The data to initialize the model with
+   */
+  constructor(data = {}) {
+    this.data = data;
+    
+  }
+
+  /**
+   * Process the model's data by applying onSet transformations
+   * @private
+   */
+  _processData() {
+    if (!this.data) return;
+    
+    const fields = this.constructor.fields;
+    if (!fields) return;
+    
+    // Note: This method can't be async because it's called from the constructor
+    // For async onSet methods, the values will be processed when saved to database
+    for (const [key, value] of Object.entries(this.data)) {
+      // Apply onSet transformation when setting data initially
+      if (fields[key] && typeof fields[key].onSet === 'function') {
+        const result = fields[key].onSet(value);
+        
+        // For async transformations, we can't await here
+        // The actual value will be processed when saved
+        if (result instanceof Promise) {
+          console.log(`Warning: Async onSet detected for field ${key}. Using original value until save.`);
+        } else {
+          // If synchronous, use the transformed value
+          this.data[key] = result;
+        }
+      }
+    }
+  }
+
+  /**
+   * Process a database row by applying field transformations
+   * @param {Object} row - The database row to process
+   * @returns {Object} The model instance with processed data
+   * @private
+   */
+  static _processOnGet(row, value) {
+    // If a field and value are provided directly, process a single value
+    if (arguments.length === 2 && typeof row.onGet === 'function') {
+      return row.onGet(value);
+    }
+    
+    // Otherwise process an entire row
+    if (!row) return null;
+    
+    const fields = this.fields || {};
+    const processedData = { ...row };
+    
+    // Apply onGet transformations for each field
+    for (const [key, value] of Object.entries(row)) {
+      if (fields[key] && typeof fields[key].onGet === 'function') {
+        processedData[key] = fields[key].onGet(value);
+      }
+    }
+    
+    // Return a new instance of the model with the processed data
+    return new this(processedData);
+  }
+
+  /**
    * Returns the merged schema of the model, combining parent fields with the current class's fields.
    * @returns {Object} The merged schema.
    */
@@ -79,6 +146,7 @@ export default class Model {
   static async findById(id) {
     const query = `SELECT * FROM ${this._quoteIdentifier(this.tableName)} WHERE ${this._quoteIdentifier(this.primaryKey)} = $1`;
     const rows = await this.query(query, [id]);
+    
     return rows.length > 0 ? this._processOnGet(rows[0]) : null;
   }
 
@@ -89,6 +157,7 @@ export default class Model {
    */
   static async findOne(options = {}) {
     const results = await this.find({ ...options, limit: 1 });
+    
     return results[0] || null;
   }
 
@@ -210,116 +279,151 @@ export default class Model {
 
   /**
    * Creates a new record.
-   * @param {Object} data - Data to insert.
+   * @param {Object} data - The record data.
    * @returns {Promise<Object>} The created record.
    */
   static async create(data) {
-    const schema = this.getSchema();
+    // Run the onBeforeCreate hook if it exists
+    if (typeof this.onBeforeCreate === 'function') {2222
+      data = await this.onBeforeCreate(data);
+    }
+
+    // Process the data through onSet transformations
+    const processedData = {};
+    const fields = this.fields || {};
+    
+    // Process all fields asynchronously if needed
     for (const [key, value] of Object.entries(data)) {
-      if (schema[key]?.validate) {
+      if (fields[key] && typeof fields[key].onSet === 'function') {
         try {
-          schema[key].validate(value);
+          // Handle async onSet methods
+          processedData[key] = await fields[key].onSet(value);
+          console.log('processedData', processedData);
         } catch (error) {
-          throw new Error(`Validation failed for field '${key}' in table '${this.tableName}': ${error.message}`);
+          console.error(`Error processing field ${key}:`, error);
+          throw error;
         }
+      } else {
+        processedData[key] = value;
       }
     }
-    if (this.onBeforeCreate) data = await this.onBeforeCreate(data);
-    const processedData = this._processOnSet(data, schema);
-    const keys = Object.keys(processedData);
-    const query = `
-      INSERT INTO ${this._quoteIdentifier(this.tableName)} (${keys.map(k => this._quoteIdentifier(k)).join(', ')})
-      VALUES (${keys.map((_, i) => `$${i + 1}`).join(', ')})
-      RETURNING *
-    `;
-    const result = await this.query(query, Object.values(processedData));
-    if (this.onAfterCreate) await this.onAfterCreate(result[0]);
-    return this._processOnGet(result[0]);
+    
+    // Build the SQL query
+    const columns = Object.keys(processedData).map(key => this._quoteIdentifier(key)).join(', ');
+    const placeholders = Object.keys(processedData).map((_, i) => `$${i + 1}`).join(', ');
+    const values = Object.values(processedData);
+    
+    const query = `INSERT INTO ${this._quoteIdentifier(this.tableName)} (${columns}) 
+                  VALUES (${placeholders}) 
+                  RETURNING *`;
+    
+    // Execute the query
+    const result = await this.query(query, values);
+    
+    // Create a model instance with the result
+    const model = new this(result[0]);
+    
+    // Run the onAfterCreate hook if it exists
+    if (typeof this.onAfterCreate === 'function') {
+      await this.onAfterCreate(model);
+    }
+    
+    return model;
   }
 
   /**
    * Updates a single record by its primary key.
    * @param {string|number} id - The primary key value.
-   * @param {Object} data - Fields to update.
-   * @returns {Promise<Object|null>} The updated record or null if not found.
+   * @param {Object} data - The fields to update.
+   * @returns {Promise<Object>} The updated record.
    */
   static async update(id, data) {
-    const schema = this.getSchema();
+    // Convert id to the right type
+    if (typeof id === 'string' && !isNaN(parseInt(id))) {
+      id = parseInt(id);
+    }
     
-    // Validate the input data
-    for (const [key, value] of Object.entries(data)) {
-      if (schema[key]?.validate) {
+    // Skip the primary key from updates
+    const updateData = { ...data };
+    delete updateData[this.primaryKey];
+
+    // Get the existing record to run hooks
+    const existingRecord = await this.findById(id);
+    if (!existingRecord) {
+      throw new Error(`Record with ${this.primaryKey} = ${id} not found for update`);
+    }
+
+    // Run the onBeforeUpdate hook if it exists
+    if (typeof this.onBeforeUpdate === 'function') {
+      await this.onBeforeUpdate(existingRecord);
+    }
+
+    // Process fields with validation
+    const processedData = {};
+    const fields = this.fields || {};
+    const schema = this.getSchema();
+
+    for (const [key, value] of Object.entries(updateData)) {
+      // Skip the primary key from updates
+      if (key === this.primaryKey) continue;
+
+      // Process the field through onSet transformation
+      if (fields[key] && typeof fields[key].onSet === 'function') {
         try {
-          schema[key].validate(value);
+          // Handle async onSet methods
+          processedData[key] = await fields[key].onSet(value);
+        } catch (error) {
+          console.error(`Error processing field ${key}:`, error);
+          throw error;
+        }
+      } else {
+        processedData[key] = value;
+      }
+
+      // Validate against the schema
+      if (schema[key] && typeof schema[key].validate === 'function') {
+        try {
+          schema[key].validate(processedData[key]);
         } catch (error) {
           throw new Error(`Validation failed for field '${key}' in table '${this.tableName}': ${error.message}`);
         }
       }
     }
-    
-    // First retrieve the current complete record
-    const currentRecord = await this.findById(id);
-    if (!currentRecord) {
-      throw new Error(`Record with id ${id} not found in table '${this.tableName}'`);
+
+    // Add updatedAt timestamp
+    if (fields.updatedAt) {
+      processedData.updatedAt = new Date();
     }
-    
-    // Merge the update data with the current record to get a complete record
-    const completeData = { ...currentRecord, ...data };
-    
-    // Save a copy of the original merged data to compare after the trigger
-    const beforeTriggerData = { ...completeData };
-    
-    // Call onBeforeUpdate with the complete record
-    let processedData = completeData;
-    if (this.onBeforeUpdate) {
-      processedData = await this.onBeforeUpdate(completeData);
+
+    // Build the SQL query
+    if (Object.keys(processedData).length === 0) {
+      console.log('No valid fields to update.');
+      return existingRecord;
     }
-    
-    // Determine which fields were actually changed, either by the original update
-    // or by the onBeforeUpdate trigger
-    const fieldsToUpdate = {};
-    
-    // Include all original fields from the update
-    for (const key of Object.keys(data)) {
-      fieldsToUpdate[key] = processedData[key];
-    }
-    
-    // Also include any fields modified by the onBeforeUpdate trigger
-    for (const key of Object.keys(processedData)) {
-      // Skip the primary key
-      if (key === this.primaryKey) continue;
-      
-      // If this field wasn't in the original update data but was changed by the trigger,
-      // include it in the update
-      if (!data.hasOwnProperty(key) && 
-          JSON.stringify(beforeTriggerData[key]) !== JSON.stringify(processedData[key])) {
-        fieldsToUpdate[key] = processedData[key];
-      }
-    }
-    
-    // Process the final data for database update
-    const finalData = this._processOnSet(fieldsToUpdate, schema);
-    const updateKeys = Object.keys(finalData).filter(k => k !== this.primaryKey);
-    
-    if (updateKeys.length === 0) {
-      throw new Error(`No data provided for update in table '${this.tableName}'`);
-    }
-    
-    const query = `
-      UPDATE ${this._quoteIdentifier(this.tableName)}
-      SET ${updateKeys.map((k, i) => `${this._quoteIdentifier(k)} = $${i + 1}`).join(', ')}
-      WHERE ${this._quoteIdentifier(this.primaryKey)} = $${updateKeys.length + 1}
-      RETURNING *
-    `;
-    
-    const values = [...updateKeys.map(k => finalData[k]), id];
+
+    const setClause = Object.keys(processedData)
+      .map((key, i) => `${this._quoteIdentifier(key)} = $${i + 1}`)
+      .join(', ');
+    const values = Object.values(processedData);
+    values.push(id); // Add the ID for the WHERE clause
+
+    const query = `UPDATE ${this._quoteIdentifier(this.tableName)} 
+                  SET ${setClause} 
+                  WHERE ${this._quoteIdentifier(this.primaryKey)} = $${values.length} 
+                  RETURNING *`;
+
+    // Execute the query
     const result = await this.query(query, values);
     
-    if (result.length === 0) return null;
+    // Create a model instance with the result
+    const updatedModel = new this(result[0]);
     
-    if (this.onAfterUpdate) await this.onAfterUpdate(result[0]);
+    // Run the onAfterUpdate hook if it exists
+    if (typeof this.onAfterUpdate === 'function') {
+      await this.onAfterUpdate(updatedModel);
+    }
     
-    return this._processOnGet(result[0]);
+    return updatedModel;
   }
 
   /**
@@ -903,30 +1007,54 @@ export default class Model {
     return columns !== desiredColumns || dbUnique !== !!idx.unique;
   }
 
-  static _processOnSet(data, schema) {
-    const processed = {};
-    for (const key in data) {
-      if (schema[key] && typeof schema[key].setValue === 'function') {
-        processed[key] = schema[key].setValue(data[key]);
-      } else if (schema[key]?.onSet && typeof schema[key].onSet === 'function') {
-        processed[key] = schema[key].onSet(data[key]);
-      } else {
-        processed[key] = data[key];
+  /**
+   * Process a field value through its onSet transformation
+   * @param {Object} field - The field definition
+   * @param {*} value - The value to process
+   * @returns {*} The processed value
+   * @private
+   */
+  static async _processOnSet(field, value) {
+    if (field && typeof field.onSet === 'function') {
+      try {
+        // Handle async onSet methods properly
+        return await field.onSet(value);
+      } catch (error) {
+        console.error('Error in _processOnSet:', error);
+        throw error;
       }
     }
-    return processed;
+    return value;
   }
 
-  static _processOnGet(row) {
-    const schema = this.getSchema();
-    const processed = { ...row };
-    for (const key in processed) {
-      if (schema[key] && typeof schema[key].getValue === 'function') {
-        processed[key] = schema[key].getValue(processed[key]);
-      } else if (schema[key]?.onGet && typeof schema[key].onGet === 'function') {
-        processed[key] = schema[key].onGet(processed[key]);
+  /**
+   * Save method for instances - Add record if new, update if exists
+   * @returns {Promise<this>} Returns this instance after save operation
+   */
+  async save() {
+    if (this.data && this.data[this.constructor.primaryKey]) {
+      // Update existing record
+      await this.constructor.update(this.data[this.constructor.primaryKey], this.data);
+    } else {
+      // Create new record
+      const result = await this.constructor.create(this.data);
+      if (result) {
+        this.data = result.data || result; // Update with returned data
       }
     }
-    return processed;
+    return this;
+  }
+
+  /**
+   * Delete the current model instance from the database
+   * @returns {Promise<boolean>} True if successful
+   */
+  async delete() {
+    if (!this.data || !this.data[this.constructor.primaryKey]) {
+      throw new Error('Cannot delete a model that has not been saved');
+    }
+    
+    await this.constructor.delete(this.data[this.constructor.primaryKey]);
+    return true;
   }
 }

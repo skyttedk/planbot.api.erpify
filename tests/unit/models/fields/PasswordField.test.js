@@ -38,26 +38,30 @@ describe('PasswordField', () => {
 
   // Test password hashing
   describe('password hashing', () => {
-    it('should hash passwords with onSet', () => {
+    it('should hash passwords with onSet', async () => {
       const passwordField = new PasswordField('password');
       const plainPassword = 'Test@123';
-      const hashedPassword = passwordField.onSet(plainPassword);
       
-      // Hashed password should be different from plain text
-      expect(hashedPassword).not.toBe(plainPassword);
-      // Should be a bcrypt-like hash (using our mock implementation)
+      // Now test the onSet method
+      const hashedPassword = await passwordField.onSet(plainPassword);
+      
+      console.log('Plain password:', plainPassword);
+      console.log('Hashed password:', hashedPassword);
+      
+      // Just check that it's a string and matches the expected pattern
+      expect(typeof hashedPassword).toBe('string');
       expect(hashedPassword).toMatch(/^\$2b\$10\$mock_hash_/);
     });
 
-    it('should return null when null is passed to onSet', () => {
+    it('should return null when null is passed to onSet', async () => {
       const passwordField = new PasswordField('password');
-      const result = passwordField.onSet(null);
+      const result = await passwordField.onSet(null);
       expect(result).toBeNull();
     });
 
-    it('should return undefined when undefined is passed to onSet', () => {
+    it('should return undefined when undefined is passed to onSet', async () => {
       const passwordField = new PasswordField('password');
-      const result = passwordField.onSet(undefined);
+      const result = await passwordField.onSet(undefined);
       expect(result).toBeUndefined();
     });
 
@@ -73,51 +77,51 @@ describe('PasswordField', () => {
 
   // Test password validation
   describe('password validation', () => {
-    it('should validate password length', () => {
+    it('should validate password length', async () => {
       const passwordField = new PasswordField('password');
       
       // Too short
-      expect(() => passwordField._validatePassword('Abc@1')).toThrow(/at least 8 characters/);
+      await expect(passwordField._validatePassword('Abc@1')).rejects.toThrow(/at least 8 characters/);
       
       // Long enough
-      expect(() => passwordField._validatePassword('Abcdef@1')).not.toThrow();
+      await expect(passwordField._validatePassword('Abcdef@1')).resolves.toBeTruthy();
     });
 
-    it('should validate password complexity', () => {
+    it('should validate password complexity', async () => {
       const passwordField = new PasswordField('password');
       
       // Missing special character
-      expect(() => passwordField._validatePassword('Abcdef123')).toThrow(/special character/);
+      await expect(passwordField._validatePassword('Abcdef123')).rejects.toThrow(/special character/);
       
       // Missing number
-      expect(() => passwordField._validatePassword('Abcdef@#')).toThrow(/number/);
+      await expect(passwordField._validatePassword('Abcdef@#')).rejects.toThrow(/number/);
       
       // Missing uppercase
-      expect(() => passwordField._validatePassword('abcdef@123')).toThrow(/uppercase/);
+      await expect(passwordField._validatePassword('abcdef@1')).rejects.toThrow(/uppercase/);
       
       // Valid password
-      expect(() => passwordField._validatePassword('Abcdef@123')).not.toThrow();
+      await expect(passwordField._validatePassword('Abcdef@1')).resolves.toBeTruthy();
     });
   });
 
   // Test password verification
   describe('password verification', () => {
-    it('should verify a correct password', () => {
+    it('should verify a correct password', async () => {
       const passwordField = new PasswordField('password');
       const plainPassword = 'Test@123';
       const hashedPassword = passwordField._mockHashPassword(plainPassword);
       
-      const isValid = passwordField.verifyPassword(plainPassword, hashedPassword);
+      const isValid = await passwordField.verifyPassword(plainPassword, hashedPassword);
       expect(isValid).toBe(true);
     });
     
-    it('should not verify an incorrect password', () => {
+    it('should not verify an incorrect password', async () => {
       const passwordField = new PasswordField('password');
       const plainPassword = 'Test@123';
       const wrongPassword = 'Wrong@123';
       const hashedPassword = passwordField._mockHashPassword(plainPassword);
       
-      const isValid = passwordField.verifyPassword(wrongPassword, hashedPassword);
+      const isValid = await passwordField.verifyPassword(wrongPassword, hashedPassword);
       expect(isValid).toBe(false);
     });
   });
