@@ -220,7 +220,7 @@ async function handleControllerRequest(controllerName, action, parameters) {
 
 // Handle menu requests (returning the dynamically built menu structure)
 async function handleMenuRequest() {
-  logger.info('Handling menu request');
+  
   // Build and return the menu structure from all views
   const menuStructure = buildMenuStructure(views);
   return menuStructure;

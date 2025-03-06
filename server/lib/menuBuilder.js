@@ -23,7 +23,7 @@ function formatMenuItemName(str) {
  * @returns {Array} The built menu structure
  */
 function buildMenuStructure(views) {
-    logger.info('Building menu structure from views');
+    
     
     // Initialize the root menu structure
     const menuStructure = [];
