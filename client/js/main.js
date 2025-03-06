@@ -210,8 +210,9 @@ function createTopMenuBar(serverMenuStructure) {
     // Create menu structure - use server-provided menu
     const menuStructure = serverMenuStructure;
     
-    // Create main menu list
+    // Create main menu list for left side (application menus)
     const menuList = document.createElement('ul');
+    menuList.className = 'left-menu';
     
     // Create menu items
     menuStructure.forEach(menuItem => {
@@ -263,6 +264,68 @@ function createTopMenuBar(serverMenuStructure) {
     
     // Add main menu list to menu bar
     menuBar.appendChild(menuList);
+    
+    // Create the right side menu (user/settings menu)
+    const userMenuList = document.createElement('ul');
+    userMenuList.className = 'right-menu';
+    
+    // Create settings/profile menu item
+    const settingsLi = document.createElement('li');
+    settingsLi.className = 'settings-menu';
+    
+    // Create settings button with icon
+    const settingsButton = document.createElement('a');
+    settingsButton.href = '#';
+    settingsButton.className = 'settings-button';
+    settingsButton.innerHTML = '<span class="menu-icon">☰</span>'; // Hamburger menu icon
+    settingsButton.addEventListener('click', (e) => e.preventDefault());
+    
+    settingsLi.appendChild(settingsButton);
+    
+    // Create settings dropdown menu
+    const settingsDropdown = document.createElement('ul');
+    
+    // Add username display
+    const usernameLi = document.createElement('li');
+    usernameLi.className = 'username-display';
+    
+    // Get username from stored user data
+    let username = 'User';
+    try {
+        const userData = JSON.parse(localStorage.getItem('user_data') || sessionStorage.getItem('user_data') || '{}');
+        if (userData && userData.username) {
+            username = userData.username;
+        }
+    } catch (e) {
+        console.warn('Error parsing user data:', e);
+    }
+    
+    const usernameText = document.createElement('span');
+    usernameText.textContent = username;
+    usernameLi.appendChild(usernameText);
+    
+    // Add logout option
+    const logoutLi = document.createElement('li');
+    const logoutLink = document.createElement('a');
+    logoutLink.href = '#';
+    logoutLink.textContent = 'Logout';
+    logoutLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        logout();
+    });
+    
+    logoutLi.appendChild(logoutLink);
+    
+    // Assemble the dropdown
+    settingsDropdown.appendChild(usernameLi);
+    settingsDropdown.appendChild(logoutLi);
+    settingsLi.appendChild(settingsDropdown);
+    
+    // Add settings menu to the right menu
+    userMenuList.appendChild(settingsLi);
+    
+    // Add right menu to menu bar
+    menuBar.appendChild(userMenuList);
     
     // Insert the menu bar at the top of the body, before the desktop
     const desktop = document.getElementById('desktop');
@@ -560,3 +623,39 @@ socketService.on('error', (error) => {
 socketService.on('open', () => {
     console.log('Socket connected successfully');
 });
+
+/**
+ * Logs out the current user and returns to login screen
+ */
+function logout() {
+    console.log('Logging out user...');
+    
+    // Clear tokens from storage
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_data');
+    sessionStorage.removeItem('auth_token');
+    sessionStorage.removeItem('user_data');
+    
+    // Clear token from socket service
+    socketService.clearAuthToken();
+    
+    // Reset application state
+    window.applicationInitialized = false;
+    
+    // Clear desktop content
+    const desktop = document.getElementById('desktop');
+    if (desktop) {
+        desktop.innerHTML = '';
+    }
+    
+    // Remove top menu bar
+    const topMenu = document.getElementById('top-menu-bar');
+    if (topMenu && topMenu.parentNode) {
+        topMenu.parentNode.removeChild(topMenu);
+    }
+    
+    // Show login dialog
+    showLoginDialog();
+    
+    console.log('Logout complete');
+}

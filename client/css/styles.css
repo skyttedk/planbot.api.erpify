@@ -43,13 +43,110 @@ body {
 
 /* Top Menu Bar */
 .top-menu-bar {
-  background: var(--color-primary);
+  background: var(--color-primary) !important;
   color: var(--color-text-light);
   width: 100%;
   height: 42px;
   position: relative;
-  z-index: 1000;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25), 0 2px 5px rgba(0, 0, 0, 0.15);
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  z-index: 100;
+  box-shadow: var(--shadow-md);
+}
+
+/* Left side menu (application menus) */
+.top-menu-bar .left-menu {
+  display: flex !important;
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 100%;
+}
+
+/* Right side menu (user/settings) */
+.top-menu-bar .right-menu {
+  display: flex !important;
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  margin-right: 15px !important;
+}
+
+/* Settings menu item */
+.top-menu-bar .settings-menu {
+  position: relative;
+  height: 100%;
+}
+
+/* Settings button */
+.top-menu-bar .settings-button {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 15px;
+  color: var(--color-text-light);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* Menu icon */
+.top-menu-bar .menu-icon {
+  font-size: 20px;
+}
+
+/* Settings dropdown */
+.top-menu-bar .settings-menu ul {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border-radius: 0 0 4px 4px;
+  box-shadow: var(--shadow-md);
+  min-width: 180px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+/* Show dropdown on hover */
+.top-menu-bar .settings-menu:hover ul {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Dropdown items */
+.top-menu-bar .settings-menu ul li {
+  display: block;
+  width: 100%;
+}
+
+/* Username display */
+.top-menu-bar .username-display {
+  padding: 12px 15px;
+  color: var(--color-primary);
+  font-weight: 500;
+  background-color: #f5f5f5;
+  border-bottom: 1px solid #eee;
+}
+
+/* Logout link */
+.top-menu-bar .settings-menu ul li a {
+  display: block;
+  padding: 12px 15px;
+  color: var(--color-text);
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.top-menu-bar .settings-menu ul li a:hover {
+  background-color: var(--color-accent);
+  color: white;
 }
 
 /* Main menu list */
@@ -613,4 +710,84 @@ button.submit-btn:hover {
 
 .auth-refresh-btn:hover {
   background-color: #2980b9;
+}
+
+/* Top Menu Bar Styling - Left Menu */
+.top-menu-bar .left-menu > li {
+  position: relative;
+  float: left;
+  height: 100%;
+}
+
+.top-menu-bar .left-menu > li > a {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 15px;
+  color: var(--color-text-light);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.top-menu-bar .left-menu > li:hover > a {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Submenu Styling */
+.top-menu-bar .left-menu ul {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: white;
+  border-radius: 0 0 4px 4px;
+  box-shadow: var(--shadow-md);
+  min-width: 180px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+  animation: submenuFadeIn 0.3s forwards;
+  display: none;
+}
+
+/* Animation for submenu */
+@keyframes submenuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Show submenu on hover */
+.top-menu-bar .left-menu li:hover > ul {
+  opacity: 1;
+  visibility: visible;
+  display: block;
+}
+
+/* Submenu items */
+.top-menu-bar .left-menu ul li {
+  display: block;
+  width: 100%;
+}
+
+/* Submenu links */
+.top-menu-bar .left-menu ul li a {
+  display: block;
+  padding: 12px 15px;
+  color: var(--color-text);
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+/* Submenu hover effect */
+.top-menu-bar .left-menu ul li a:hover {
+  background-color: var(--color-accent);
+  color: white;
 }
