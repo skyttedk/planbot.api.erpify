@@ -2,21 +2,28 @@
  * PostgreSQL connection configuration using node-postgres.
  *
  * This configuration uses environment variables for connection details.
- * If the environment variables are not set, default values will be used.
+ * Environment variables are loaded from .env file using dotenv.
  */
 
 import pkg from 'pg';
 import logger from '../lib/logger.js';
+import 'dotenv/config';
 
 const { Pool } = pkg;
 
 const config = {
-    user: process.env.DB_USER || 'postgres',
-    host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_NAME || 'test2',
-    password: process.env.DB_PASSWORD || 'dit5740',
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
     port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 5432,
 };
+
+// Log connection without password for debugging
+logger.debug('DB Connection config:', { 
+    ...config,
+    password: '****' // Hide password in logs
+});
 
 const pool = new Pool(config);
 
