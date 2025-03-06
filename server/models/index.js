@@ -2,6 +2,7 @@
 import logger from '../lib/logger.js';
 import ora from 'ora';
 import seeders from '../seeders/index.js';
+import { initDatabase } from '../lib/db-init.js';
 
 const modelPaths = {
     User: './User.js',
@@ -93,6 +94,10 @@ class ModelLoader {
             this._initializationPromise = (async () => {
                 const initSpinner = logger.spinner('Initializing models');
                 try {
+                    // First ensure database infrastructure is ready
+                    initSpinner.text = 'Initializing database infrastructure';
+                    await initDatabase();
+                    
                     const models = await loadModels();
                     
                     if (options.forceSyncSchema) {

@@ -298,7 +298,6 @@ export default class Model {
         try {
           // Handle async onSet methods
           processedData[key] = await fields[key].onSet(value);
-          console.log('processedData', processedData);
         } catch (error) {
           console.error(`Error processing field ${key}:`, error);
           throw error;
@@ -620,6 +619,38 @@ export default class Model {
   static async syncSchema(options = { dropExtraColumns: false, force: false }) {
     const schema = { ...this.defaultFields, ...(this.fields || this.schema) };
     const quotedTableName = this._quoteIdentifier(this.tableName);
+    
+    // First, ensure the schema_versions table exists
+    try {
+      const checkClient = await pool.connect();
+      try {
+        // Check if schema_versions table exists
+        const versionTableExists = (await checkClient.query(
+          `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'schema_versions')`,
+          []
+        )).rows[0].exists;
+        
+        if (!versionTableExists) {
+          logger.schema('Creating schema_versions table');
+          // Create schema_versions table if it doesn't exist
+          await checkClient.query(`
+            CREATE TABLE schema_versions (
+              table_name VARCHAR(255) PRIMARY KEY,
+              hash VARCHAR(64) NOT NULL,
+              updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+          `);
+          logger.schema('schema_versions table created successfully');
+        }
+      } finally {
+        checkClient.release();
+      }
+    } catch (error) {
+      logger.error('Error ensuring schema_versions table exists:', error);
+      throw error;
+    }
+    
+    // Now proceed with main schema synchronization
     const client = await pool.connect();
     let clientReleased = false;
 
@@ -638,38 +669,19 @@ export default class Model {
       let needsSync = options.force || !tableExists;
       
       if (tableExists && !options.force) {
-        // Check if schema_versions table exists
-        const versionTableExists = (await client.query(
-          `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'schema_versions')`,
-          []
-        )).rows[0].exists;
+        // Check if there's a hash for this table
+        const versionResult = await client.query(
+          `SELECT hash FROM schema_versions WHERE table_name = $1`,
+          [this.tableName]
+        );
         
-        if (!versionTableExists) {
-          // Create schema_versions table if it doesn't exist
-          await client.query(`
-            CREATE TABLE schema_versions (
-              table_name VARCHAR(255) PRIMARY KEY,
-              hash VARCHAR(64) NOT NULL,
-              updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )
-          `);
+        if (versionResult.rows.length === 0) {
+          // No record for this table, we should sync
           needsSync = true;
         } else {
-          // Check if there's a hash for this table
-          const versionResult = await client.query(
-            `SELECT hash FROM schema_versions WHERE table_name = $1`,
-            [this.tableName]
-          );
-          
-          if (versionResult.rows.length === 0) {
-            // No record for this table, we should sync
-            needsSync = true;
-          } else {
-            // Compare stored hash with current hash
-            const storedHash = versionResult.rows[0].hash;
-            needsSync = storedHash !== schemaHash;
-
-          }
+          // Compare stored hash with current hash
+          const storedHash = versionResult.rows[0].hash;
+          needsSync = storedHash !== schemaHash;
         }
       }
       

@@ -1,12 +1,12 @@
 import { WebSocketServer } from 'ws';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { asyncLocalStorage } from '../server/lib/orm/asyncContext.js';
+import { buildMenuStructure } from './lib/menuBuilder.js';
 import pool from './config/db.js';
 import modelLoader from './models/index.js';
 import viewLoader from './views/index.js';
 import controllerLoader from './controllers/index.js';
 import logger from './lib/logger.js';
-import { buildMenuStructure } from './lib/menuBuilder.js';
 
 // Check for command line arguments
 const args = process.argv.slice(2);
