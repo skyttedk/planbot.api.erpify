@@ -32,8 +32,30 @@ export default class Field {
         this.uid = options.uid; // UID must be provided manually
         this.caption = options.caption; // User-friendly display name
         this.options = options; // Store all options for reference
-        //this.onSet = options.onSet || ((value) => value);
-        //this.onGet = options.onGet || ((value) => value);
+        
+        // Set onSet and onGet functions, with defaults if not provided
+        this.onSet = typeof options.onSet === 'function' ? options.onSet : this.defaultOnSet;
+        this.onGet = typeof options.onGet === 'function' ? options.onGet : this.defaultOnGet;
+    }
+
+    /**
+     * Default onSet function that returns the value unchanged.
+     * 
+     * @param {any} value - The value to be set.
+     * @returns {any} The original value.
+     */
+    defaultOnSet(value) {
+        return value;
+    }
+
+    /**
+     * Default onGet function that returns the value unchanged.
+     * 
+     * @param {any} value - The value to be retrieved.
+     * @returns {any} The original value.
+     */
+    defaultOnGet(value) {
+        return value;
     }
 
     /**
