@@ -35,6 +35,23 @@ export default class Model {
   constructor(data = {}) {
     this.data = data;
     
+    // Instead of using a Proxy, copy properties from data to this for direct access
+    // This preserves debuggability while allowing direct property access
+    Object.keys(data).forEach(key => {
+      // Skip if this property already exists on the instance
+      if (!(key in this)) {
+        // Define a property with getters and setters
+        Object.defineProperty(this, key, {
+          get() {
+            return this.data[key];
+          },
+          set(value) {
+            this.data[key] = value;
+          },
+          enumerable: true
+        });
+      }
+    });
   }
 
   /**

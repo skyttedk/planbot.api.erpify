@@ -26,11 +26,6 @@ const controllers = await controllerLoader.init();
 const rateLimiter = new RateLimiterMemory({ points: 100, duration: 60 });
 const clients = new Set();
 
-// Placeholder for token verification
-async function verifyToken(token) {
-  return true; // Replace with real logic
-}
-
 // Handle individual client connections
 async function handleClientConnection(ws) {
   clients.add(ws);
@@ -42,12 +37,35 @@ async function handleClientConnection(ws) {
       await rateLimiter.consume(ws._socket.remoteAddress);
       const request = JSON.parse(message);
 
-      if (!request.token || !(await verifyToken(request.token))) {
-        ws.send(JSON.stringify({ success: false, message: 'Unauthorized' }));
+      // Special handling for authentication requests
+      if (request.type === 'controller' && request.name === 'Auth') {
+        // Authentication requests don't require a token
+        // Acquire a client from the pool
+        client = await pool.connect();
+
+        // Run the request processing in an AsyncLocalStorage context
+        await asyncLocalStorage.run({ client }, async () => {
+          await client.query('BEGIN');
+
+          // Process the authentication request
+          const result = await handleControllerRequest('Auth', request.action, request.parameters || {});
+
+          await client.query('COMMIT');
+          ws.send(JSON.stringify({
+            success: true,
+            type: request.type,
+            data: result,
+            requestId: request.requestId
+          }));
+        });
+        
+        if (client) {
+          client.release();
+        }
         return;
       }
 
-      // Special handling for heartbeat messages
+      // Check for heartbeat requests which don't need authentication
       if (request.type === 'heartbeat') {
         // Send heartbeat response
         ws.send(JSON.stringify({ 
@@ -55,7 +73,28 @@ async function handleClientConnection(ws) {
           timestamp: Date.now(),
           success: true
         }));
-        return; // Don't proceed with normal request processing
+        return;
+      }
+
+      // For all other requests, verify token using Auth controller directly
+      if (!request.token) {
+        ws.send(JSON.stringify({ 
+          success: false, 
+          message: 'Unauthorized. Please authenticate first.',
+          requestId: request.requestId
+        }));
+        return;
+      }
+      
+      // Verify token using the Auth controller
+      const verificationResult = await controllers.Auth.verifyToken(request.token);
+      if (!verificationResult.success) {
+        ws.send(JSON.stringify({ 
+          success: false, 
+          message: verificationResult.message || 'Unauthorized. Please authenticate first.',
+          requestId: request.requestId
+        }));
+        return;
       }
 
       // Acquire a client from the pool

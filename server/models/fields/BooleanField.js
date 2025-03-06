@@ -78,12 +78,24 @@ class BooleanField extends Field {
 
     /**
      * Formats the boolean value for display when retrieved.
+     * Now returns just the boolean value for easier integration.
      *
      * @param {boolean} value - The stored boolean value.
-     * @returns {Object} The formatted value with display information.
+     * @returns {boolean} The boolean value.
      */
     onGet(value) {
-        // Return both raw value and formatted display value
+        // Simply return the boolean value
+        return value === true;
+    }
+
+    /**
+     * Gets rich display information for the boolean value.
+     * This method can be called when display formatting is needed.
+     * 
+     * @param {boolean} value - The boolean value to format.
+     * @returns {Object} An object containing value, display text, and raw value.
+     */
+    getDisplayInfo(value) {
         return {
             value: value === true,
             display: value === true ? this._trueLabel : this._falseLabel,
