@@ -18,6 +18,29 @@ class AgeField extends Field {
 
         super({ ...fixedProperties, ...allowedOverrides });
     }
+
+    /**
+ * Custom setter logic: trims the string value if provided.
+ *
+ * @param {any} value - The value to transform.
+ * @returns {any} The transformed value.
+ */
+    onSet(value) {
+        if (typeof value === 'string') {
+            return value.trim();
+        }
+        return value;
+    }
+
+    /**
+     * Custom getter logic: currently a no-op, but can be extended.
+     *
+     * @param {any} value - The value to transform.
+     * @returns {any} The transformed value.
+     */
+    onGet(value) {
+        return value;
+    }
 }
 
 export default AgeField;

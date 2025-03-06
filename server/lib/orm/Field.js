@@ -33,9 +33,7 @@ export default class Field {
         this.caption = options.caption; // User-friendly display name
         this.options = options; // Store all options for reference
         
-        // Set onSet and onGet functions, with defaults if not provided
-        this.onSet = typeof options.onSet === 'function' ? options.onSet : this.defaultOnSet;
-        this.onGet = typeof options.onGet === 'function' ? options.onGet : this.defaultOnGet;
+        
     }
 
     /**
