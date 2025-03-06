@@ -1,24 +1,156 @@
 import './components/bindable-input.js';
 import { WindowForm } from './window-form-builder.js';
 import { SocketService } from './services/socket-service.js';
+import { LoginDialog } from './components/login-dialog.js';
 
-// Create an instance of the SocketService with authentication
+// Create an instance of the SocketService
 const socketService = new SocketService({
     url: "ws://localhost:8011",
     debug: true,
     reconnectDelay: 3000,
     requestTimeout: 10000,
-    authToken: "123" // Use the hardcoded token for now
+    autoConnect: true 
 });
 
-// Create the desktop container and top menu bar if they don't exist
+// Initialize application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // Create desktop container
+    console.log('Document loaded, initializing application...');
+    
+    // Create desktop container if needed
     if (!document.getElementById('desktop')) {
         const desktop = document.createElement('div');
         desktop.id = 'desktop';
         document.body.appendChild(desktop);
     }
+    
+    // Set up event listeners for socket service
+    socketService.on('connected', () => {
+        console.log('Socket connected event received');
+        // Give the socket a moment to fully initialize before checking auth
+        setTimeout(checkAuthenticationAndProceed, 100);
+    });
+    socketService.on('auth_error', handleAuthError);
+    
+    // If already connected, wait a moment before checking auth
+    if (socketService.getState() === 'connected') {
+        console.log('Socket already connected on page load');
+        setTimeout(checkAuthenticationAndProceed, 100);
+    }
+    
+    // Force check for authentication after a delay regardless of socket state
+    // This ensures we don't get stuck if socket connection has issues
+    setTimeout(() => {
+        console.log('Performing timeout-based authentication check');
+        if (!window.loginDialogShowing && !window.applicationInitialized) {
+            checkAuthenticationAndProceed();
+        }
+    }, 1000);
+});
+
+// Global flags to track application state
+window.loginDialogShowing = window.loginDialogShowing || false;
+window.applicationInitialized = window.applicationInitialized || false;
+
+/**
+ * Check authentication status and proceed accordingly
+ */
+function checkAuthenticationAndProceed() {
+    console.log('Checking authentication status...');
+    
+    // Check if stored token is available
+    const localToken = localStorage.getItem('auth_token');
+    const sessionToken = sessionStorage.getItem('auth_token');
+    console.log(`Token in localStorage: ${localToken ? 'Yes' : 'No'}, sessionStorage: ${sessionToken ? 'Yes' : 'No'}`);
+    
+    // Check if the user is already authenticated
+    if (socketService.isAuthenticated()) {
+        console.log('User is authenticated with valid token, initializing application...');
+        // If authenticated, initialize the application
+        initializeApplication();
+    } else {
+        console.log('User is not authenticated - no valid token found');
+        
+        // Try to fetch and validate the token one more time
+        // This can help if the token wasn't properly initialized on socket service startup
+        const storedToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+        if (storedToken) {
+            console.log('Found stored token, attempting to set it and validate...');
+            // Set and validate the token
+            socketService.setAuthToken(storedToken);
+            
+            // Check if it was accepted as valid
+            if (socketService.isAuthenticated()) {
+                console.log('Token validated successfully on retry, initializing application...');
+                initializeApplication();
+                return;
+            } else {
+                console.log('Stored token failed validation, clearing it');
+                socketService.clearAuthToken();
+            }
+        }
+        
+        // Show login dialog as last resort
+        showLoginDialog();
+    }
+}
+
+// Force check for authentication on page load - don't wait for socket connection
+// This ensures login dialog is shown immediately
+setTimeout(() => {
+    if (!socketService.isAuthenticated() && !window.loginDialogShowing) {
+        console.log('Forcing login dialog display...');
+        showLoginDialog();
+    }
+}, 500);
+
+/**
+ * Show the login dialog
+ */
+function showLoginDialog() {
+    // Prevent showing multiple login dialogs
+    if (window.loginDialogShowing) {
+        console.log('Login dialog already showing, not creating another one');
+        return;
+    }
+    
+    console.log('Showing login dialog...');
+    window.loginDialogShowing = true;
+    
+    const loginDialog = new LoginDialog({
+        socketService: socketService,
+        onLoginSuccess: (token, user) => {
+            console.log('Login successful, initializing application...');
+            // Store user information in the application state
+            window.currentUser = user;
+            
+            // Mark dialog as closed
+            window.loginDialogShowing = false;
+            
+            // Initialize the application after successful login
+            initializeApplication();
+        },
+        onRegisterClick: () => {
+            // In future, this could show a registration form
+            console.log('Register clicked');
+            alert('Please contact your system administrator to create an account.');
+        }
+    });
+    
+    loginDialog.show();
+}
+
+/**
+ * Initialize the application after successful authentication
+ */
+function initializeApplication() {
+    // Set flag to prevent duplicate initialization
+    if (window.applicationInitialized) {
+        console.log('Application already initialized, skipping...');
+        return;
+    }
+    
+    console.log('Initializing application...');
+    window.applicationInitialized = true;
     
     // Fetch menu from server and create top menu bar
     fetchMenuFromServer().then(() => {
@@ -26,10 +158,20 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Menu loaded successfully');
     }).catch(error => {
         console.error('Failed to load menu from server:', error);
-        // Show error message to user
+        
+        // If authentication error, show login dialog
+        if (error.message && error.message.includes('Unauthorized')) {
+            console.log('Authentication failed, clearing token and showing login...');
+            window.applicationInitialized = false; // Reset flag since init failed
+            socketService.clearAuthToken();
+            showLoginDialog();
+            return;
+        }
+        
+        // Show error message for other errors
         showErrorMessage('Failed to load application menu. Please check your connection and try again.');
     });
-});
+}
 
 // Function to fetch menu structure from server
 async function fetchMenuFromServer() {
@@ -37,14 +179,14 @@ async function fetchMenuFromServer() {
         // Request menu structure from server
         const response = await socketService.request({
             type: 'menu',
-            token: socketService.config.authToken,
+            token: socketService.getAuthToken(),
         });
         
         if (response.success && Array.isArray(response.result)) {
             createTopMenuBar(response.result);
             return response.result;
         } else {
-            throw new Error('Invalid menu structure received from server');
+            throw new Error(response.message || 'Invalid menu structure received from server');
         }
     } catch (error) {
         console.error('Error fetching menu from server:', error);
@@ -127,9 +269,53 @@ function createTopMenuBar(serverMenuStructure) {
     document.body.insertBefore(menuBar, desktop);
 }
 
+/**
+ * Check if any form windows are currently open
+ * @returns {boolean} True if any form windows are visible
+ */
+function hasVisibleForms() {
+    // Check if there are any window elements in the DOM
+    const windows = document.querySelectorAll('.window');
+    return windows.length > 0;
+}
+
+/**
+ * Handle authentication errors
+ * @param {Object} data - Error data
+ */
+function handleAuthError(data) {
+    console.warn('Authentication error detected:', data.message);
+    
+    // Don't show login dialog if we already have windows open
+    if (hasVisibleForms()) {
+        console.log('Ignoring auth error because forms are already visible');
+        return;
+    }
+    
+    // Only handle authentication errors if we're not intentionally loading a view
+    if (window.viewBeingLoaded) {
+        console.warn('Ignoring auth error during view loading:', data.message);
+        return;
+    }
+    
+    socketService.clearAuthToken();
+    showLoginDialog();
+}
+
 // Function to load a view by name
 function loadView(viewName) {
     console.log(`Loading view: ${viewName}`);
+    
+    // Check if user is authenticated
+    const token = socketService.getAuthToken();
+    if (!token) {
+        console.error('Not authenticated, showing login dialog');
+        showLoginDialog();
+        return;
+    }
+    
+    // Set a flag to indicate we're intentionally loading a view
+    window.viewBeingLoaded = viewName;
     
     // Show loading indicator
     showLoadingIndicator(viewName);
@@ -138,11 +324,13 @@ function loadView(viewName) {
     socketService.sendMessage({
         type: 'view',
         name: viewName,
+        token: token,
         requestId: `req-${viewName}-config`
     });
     
     // Set a timeout for server response
     const timeoutId = setTimeout(() => {
+        window.viewBeingLoaded = null; // Clear the flag
         hideLoadingIndicator();
         showErrorMessage(`Failed to load ${viewName}. Server did not respond in time.`);
     }, 10000); // 10 seconds timeout
@@ -151,60 +339,6 @@ function loadView(viewName) {
     window.pendingRequests = window.pendingRequests || {};
     window.pendingRequests[viewName] = timeoutId;
 }
-
-// Function to show a loading indicator
-function showLoadingIndicator(viewName) {
-    // Remove any existing loading indicator
-    hideLoadingIndicator();
-    
-    // Create loading indicator
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.id = 'loading-indicator';
-    loadingIndicator.className = 'loading-indicator';
-    loadingIndicator.innerHTML = `
-        <div class="loading-spinner"></div>
-        <div class="loading-text">Loading ${viewName}...</div>
-    `;
-    
-    // Add to body
-    document.body.appendChild(loadingIndicator);
-}
-
-// Function to hide the loading indicator
-function hideLoadingIndicator() {
-    const existingIndicator = document.getElementById('loading-indicator');
-    if (existingIndicator) {
-        existingIndicator.remove();
-    }
-}
-
-// Function to show an error message
-function showErrorMessage(message) {
-    // Create error message element
-    const errorMessage = document.createElement('div');
-    errorMessage.className = 'error-message';
-    errorMessage.textContent = message;
-    
-    // Add to desktop
-    document.getElementById('desktop').appendChild(errorMessage);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        errorMessage.remove();
-    }, 5000);
-}
-
-// Set up error handling for socket connection issues
-socketService.on('error', (error) => {
-    console.error('Socket connection error:', error);
-    hideLoadingIndicator();
-    showErrorMessage('Connection error. Please check your network connection.');
-});
-
-// Connect to socket
-socketService.on('open', () => {
-    console.log('Socket connected successfully');
-});
 
 // Listen for server responses
 socketService.on('message', (message) => {
@@ -215,6 +349,50 @@ socketService.on('message', (message) => {
         console.error('Server error:', message.error);
         hideLoadingIndicator();
         showErrorMessage(`Error: ${message.error}`);
+        
+        // Check for authentication errors and show login if needed
+        if ((message.error.includes('Unauthorized') || 
+            message.error.includes('authentication') || 
+            message.error.includes('token')) && !window.viewBeingLoaded) {
+                
+            // Don't show login dialog if we already have forms visible
+            if (!hasVisibleForms()) {
+                console.warn('Authentication error detected, showing login dialog');
+                socketService.clearAuthToken();
+                showLoginDialog();
+            } else {
+                console.log('Ignoring auth error because forms are already visible');
+            }
+        }
+        
+        // Clear view loading flag on errors
+        window.viewBeingLoaded = null;
+        
+        return;
+    }
+    
+    // Check for authentication errors in the regular message format
+    if (message.message && !message.success && 
+        (message.message.includes('Unauthorized') || 
+         message.message.includes('authentication') || 
+         message.message.includes('token'))) {
+        console.warn('Authentication error detected:', message.message);
+        hideLoadingIndicator();
+        
+        // Only show login dialog if we're not intentionally loading a view
+        const wasLoadingView = window.viewBeingLoaded;
+        
+        // Clear view loading flag
+        window.viewBeingLoaded = null;
+        
+        // Don't show login dialog if we already have forms visible
+        if (!wasLoadingView && !hasVisibleForms()) {
+            socketService.clearAuthToken();
+            showLoginDialog();
+        } else {
+            console.log('Ignoring auth error because a view was loading or forms are visible');
+        }
+        
         return;
     }
     
@@ -241,6 +419,9 @@ socketService.on('message', (message) => {
             clearTimeout(window.pendingRequests[viewName]);
             delete window.pendingRequests[viewName];
         }
+        
+        // Clear the view loading flag
+        window.viewBeingLoaded = null;
         
         // Hide loading indicator
         hideLoadingIndicator();
@@ -308,4 +489,74 @@ socketService.on('message', (message) => {
         // Unhandled message types
         console.log('Unhandled message type:', message.requestId);
     }
+});
+
+// Function to show a loading indicator
+function showLoadingIndicator(viewName) {
+    // Remove any existing loading indicator
+    hideLoadingIndicator();
+    
+    // Create loading indicator
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.id = 'loading-indicator';
+    loadingIndicator.className = 'loading-indicator';
+    loadingIndicator.innerHTML = `
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading ${viewName}...</div>
+    `;
+    
+    // Add to body
+    document.body.appendChild(loadingIndicator);
+}
+
+// Function to hide the loading indicator
+function hideLoadingIndicator() {
+    const existingIndicator = document.getElementById('loading-indicator');
+    if (existingIndicator) {
+        existingIndicator.remove();
+    }
+}
+
+// Function to show an error message
+function showErrorMessage(message) {
+    // Create error message element
+    const errorMessage = document.createElement('div');
+    errorMessage.className = 'error-message';
+    errorMessage.textContent = message;
+    
+    // Add to desktop
+    document.getElementById('desktop').appendChild(errorMessage);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        errorMessage.remove();
+    }, 5000);
+}
+
+// Function to show a success message
+function showSuccessMessage(message) {
+    // Create success message element
+    const successMessage = document.createElement('div');
+    successMessage.className = 'success-message';
+    successMessage.textContent = message;
+    
+    // Add to desktop
+    document.getElementById('desktop').appendChild(successMessage);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        successMessage.remove();
+    }, 3000);
+}
+
+// Set up error handling for socket connection issues
+socketService.on('error', (error) => {
+    console.error('Socket connection error:', error);
+    hideLoadingIndicator();
+    showErrorMessage('Connection error. Please check your network connection.');
+});
+
+// Connect to socket
+socketService.on('open', () => {
+    console.log('Socket connected successfully');
 });

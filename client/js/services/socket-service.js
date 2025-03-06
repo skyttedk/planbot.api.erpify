@@ -38,6 +38,16 @@ export class SocketService {
         this.listeners = {};
         this.pendingRequests = new Map();
         
+        // Authentication
+        this.authToken = this._getStoredToken() || this.config.authToken;
+        
+        // Log authentication state
+        if (this.authToken) {
+            this._log(`Initialized with authentication token: ${this.authToken.substr(0, 10)}...`);
+        } else {
+            this._log('Initialized without authentication token');
+        }
+        
         // Connect if auto-connect is enabled
         if (this.config.autoConnect) {
             this.connect();
@@ -109,60 +119,104 @@ export class SocketService {
         this.connect();
     }
 
-    // Send a message through the WebSocket
+    /**
+     * Send a message to the server
+     * @param {Object} message - The message to send
+     */
     sendMessage(message) {
-        // Ensure message is an object
-        const msgObj = typeof message === 'string' ? JSON.parse(message) : message;
+        // Clone the message to avoid modifying the original
+        const messageToSend = { ...message };
         
-        // Add authentication token to every outgoing message
-        msgObj.token = this.config.authToken;
-        
-        // Add timestamp if not present
-        if (!msgObj.timestamp) {
-            msgObj.timestamp = new Date().toISOString();
+        // Check if this message includes a token
+        if (messageToSend.token) {
+            // Validate token format
+            if (typeof messageToSend.token !== 'string' || messageToSend.token.split('.').length !== 3) {
+                console.warn('Attempted to send message with invalid token format:', messageToSend);
+                
+                // Remove the invalid token
+                delete messageToSend.token;
+                
+                // For non-auth requests, emit an auth error event
+                if (!(messageToSend.type === 'controller' && messageToSend.name === 'Auth')) {
+                    this._emit('auth_error', { message: 'Invalid token format' });
+                }
+            }
         }
-
-        // Stringify for sending
-        const messageStr = JSON.stringify(msgObj);
         
-        if (this.connectionState === 'connected') {
-            this._log('Sending message:', msgObj);
+        if (this.connectionState === 'connected' && this.ws && this.ws.readyState === WebSocket.OPEN) {
+            // If connected, send immediately
+            const messageStr = JSON.stringify(messageToSend);
             this.ws.send(messageStr);
+            this._log('Sent:', messageToSend);
         } else {
-            this._log('Queueing message (not connected):', msgObj);
-            this.messageQueue.push(messageStr);
+            // Otherwise queue for later
+            this.messageQueue.push(messageToSend);
+            this._log('Queued message, connection not ready:', messageToSend);
+            
+            // Attempt reconnect if disconnected
+            if (this.connectionState === 'disconnected') {
+                this.connect();
+            }
         }
     }
 
-    // Send a request and return a promise that resolves with the response
+    /**
+     * Send a request to the server and wait for a response
+     * @param {Object} message - The message to send
+     * @param {number} timeout - Custom timeout for this request in milliseconds
+     * @returns {Promise<Object>} - The response from the server
+     */
     async request(message, timeout = null) {
+        // Clone the message to avoid modifying the original
+        const messageToSend = { ...message };
+        
+        // Generate a unique request ID if one isn't provided
+        const requestId = messageToSend.requestId || this._generateRequestId();
+        messageToSend.requestId = requestId;
+        
+        // For non-Auth requests, explicitly check if we have a valid token
+        const isAuthRequest = messageToSend.type === 'controller' && messageToSend.name === 'Auth';
+        
+        if (!isAuthRequest) {
+            // If not an Auth request, we need a valid token
+            const token = messageToSend.token || this.authToken;
+            
+            // Validate token or throw an error
+            if (!token || typeof token !== 'string' || token.split('.').length !== 3) {
+                this._log('Request rejected due to missing or invalid token:', messageToSend);
+                this._emit('auth_error', { message: 'Authentication required' });
+                return Promise.reject(new Error('Authentication required'));
+            }
+            
+            // Set the token if not already set
+            if (!messageToSend.token) {
+                messageToSend.token = token;
+            }
+        } else {
+            // For Auth requests, make sure we don't include a token parameter
+            delete messageToSend.token;
+        }
+        
+        // Create a promise that resolves when a response is received
         return new Promise((resolve, reject) => {
-            const requestId = this._generateRequestId();
+            // Set up the timeout
             const timeoutMs = timeout || this.config.requestTimeout;
-            
-            // Add requestId to the message
-            const requestMessage = {
-                ...(typeof message === 'object' ? message : { data: message }),
-                requestId
-            };
-            
-            // Set timeout for the request
             const timeoutId = setTimeout(() => {
-                if (this.pendingRequests.has(requestId)) {
-                    this.pendingRequests.delete(requestId);
-                    reject(new Error(`Request timed out after ${timeoutMs}ms`));
-                }
+                // Remove the pending request from the map
+                this.pendingRequests.delete(requestId);
+                reject(new Error(`Request timed out after ${timeoutMs}ms`));
             }, timeoutMs);
             
-            // Store the handlers
+            // Store the promise resolve/reject functions and timeout ID
             this.pendingRequests.set(requestId, {
                 resolve,
                 reject,
-                timeoutId
+                timeoutId,
+                sentAt: Date.now()
             });
             
-            // Send the request
-            this.sendMessage(requestMessage);
+            // Send the message
+            this.sendMessage(messageToSend);
         });
     }
 
@@ -194,66 +248,85 @@ export class SocketService {
         return this.connectionState;
     }
 
-    // Handle WebSocket open event
+    /**
+     * Handle the WebSocket open event
+     * @private
+     */
     _handleOpen() {
+        this._log('WebSocket connection established');
         this.connectionState = 'connected';
         this.reconnectAttempts = 0;
-        this._log('WebSocket connected');
         
-        // Start heartbeat
+        // Clear reconnect timer if it exists
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+        
+        // Start heartbeat to keep connection alive
         this._startHeartbeat();
         
-        // Authenticate if provider exists
-        this._authenticate();
-        
-        // Process queued messages
+        // Process any messages that were queued while disconnected
         this._processQueue();
         
-        // Emit event
-        this._emit('open');
+        // Emit the connected event to let the application know we're ready
+        this._emit('connected', { timestamp: Date.now() });
     }
 
-    // Handle WebSocket message event
+    /**
+     * Handle incoming WebSocket messages
+     * @param {MessageEvent} event - The WebSocket message event
+     * @private
+     */
     _handleMessage(event) {
         let message;
         
         try {
             message = JSON.parse(event.data);
+            this._log('Message received:', message);
         } catch (error) {
-            this._log('Failed to parse WebSocket message:', event.data);
-            this._emit('error', { 
-                type: 'parse_error', 
-                error, 
-                rawData: event.data 
-            });
+            this._log('Error parsing message:', error);
+            this._emit('error', { error, message: 'Failed to parse message from server' });
             return;
         }
         
-        // Log received message if debug is enabled
-        if (this.config.debug) {
-            this._log('Received:', message);
-        }
-        
-        // Handle heartbeat response
-        if (message.type === 'pong' || message.type === 'heartbeat_response') {
-            clearTimeout(this.heartbeatTimeoutTimer);
+        // Check for heartbeat response
+        if (message.type === 'heartbeat_response') {
+            this._log('Heartbeat response received');
+            // Clear timeout as heartbeat was acknowledged
+            if (this.heartbeatTimeoutTimer) {
+                clearTimeout(this.heartbeatTimeoutTimer);
+                this.heartbeatTimeoutTimer = null;
+            }
             return;
         }
         
-        // Handle response to a specific request
+        // Check for authentication errors
+        if (message.success === false && message.message && 
+            (message.message.includes('Unauthorized') || 
+             message.message.includes('authentication') ||
+             message.message.includes('Invalid token'))) {
+            
+            // Emit authentication error event
+            this._emit('auth_error', { message: message.message });
+        }
+        
+        // Check if this is a response to a pending request
         if (message.requestId && this.pendingRequests.has(message.requestId)) {
-            const { resolve, timeoutId } = this.pendingRequests.get(message.requestId);
+            const { resolve, reject, timeoutId } = this.pendingRequests.get(message.requestId);
+            
+            // Clear the timeout for this request
             clearTimeout(timeoutId);
+            
+            // Remove from pending requests
             this.pendingRequests.delete(message.requestId);
+            
+            // Resolve the promise with the message data
             resolve(message);
+            return;
         }
         
-        // Emit event for the specific message type
-        if (message.type) {
-            this._emit(message.type, message);
-        }
-        
-        // Emit general message event
+        // If not a response to a pending request, emit as a normal message
         this._emit('message', message);
     }
 
@@ -420,6 +493,76 @@ export class SocketService {
         if (this.config.debug) {
             console.log('[SocketService]', ...args);
         }
+    }
+
+    /**
+     * Get stored authentication token from localStorage or sessionStorage
+     * @returns {string|null} The stored auth token or null if not found
+     * @private
+     */
+    _getStoredToken() {
+        // Check both storage locations and log what we find
+        const localToken = localStorage.getItem('auth_token');
+        const sessionToken = sessionStorage.getItem('auth_token');
+        
+        this._log(`Token check - localStorage: ${localToken ? 'found' : 'not found'}, sessionStorage: ${sessionToken ? 'found' : 'not found'}`);
+        
+        // Try to get token from localStorage first, then fallback to sessionStorage
+        const token = localToken || sessionToken || null;
+        
+        // Validate that the token looks like a JWT (basic check)
+        if (token && typeof token === 'string' && token.split('.').length === 3) {
+            this._log(`Found valid token: ${token.substr(0, 10)}...`);
+            return token;
+        }
+        
+        // If invalid, clear it from storage
+        if (localToken) localStorage.removeItem('auth_token');
+        if (sessionToken) sessionStorage.removeItem('auth_token');
+        
+        this._log('No valid token found in storage');
+        return null;
+    }
+
+    /**
+     * Set the authentication token
+     * @param {string} token - The JWT token
+     */
+    setAuthToken(token) {
+        // Only set if it's a valid token
+        if (token && typeof token === 'string' && token.split('.').length === 3) {
+            this.authToken = token;
+            this.config.authToken = token;
+        } else {
+            console.warn('Attempted to set invalid authentication token');
+            this.clearAuthToken();
+        }
+    }
+
+    /**
+     * Clear the authentication token
+     */
+    clearAuthToken() {
+        this.authToken = null;
+        this.config.authToken = null;
+        localStorage.removeItem('auth_token');
+        sessionStorage.removeItem('auth_token');
+    }
+
+    /**
+     * Check if the user is authenticated
+     * @returns {boolean} True if authenticated, false otherwise
+     */
+    isAuthenticated() {
+        return !!(this.authToken && typeof this.authToken === 'string' && this.authToken.split('.').length === 3);
+    }
+
+    /**
+     * Get the current authentication token
+     * @returns {string|null} The current token or null if not authenticated
+     */
+    getAuthToken() {
+        return this.authToken;
     }
 }
 

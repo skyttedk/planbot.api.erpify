@@ -646,25 +646,17 @@ export class WindowForm {
         const modelName = formCfg.model;
         console.log(`Loading default record for model ${modelName}`);
         
-        // Request the first record from the server with the correct format
-        this.socketService.sendMessage({
-            type: 'model',
-            name: modelName,
-            action: 'findFirst',
-            parameters: {}, // Server expects parameters as an object
-            requestId: `req-find-first-${modelName}-${Date.now()}`
-        });
+        // Add the message handler before sending the request
+        const requestId = `req-find-first-${modelName}-${Date.now()}`;
         
-        // Set a timeout to prevent hanging if the server doesn't respond
-        const timeoutId = setTimeout(() => {
-            this.socketService.off('message', responseHandler);
-            console.warn(`findFirst request for ${modelName} timed out after 10 seconds`);
-            this._showFormError(`Failed to load data. Please try again later.`);
-        }, 10000);
-        
-        // Listen for the response
+        // Set up the response handler with proper event listener
         const responseHandler = (message) => {
             // Check if this is the response to our findFirst request
+            console.log(`Checking message response for findFirst ${modelName}:`, 
+                message.requestId, 
+                requestId,
+                message.requestId && message.requestId.startsWith(`req-find-first-${modelName}`));
+                
             if (message.requestId && message.requestId.startsWith(`req-find-first-${modelName}`)) {
                 // Clear timeout and remove the event listener
                 clearTimeout(timeoutId);
@@ -682,15 +674,38 @@ export class WindowForm {
                     // Update the record indicator
                     this._updateRecordIndicator();
                 } else {
-                    console.warn(`Failed to load default record for ${modelName}:`, message.error || 'Unknown error');
-                    this._showFormError(`Error loading data: ${message.error || 'Unknown error'}`);
+                    console.warn(`Failed to load default record for ${modelName}:`, 
+                        message.success ? 'No data received' : message.message || 'Unknown error');
+                        
+                    if (!message.success) {
+                        this._showFormError(`Failed to load data: ${message.message || 'Unknown error'}`);
+                    }
                 }
             }
         };
         
-        // Add the event listener and track it
-        this.socketService.on('message', responseHandler);
+        // Add the message handler to track list for cleanup
         this.messageHandlers.push(responseHandler);
+        this.socketService.on('message', responseHandler);
+        
+        // Create message with token
+        const message = this._ensureTokenInMessage({
+            type: 'model',
+            name: modelName,
+            action: 'findFirst',
+            parameters: {}, // Server expects parameters as an object
+            requestId: requestId
+        });
+        
+        // Request the first record from the server
+        this.socketService.sendMessage(message);
+        
+        // Set a timeout to prevent hanging if the server doesn't respond
+        const timeoutId = setTimeout(() => {
+            this.socketService.off('message', responseHandler);
+            console.warn(`findFirst request for ${modelName} timed out after 10 seconds`);
+            this._showFormError(`Failed to load data. Please try again later.`);
+        }, 10000);
     }
     
     // Update all form fields with the current record data
@@ -903,9 +918,18 @@ export class WindowForm {
      * @param {string} direction - 'first', 'previous', 'next', or 'last'
      */
     _navigateToRecord(direction) {
+        if (this.isNavigating) {
+            console.log('Navigation already in progress, ignoring request');
+            return;
+        }
+        
+        // Set flag to prevent multiple navigation requests
+        this.isNavigating = true;
+        
         const formCfg = this.config.formConfig;
         if (!formCfg || !formCfg.model) {
             console.warn('Cannot navigate: model name is missing in form configuration');
+            this.isNavigating = false;
             return;
         }
         
@@ -916,6 +940,7 @@ export class WindowForm {
             if (direction === 'first') {
                 this._loadDefaultRecord();
             }
+            this.isNavigating = false;
             return;
         }
         
@@ -952,14 +977,17 @@ export class WindowForm {
                 
             default:
                 console.warn(`Unknown navigation direction: ${direction}`);
+                this.isNavigating = false;
                 return;
         }
         
         // Generate a unique request ID
         const requestId = `req-${action}-${modelName}-${Date.now()}`;
         
-        // Send the request to the server
-        this.socketService.sendMessage({
+        console.log(`Navigating ${direction} from record ${currentId} in model ${modelName}`);
+        
+        // Create message with token
+        const message = this._ensureTokenInMessage({
             type: 'model',
             name: modelName,
             action: action,
@@ -967,10 +995,13 @@ export class WindowForm {
             requestId: requestId
         });
         
+        // Send the message
+        this.socketService.sendMessage(message);
+        
         // Set up a timeout
         const timeoutId = setTimeout(() => {
             this.socketService.off('message', responseHandler);
-            console.warn(`${action} request for ${modelName} timed out after 10 seconds`);
+            console.warn(`${direction} request for ${modelName} timed out after 10 seconds`);
             this._showFormError(`Failed to navigate ${direction}. Please try again later.`);
         }, 10000);
         
@@ -1013,5 +1044,53 @@ export class WindowForm {
         } else if (this.recordIndicator) {
             this.recordIndicator.textContent = 'Record: -';
         }
+    }
+
+    /**
+     * Handles internal authentication errors without showing login dialog
+     * @private
+     */
+    _handleAuthError(error) {
+        console.warn('WindowForm handling auth error internally:', error);
+        
+        // Show a message inside the form
+        const errorEl = document.createElement('div');
+        errorEl.className = 'form-error auth-error';
+        errorEl.textContent = 'Authentication error: Your session may have expired. Please refresh the page.';
+        
+        // Add a refresh button
+        const refreshBtn = document.createElement('button');
+        refreshBtn.textContent = 'Refresh Page';
+        refreshBtn.className = 'auth-refresh-btn';
+        refreshBtn.addEventListener('click', () => window.location.reload());
+        
+        errorEl.appendChild(document.createElement('br'));
+        errorEl.appendChild(refreshBtn);
+        
+        // Find a good place to show this message
+        const formContent = this.windowElement.querySelector('.window-body');
+        if (formContent) {
+            formContent.prepend(errorEl);
+        } else {
+            this.windowElement.appendChild(errorEl);
+        }
+    }
+
+    /**
+     * Helper method to ensure a token is included in all requests
+     * @param {Object} message - The message to send
+     * @returns {Object} - The message with a token added if needed
+     * @private
+     */
+    _ensureTokenInMessage(message) {
+        // Clone the message to avoid modifying the original
+        const result = { ...message };
+        
+        // Add token if not already present
+        if (!result.token) {
+            result.token = this.socketService.getAuthToken();
+        }
+        
+        return result;
     }
 }
