@@ -3,659 +3,481 @@ import { WindowForm } from './window-form-builder.js';
 import { SocketService } from './services/socket-service.js';
 import { LoginDialog } from './components/login-dialog.js';
 
-// Create an instance of the SocketService
-const socketService = new SocketService({
-    url: "ws://localhost:8011",
-    debug: true,
-    reconnectDelay: 3000,
-    requestTimeout: 10000,
-    autoConnect: true 
-});
-
-// Initialize application when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('Document loaded, initializing application...');
-    
-    // Create desktop container if needed
-    if (!document.getElementById('desktop')) {
-        const desktop = document.createElement('div');
-        desktop.id = 'desktop';
-        document.body.appendChild(desktop);
-    }
-    
-    // Set up event listeners for socket service
-    socketService.on('connected', () => {
-        console.log('Socket connected event received');
-        // Give the socket a moment to fully initialize before checking auth
-        setTimeout(checkAuthenticationAndProceed, 100);
+class App {
+  constructor() {
+    this.socketService = new SocketService({
+      url: "ws://localhost:8011",
+      debug: true,
+      reconnectDelay: 3000,
+      requestTimeout: 10000,
+      autoConnect: true,
     });
-    socketService.on('auth_error', handleAuthError);
-    
-    // If already connected, wait a moment before checking auth
-    if (socketService.getState() === 'connected') {
-        console.log('Socket already connected on page load');
-        setTimeout(checkAuthenticationAndProceed, 100);
-    }
-    
-    // Force check for authentication after a delay regardless of socket state
-    // This ensures we don't get stuck if socket connection has issues
-    setTimeout(() => {
-        console.log('Performing timeout-based authentication check');
-        if (!window.loginDialogShowing && !window.applicationInitialized) {
-            checkAuthenticationAndProceed();
+
+    // Application state stored as properties instead of globals
+    this.loginDialogShowing = false;
+    this.applicationInitialized = false;
+    this.viewBeingLoaded = null;
+    this.pendingRequests = {};
+    this.currentUser = null;
+
+    this.init();
+  }
+
+  init() {
+    document.addEventListener("DOMContentLoaded", () => {
+      console.log("Document loaded, initializing application...");
+      this.ensureDesktop();
+      this.setupSocketListeners();
+
+      // If the socket is already connected, check authentication shortly after page load.
+      if (this.socketService.getState() === "connected") {
+        console.log("Socket already connected on page load");
+        setTimeout(() => this.checkAuthenticationAndProceed(), 100);
+      }
+
+      // Force authentication check after a short delay regardless of socket state.
+      setTimeout(() => {
+        console.log("Performing timeout-based authentication check");
+        if (!this.loginDialogShowing && !this.applicationInitialized) {
+          this.checkAuthenticationAndProceed();
         }
-    }, 1000);
-});
+      }, 1000);
+    });
+  }
 
-// Global flags to track application state
-window.loginDialogShowing = window.loginDialogShowing || false;
-window.applicationInitialized = window.applicationInitialized || false;
+  ensureDesktop() {
+    if (!document.getElementById("desktop")) {
+      const desktop = document.createElement("div");
+      desktop.id = "desktop";
+      document.body.appendChild(desktop);
+    }
+  }
 
-/**
- * Check authentication status and proceed accordingly
- */
-function checkAuthenticationAndProceed() {
-    console.log('Checking authentication status...');
-    
-    // Check if stored token is available
-    const localToken = localStorage.getItem('auth_token');
-    const sessionToken = sessionStorage.getItem('auth_token');
-    console.log(`Token in localStorage: ${localToken ? 'Yes' : 'No'}, sessionStorage: ${sessionToken ? 'Yes' : 'No'}`);
-    
-    // Check if the user is already authenticated
-    if (socketService.isAuthenticated()) {
-        console.log('User is authenticated with valid token, initializing application...');
-        // If authenticated, initialize the application
-        initializeApplication();
+  setupSocketListeners() {
+    this.socketService.on("connected", () => {
+      console.log("Socket connected event received");
+      setTimeout(() => this.checkAuthenticationAndProceed(), 100);
+    });
+
+    this.socketService.on("auth_error", this.handleAuthError.bind(this));
+
+    this.socketService.on("error", (error) => {
+      console.error("Socket connection error:", error);
+      this.hideLoadingIndicator();
+      this.showErrorMessage("Connection error. Please check your network connection.");
+    });
+
+    this.socketService.on("open", () => {
+      console.log("Socket connected successfully");
+    });
+
+    // Centralize all message handling in one method.
+    this.socketService.on("message", this.handleSocketMessage.bind(this));
+  }
+
+  checkAuthenticationAndProceed() {
+    console.log("Checking authentication status...");
+    const localToken = localStorage.getItem("auth_token");
+    const sessionToken = sessionStorage.getItem("auth_token");
+    console.log(
+      `Token in localStorage: ${localToken ? "Yes" : "No"}, sessionStorage: ${sessionToken ? "Yes" : "No"}`
+    );
+
+    if (this.socketService.isAuthenticated()) {
+      console.log("User is authenticated with valid token, initializing application...");
+      this.initializeApplication();
     } else {
-        console.log('User is not authenticated - no valid token found');
-        
-        // Try to fetch and validate the token one more time
-        // This can help if the token wasn't properly initialized on socket service startup
-        const storedToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-        if (storedToken) {
-            console.log('Found stored token, attempting to set it and validate...');
-            // Set and validate the token
-            socketService.setAuthToken(storedToken);
-            
-            // Check if it was accepted as valid
-            if (socketService.isAuthenticated()) {
-                console.log('Token validated successfully on retry, initializing application...');
-                initializeApplication();
-                return;
-            } else {
-                console.log('Stored token failed validation, clearing it');
-                socketService.clearAuthToken();
-            }
-        }
-        
-        // Show login dialog as last resort
-        showLoginDialog();
-    }
-}
-
-// Force check for authentication on page load - don't wait for socket connection
-// This ensures login dialog is shown immediately
-setTimeout(() => {
-    if (!socketService.isAuthenticated() && !window.loginDialogShowing) {
-        console.log('Forcing login dialog display...');
-        showLoginDialog();
-    }
-}, 500);
-
-/**
- * Show the login dialog
- */
-function showLoginDialog() {
-    // Prevent showing multiple login dialogs
-    if (window.loginDialogShowing) {
-        console.log('Login dialog already showing, not creating another one');
-        return;
-    }
-    
-    console.log('Showing login dialog...');
-    window.loginDialogShowing = true;
-    
-    const loginDialog = new LoginDialog({
-        socketService: socketService,
-        onLoginSuccess: (token, user) => {
-            console.log('Login successful, initializing application...');
-            // Store user information in the application state
-            window.currentUser = user;
-            
-            // Mark dialog as closed
-            window.loginDialogShowing = false;
-            
-            // Initialize the application after successful login
-            initializeApplication();
-        },
-        onRegisterClick: () => {
-            // In future, this could show a registration form
-            console.log('Register clicked');
-            alert('Please contact your system administrator to create an account.');
-        }
-    });
-    
-    loginDialog.show();
-}
-
-/**
- * Initialize the application after successful authentication
- */
-function initializeApplication() {
-    // Set flag to prevent duplicate initialization
-    if (window.applicationInitialized) {
-        console.log('Application already initialized, skipping...');
-        return;
-    }
-    
-    console.log('Initializing application...');
-    window.applicationInitialized = true;
-    
-    // Fetch menu from server and create top menu bar
-    fetchMenuFromServer().then(() => {
-        // Menu is created by the fetchMenuFromServer function
-        console.log('Menu loaded successfully');
-    }).catch(error => {
-        console.error('Failed to load menu from server:', error);
-        
-        // If authentication error, show login dialog
-        if (error.message && error.message.includes('Unauthorized')) {
-            console.log('Authentication failed, clearing token and showing login...');
-            window.applicationInitialized = false; // Reset flag since init failed
-            socketService.clearAuthToken();
-            showLoginDialog();
-            return;
-        }
-        
-        // Show error message for other errors
-        showErrorMessage('Failed to load application menu. Please check your connection and try again.');
-    });
-}
-
-// Function to fetch menu structure from server
-async function fetchMenuFromServer() {
-    try {
-        // Request menu structure from server
-        const response = await socketService.request({
-            type: 'menu',
-            token: socketService.getAuthToken(),
-        });
-        
-        if (response.success && Array.isArray(response.result)) {
-            createTopMenuBar(response.result);
-            return response.result;
+      console.log("User is not authenticated - no valid token found");
+      const storedToken = localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
+      if (storedToken) {
+        console.log("Found stored token, attempting to set it and validate...");
+        this.socketService.setAuthToken(storedToken);
+        if (this.socketService.isAuthenticated()) {
+          console.log("Token validated successfully on retry, initializing application...");
+          this.initializeApplication();
+          return;
         } else {
-            throw new Error(response.message || 'Invalid menu structure received from server');
+          console.log("Stored token failed validation, clearing it");
+          this.socketService.clearAuthToken();
         }
-    } catch (error) {
-        console.error('Error fetching menu from server:', error);
-        throw error;
+      }
+      this.showLoginDialog();
     }
-}
+  }
 
-// Function to create the top menu bar
-function createTopMenuBar(serverMenuStructure) {
-    // If there's no menu structure, show an error and return
-    if (!serverMenuStructure || !Array.isArray(serverMenuStructure) || serverMenuStructure.length === 0) {
-        console.error('No valid menu structure available');
-        showErrorMessage('Failed to load application menu. Please refresh the page or contact support.');
-        return;
+  showLoginDialog() {
+    if (this.loginDialogShowing) {
+      console.log("Login dialog already showing, not creating another one");
+      return;
     }
+    console.log("Showing login dialog...");
+    this.loginDialogShowing = true;
 
-    const menuBar = document.createElement('div');
-    menuBar.id = 'top-menu-bar';
-    menuBar.className = 'top-menu-bar';
-    
-    // Create menu structure - use server-provided menu
-    const menuStructure = serverMenuStructure;
-    
-    // Create main menu list for left side (application menus)
-    const menuList = document.createElement('ul');
-    menuList.className = 'left-menu';
-    
-    // Create menu items
-    menuStructure.forEach(menuItem => {
-        // Create main menu item
-        const li = document.createElement('li');
-        
-        // Create main menu link
-        const a = document.createElement('a');
-        a.textContent = menuItem.label;
-        a.href = '#'; // Prevent default behavior
-        a.addEventListener('click', (e) => e.preventDefault());
-        li.appendChild(a);
-        
-        // Create submenu if it exists
-        if (menuItem.submenu && menuItem.submenu.length > 0) {
-            // Create submenu list
-            const submenu = document.createElement('ul');
-            
-            // Create submenu items
-            menuItem.submenu.forEach(submenuItem => {
-                // Create submenu item
-                const subLi = document.createElement('li');
-                
-                // Create submenu link
-                const subA = document.createElement('a');
-                subA.textContent = submenuItem.label;
-                subA.href = '#'; // Prevent default behavior
-                
-                // Add click event to load the view
-                subA.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    loadView(submenuItem.viewName);
-                });
-                
-                // Add submenu link to submenu item
-                subLi.appendChild(subA);
-                
-                // Add submenu item to submenu list
-                submenu.appendChild(subLi);
-            });
-            
-            // Add submenu list to main menu item
-            li.appendChild(submenu);
-        }
-        
-        // Add main menu item to main menu list
-        menuList.appendChild(li);
+    const loginDialog = new LoginDialog({
+      socketService: this.socketService,
+      onLoginSuccess: (token, user) => {
+        console.log("Login successful, initializing application...");
+        this.currentUser = user;
+        this.loginDialogShowing = false;
+        this.initializeApplication();
+      },
+      onRegisterClick: () => {
+        console.log("Register clicked");
+        alert("Please contact your system administrator to create an account.");
+      },
     });
-    
-    // Add main menu list to menu bar
-    menuBar.appendChild(menuList);
-    
-    // Create the right side menu (user/settings menu)
-    const userMenuList = document.createElement('ul');
-    userMenuList.className = 'right-menu';
-    
-    // Create settings/profile menu item
-    const settingsLi = document.createElement('li');
-    settingsLi.className = 'settings-menu';
-    
-    // Create settings button with icon
-    const settingsButton = document.createElement('a');
-    settingsButton.href = '#';
-    settingsButton.className = 'settings-button';
-    settingsButton.innerHTML = '<span class="menu-icon">☰</span>'; // Hamburger menu icon
-    settingsButton.addEventListener('click', (e) => e.preventDefault());
-    
-    settingsLi.appendChild(settingsButton);
-    
-    // Create settings dropdown menu
-    const settingsDropdown = document.createElement('ul');
-    
-    // Add username display
-    const usernameLi = document.createElement('li');
-    usernameLi.className = 'username-display';
-    
-    // Get username from stored user data
-    let username = 'User';
-    try {
-        const userData = JSON.parse(localStorage.getItem('user_data') || sessionStorage.getItem('user_data') || '{}');
-        if (userData && userData.username) {
-            username = userData.username;
-        }
-    } catch (e) {
-        console.warn('Error parsing user data:', e);
+
+    loginDialog.show();
+  }
+
+  async initializeApplication() {
+    if (this.applicationInitialized) {
+      console.log("Application already initialized, skipping...");
+      return;
     }
-    
-    const usernameText = document.createElement('span');
+    console.log("Initializing application...");
+    this.applicationInitialized = true;
+    try {
+      const menu = await this.fetchMenuFromServer();
+      console.log("Menu loaded successfully", menu);
+    } catch (error) {
+      console.error("Failed to load menu from server:", error);
+      if (error.message?.includes("Unauthorized")) {
+        console.log("Authentication failed, clearing token and showing login...");
+        this.applicationInitialized = false;
+        this.socketService.clearAuthToken();
+        this.showLoginDialog();
+        return;
+      }
+      this.showErrorMessage(
+        "Failed to load application menu. Please check your connection and try again."
+      );
+    }
+  }
+
+  async fetchMenuFromServer() {
+    try {
+      const response = await this.socketService.request({
+        type: "menu",
+        token: this.socketService.getAuthToken(),
+      });
+      if (response.success && Array.isArray(response.result)) {
+        this.createTopMenuBar(response.result);
+        return response.result;
+      } else {
+        throw new Error(response.message || "Invalid menu structure received from server");
+      }
+    } catch (error) {
+      console.error("Error fetching menu from server:", error);
+      throw error;
+    }
+  }
+
+  createTopMenuBar(serverMenuStructure) {
+    if (!serverMenuStructure || !Array.isArray(serverMenuStructure) || serverMenuStructure.length === 0) {
+      console.error("No valid menu structure available");
+      this.showErrorMessage("Failed to load application menu. Please refresh the page or contact support.");
+      return;
+    }
+
+    const menuBar = document.createElement("div");
+    menuBar.id = "top-menu-bar";
+    menuBar.className = "top-menu-bar";
+
+    // Left-side menu (application menus)
+    const menuList = document.createElement("ul");
+    menuList.className = "left-menu";
+    serverMenuStructure.forEach((menuItem) => {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.textContent = menuItem.label;
+      a.href = "#";
+      a.addEventListener("click", (e) => e.preventDefault());
+      li.appendChild(a);
+
+      // Submenu (if available)
+      if (menuItem.submenu && menuItem.submenu.length > 0) {
+        const submenu = document.createElement("ul");
+        menuItem.submenu.forEach((submenuItem) => {
+          const subLi = document.createElement("li");
+          const subA = document.createElement("a");
+          subA.textContent = submenuItem.label;
+          subA.href = "#";
+          subA.addEventListener("click", (e) => {
+            e.preventDefault();
+            this.loadView(submenuItem.viewName);
+          });
+          subLi.appendChild(subA);
+          submenu.appendChild(subLi);
+        });
+        li.appendChild(submenu);
+      }
+      menuList.appendChild(li);
+    });
+    menuBar.appendChild(menuList);
+
+    // Right-side menu (user/settings)
+    const userMenuList = document.createElement("ul");
+    userMenuList.className = "right-menu";
+    const settingsLi = document.createElement("li");
+    settingsLi.className = "settings-menu";
+
+    const settingsButton = document.createElement("a");
+    settingsButton.href = "#";
+    settingsButton.className = "settings-button";
+    settingsButton.innerHTML = '<span class="menu-icon">☰</span>';
+    settingsButton.addEventListener("click", (e) => e.preventDefault());
+    settingsLi.appendChild(settingsButton);
+
+    const settingsDropdown = document.createElement("ul");
+    const usernameLi = document.createElement("li");
+    usernameLi.className = "username-display";
+
+    let username = "User";
+    try {
+      const userData = JSON.parse(
+        localStorage.getItem("user_data") || sessionStorage.getItem("user_data") || "{}"
+      );
+      if (userData?.username) {
+        username = userData.username;
+      }
+    } catch (e) {
+      console.warn("Error parsing user data:", e);
+    }
+    const usernameText = document.createElement("span");
     usernameText.textContent = username;
     usernameLi.appendChild(usernameText);
-    
-    // Add logout option
-    const logoutLi = document.createElement('li');
-    const logoutLink = document.createElement('a');
-    logoutLink.href = '#';
-    logoutLink.textContent = 'Logout';
-    logoutLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        logout();
+
+    const logoutLi = document.createElement("li");
+    const logoutLink = document.createElement("a");
+    logoutLink.href = "#";
+    logoutLink.textContent = "Logout";
+    logoutLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.logout();
     });
-    
     logoutLi.appendChild(logoutLink);
-    
-    // Assemble the dropdown
-    settingsDropdown.appendChild(usernameLi);
-    settingsDropdown.appendChild(logoutLi);
+
+    settingsDropdown.append(usernameLi, logoutLi);
     settingsLi.appendChild(settingsDropdown);
-    
-    // Add settings menu to the right menu
     userMenuList.appendChild(settingsLi);
-    
-    // Add right menu to menu bar
     menuBar.appendChild(userMenuList);
-    
-    // Insert the menu bar at the top of the body, before the desktop
-    const desktop = document.getElementById('desktop');
+
+    const desktop = document.getElementById("desktop");
     document.body.insertBefore(menuBar, desktop);
-}
+  }
 
-/**
- * Check if any form windows are currently open
- * @returns {boolean} True if any form windows are visible
- */
-function hasVisibleForms() {
-    // Check if there are any window elements in the DOM
-    const windows = document.querySelectorAll('.window');
-    return windows.length > 0;
-}
+  hasVisibleForms() {
+    return document.querySelectorAll(".window").length > 0;
+  }
 
-/**
- * Handle authentication errors
- * @param {Object} data - Error data
- */
-function handleAuthError(data) {
-    console.warn('Authentication error detected:', data.message);
-    
-    // Don't show login dialog if we already have windows open
-    if (hasVisibleForms()) {
-        console.log('Ignoring auth error because forms are already visible');
-        return;
+  handleAuthError(data) {
+    console.warn("Authentication error detected:", data.message);
+    if (this.hasVisibleForms()) {
+      console.log("Ignoring auth error because forms are already visible");
+      return;
     }
-    
-    // Only handle authentication errors if we're not intentionally loading a view
-    if (window.viewBeingLoaded) {
-        console.warn('Ignoring auth error during view loading:', data.message);
-        return;
+    if (this.viewBeingLoaded) {
+      console.warn("Ignoring auth error during view loading:", data.message);
+      return;
     }
-    
-    socketService.clearAuthToken();
-    showLoginDialog();
-}
+    this.socketService.clearAuthToken();
+    this.showLoginDialog();
+  }
 
-// Function to load a view by name
-function loadView(viewName) {
+  loadView(viewName) {
     console.log(`Loading view: ${viewName}`);
-    
-    // Check if user is authenticated
-    const token = socketService.getAuthToken();
+    const token = this.socketService.getAuthToken();
     if (!token) {
-        console.error('Not authenticated, showing login dialog');
-        showLoginDialog();
-        return;
+      console.error("Not authenticated, showing login dialog");
+      this.showLoginDialog();
+      return;
     }
-    
-    // Set a flag to indicate we're intentionally loading a view
-    window.viewBeingLoaded = viewName;
-    
-    // Show loading indicator
-    showLoadingIndicator(viewName);
-    
-    // Request window configurations from the server using the view name
-    socketService.sendMessage({
-        type: 'view',
-        name: viewName,
-        token: token,
-        requestId: `req-${viewName}-config`
+    this.viewBeingLoaded = viewName;
+    this.showLoadingIndicator(viewName);
+
+    this.socketService.sendMessage({
+      type: "view",
+      name: viewName,
+      token,
+      requestId: `req-${viewName}-config`,
     });
-    
-    // Set a timeout for server response
+
     const timeoutId = setTimeout(() => {
-        window.viewBeingLoaded = null; // Clear the flag
-        hideLoadingIndicator();
-        showErrorMessage(`Failed to load ${viewName}. Server did not respond in time.`);
-    }, 10000); // 10 seconds timeout
-    
-    // Store the timeout ID to clear it when we get a response
-    window.pendingRequests = window.pendingRequests || {};
-    window.pendingRequests[viewName] = timeoutId;
-}
+      this.viewBeingLoaded = null;
+      this.hideLoadingIndicator();
+      this.showErrorMessage(`Failed to load ${viewName}. Server did not respond in time.`);
+    }, 10000);
 
-// Listen for server responses
-socketService.on('message', (message) => {
-    console.log('Received message:', message);
-    
-    // Handle errors first
+    this.pendingRequests[viewName] = timeoutId;
+  }
+
+  handleSocketMessage(message) {
+    console.log("Received message:", message);
     if (message.error) {
-        console.error('Server error:', message.error);
-        hideLoadingIndicator();
-        showErrorMessage(`Error: ${message.error}`);
-        
-        // Check for authentication errors and show login if needed
-        if ((message.error.includes('Unauthorized') || 
-            message.error.includes('authentication') || 
-            message.error.includes('token')) && !window.viewBeingLoaded) {
-                
-            // Don't show login dialog if we already have forms visible
-            if (!hasVisibleForms()) {
-                console.warn('Authentication error detected, showing login dialog');
-                socketService.clearAuthToken();
-                showLoginDialog();
-            } else {
-                console.log('Ignoring auth error because forms are already visible');
-            }
-        }
-        
-        // Clear view loading flag on errors
-        window.viewBeingLoaded = null;
-        
-        return;
-    }
-    
-    // Check for authentication errors in the regular message format
-    if (message.message && !message.success && 
-        (message.message.includes('Unauthorized') || 
-         message.message.includes('authentication') || 
-         message.message.includes('token'))) {
-        console.warn('Authentication error detected:', message.message);
-        hideLoadingIndicator();
-        
-        // Only show login dialog if we're not intentionally loading a view
-        const wasLoadingView = window.viewBeingLoaded;
-        
-        // Clear view loading flag
-        window.viewBeingLoaded = null;
-        
-        // Don't show login dialog if we already have forms visible
-        if (!wasLoadingView && !hasVisibleForms()) {
-            socketService.clearAuthToken();
-            showLoginDialog();
+      console.error("Server error:", message.error);
+      this.hideLoadingIndicator();
+      this.showErrorMessage(`Error: ${message.error}`);
+
+      if (
+        (message.error.includes("Unauthorized") ||
+          message.error.includes("authentication") ||
+          message.error.includes("token")) &&
+        !this.viewBeingLoaded
+      ) {
+        if (!this.hasVisibleForms()) {
+          console.warn("Authentication error detected, showing login dialog");
+          this.socketService.clearAuthToken();
+          this.showLoginDialog();
         } else {
-            console.log('Ignoring auth error because a view was loading or forms are visible');
+          console.log("Ignoring auth error because forms are already visible");
         }
-        
-        return;
+      }
+      this.viewBeingLoaded = null;
+      return;
     }
-    
-    // Skip processing if response is not successful and doesn't have a requestId
+
+    if (
+      message.message &&
+      !message.success &&
+      (message.message.includes("Unauthorized") ||
+        message.message.includes("authentication") ||
+        message.message.includes("token"))
+    ) {
+      console.warn("Authentication error detected:", message.message);
+      this.hideLoadingIndicator();
+      const wasLoadingView = this.viewBeingLoaded;
+      this.viewBeingLoaded = null;
+      if (!wasLoadingView && !this.hasVisibleForms()) {
+        this.socketService.clearAuthToken();
+        this.showLoginDialog();
+      } else {
+        console.log("Ignoring auth error because a view was loading or forms are visible");
+      }
+      return;
+    }
+
     if (!message.success && !message.requestId) {
-        console.error('Unsuccessful response with no requestId:', message);
-        return;
+      console.error("Unsuccessful response with no requestId:", message);
+      return;
     }
-
-    // Process based on requestId pattern
     if (!message.requestId) {
-        console.warn('Received message without requestId:', message);
+      console.warn("Received message without requestId:", message);
+      return;
+    }
+
+    // Process view configuration responses.
+    if (
+      message.requestId.startsWith("req-") &&
+      message.requestId.endsWith("-config") &&
+      message.result
+    ) {
+      const viewName = message.requestId.replace("req-", "").replace("-config", "");
+      console.log("Processing view:", viewName, "with result:", message.result);
+
+      if (this.pendingRequests[viewName]) {
+        clearTimeout(this.pendingRequests[viewName]);
+        delete this.pendingRequests[viewName];
+      }
+      this.viewBeingLoaded = null;
+      this.hideLoadingIndicator();
+
+      const windowConfigs = message.result;
+      if (!Array.isArray(windowConfigs) || windowConfigs.length === 0) {
+        console.error("Invalid window configurations received:", windowConfigs);
+        this.showErrorMessage(`Error: Invalid configuration received for ${viewName}`);
         return;
-    }
-    
-    // Check if the message is a response to a view request
-    if (message.requestId.startsWith('req-') && message.requestId.endsWith('-config') && message.result) {
-        // Extract the view name from the requestId
-        const viewName = message.requestId.replace('req-', '').replace('-config', '');
-        console.log('Processing view:', viewName, 'with result:', message.result);
-        
-        // Clear the timeout for this request
-        if (window.pendingRequests && window.pendingRequests[viewName]) {
-            clearTimeout(window.pendingRequests[viewName]);
-            delete window.pendingRequests[viewName];
+      }
+      if (viewName === "customerCard") {
+        console.log("Loading Customer Card view with config:", windowConfigs);
+      }
+      windowConfigs.forEach((config) => {
+        if (!config) {
+          console.error("Invalid window configuration:", config);
+          return;
         }
-        
-        // Clear the view loading flag
-        window.viewBeingLoaded = null;
-        
-        // Hide loading indicator
-        hideLoadingIndicator();
-        
-        const windowConfigs = message.result;
-        
-        // Validate window configs
-        if (!Array.isArray(windowConfigs) || windowConfigs.length === 0) {
-            console.error('Invalid window configurations received:', windowConfigs);
-            showErrorMessage(`Error: Invalid configuration received for ${viewName}`);
-            return;
+        if (!config.content && !config.formConfig) {
+          console.error("Window configuration missing content or formConfig:", config);
+          this.showErrorMessage(`Error: Invalid window configuration for ${viewName}`);
+          return;
         }
-        
-        // Handle specific views
-        if (viewName === 'customerCard') {
-            // For Customer Card, we might want to clear existing windows
-            // Uncomment the next line if you want to close other windows when opening Customer Card
-            // document.getElementById('desktop').innerHTML = '';
-            
-            console.log('Loading Customer Card view with config:', windowConfigs);
+        const finalConfig = { ...config, formConfig: config.formConfig || config.content };
+        try {
+          const wf = new WindowForm(finalConfig, this.socketService);
+          document.getElementById("desktop").appendChild(wf.getElement());
+        } catch (error) {
+          console.error("Error creating window:", error);
+          this.showErrorMessage(`Error creating window: ${error.message}`);
         }
-        
-        // Create windows for each config
-        windowConfigs.forEach(config => {
-            if (!config) {
-                console.error('Invalid window configuration:', config);
-                return;
-            }
-            
-            // Check if the window has content (could be a form or other content type)
-            if (!config.content && !config.formConfig) {
-                console.error('Window configuration missing content or formConfig:', config);
-                showErrorMessage(`Error: Invalid window configuration for ${viewName}`);
-                return;
-            }
-            
-            // For backward compatibility, if formConfig exists use it, otherwise use content
-            const finalConfig = {
-                ...config,
-                formConfig: config.formConfig || config.content
-            };
-            
-            try {
-                // Instantiate the WindowForm class with the config and socket service
-                const wf = new WindowForm(finalConfig, socketService);
-                document.getElementById('desktop').appendChild(wf.getElement());
-            } catch (error) {
-                console.error('Error creating window:', error);
-                showErrorMessage(`Error creating window: ${error.message}`);
-            }
-        });
-    } else if (message.requestId.startsWith('req-update-')) {
-        // Update responses are now handled by the autoSave response handler in WindowForm
-        console.log('Record update response received:', message.requestId);
-    } else if (message.requestId.startsWith('req-find-first-')) {
-        // findFirst responses are now handled by the WindowForm response handler
-        console.log('Find first record response received:', message.requestId);
-    } else if (message.requestId.startsWith('req-lookup-')) {
-        // Lookup responses are now handled by the WindowForm response handler
-        console.log('Lookup response received:', message.requestId);
-    } else if (message.requestId.startsWith('req-find-all-')) {
-        // findAll responses are now handled by specific handlers
-        console.log('Find all records response received:', message.requestId);
+      });
+    } else if (message.requestId.startsWith("req-update-")) {
+      console.log("Record update response received:", message.requestId);
+    } else if (message.requestId.startsWith("req-find-first-")) {
+      console.log("Find first record response received:", message.requestId);
+    } else if (message.requestId.startsWith("req-lookup-")) {
+      console.log("Lookup response received:", message.requestId);
+    } else if (message.requestId.startsWith("req-find-all-")) {
+      console.log("Find all records response received:", message.requestId);
     } else {
-        // Unhandled message types
-        console.log('Unhandled message type:', message.requestId);
+      console.log("Unhandled message type:", message.requestId);
     }
-});
+  }
 
-// Function to show a loading indicator
-function showLoadingIndicator(viewName) {
-    // Remove any existing loading indicator
-    hideLoadingIndicator();
-    
-    // Create loading indicator
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.id = 'loading-indicator';
-    loadingIndicator.className = 'loading-indicator';
+  showLoadingIndicator(viewName) {
+    this.hideLoadingIndicator();
+    const loadingIndicator = document.createElement("div");
+    loadingIndicator.id = "loading-indicator";
+    loadingIndicator.className = "loading-indicator";
     loadingIndicator.innerHTML = `
-        <div class="loading-spinner"></div>
-        <div class="loading-text">Loading ${viewName}...</div>
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Loading ${viewName}...</div>
     `;
-    
-    // Add to body
     document.body.appendChild(loadingIndicator);
-}
+  }
 
-// Function to hide the loading indicator
-function hideLoadingIndicator() {
-    const existingIndicator = document.getElementById('loading-indicator');
+  hideLoadingIndicator() {
+    const existingIndicator = document.getElementById("loading-indicator");
     if (existingIndicator) {
-        existingIndicator.remove();
+      existingIndicator.remove();
     }
-}
+  }
 
-// Function to show an error message
-function showErrorMessage(message) {
-    // Create error message element
-    const errorMessage = document.createElement('div');
-    errorMessage.className = 'error-message';
+  showErrorMessage(message) {
+    const errorMessage = document.createElement("div");
+    errorMessage.className = "error-message";
     errorMessage.textContent = message;
-    
-    // Add to desktop
-    document.getElementById('desktop').appendChild(errorMessage);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        errorMessage.remove();
-    }, 5000);
-}
+    document.getElementById("desktop").appendChild(errorMessage);
+    setTimeout(() => errorMessage.remove(), 5000);
+  }
 
-// Function to show a success message
-function showSuccessMessage(message) {
-    // Create success message element
-    const successMessage = document.createElement('div');
-    successMessage.className = 'success-message';
+  showSuccessMessage(message) {
+    const successMessage = document.createElement("div");
+    successMessage.className = "success-message";
     successMessage.textContent = message;
-    
-    // Add to desktop
-    document.getElementById('desktop').appendChild(successMessage);
-    
-    // Auto-remove after 3 seconds
-    setTimeout(() => {
-        successMessage.remove();
-    }, 3000);
-}
+    document.getElementById("desktop").appendChild(successMessage);
+    setTimeout(() => successMessage.remove(), 3000);
+  }
 
-// Set up error handling for socket connection issues
-socketService.on('error', (error) => {
-    console.error('Socket connection error:', error);
-    hideLoadingIndicator();
-    showErrorMessage('Connection error. Please check your network connection.');
-});
+  logout() {
+    console.log("Logging out user...");
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("user_data");
+    sessionStorage.removeItem("auth_token");
+    sessionStorage.removeItem("user_data");
+    this.socketService.clearAuthToken();
+    this.applicationInitialized = false;
 
-// Connect to socket
-socketService.on('open', () => {
-    console.log('Socket connected successfully');
-});
-
-/**
- * Logs out the current user and returns to login screen
- */
-function logout() {
-    console.log('Logging out user...');
-    
-    // Clear tokens from storage
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_data');
-    sessionStorage.removeItem('auth_token');
-    sessionStorage.removeItem('user_data');
-    
-    // Clear token from socket service
-    socketService.clearAuthToken();
-    
-    // Reset application state
-    window.applicationInitialized = false;
-    
-    // Clear desktop content
-    const desktop = document.getElementById('desktop');
+    const desktop = document.getElementById("desktop");
     if (desktop) {
-        desktop.innerHTML = '';
+      desktop.innerHTML = "";
     }
-    
-    // Remove top menu bar
-    const topMenu = document.getElementById('top-menu-bar');
+    const topMenu = document.getElementById("top-menu-bar");
     if (topMenu && topMenu.parentNode) {
-        topMenu.parentNode.removeChild(topMenu);
+      topMenu.parentNode.removeChild(topMenu);
     }
-    
-    // Show login dialog
-    showLoginDialog();
-    
-    console.log('Logout complete');
+    this.showLoginDialog();
+    console.log("Logout complete");
+  }
 }
+
+new App();
