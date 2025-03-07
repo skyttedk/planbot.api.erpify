@@ -1262,102 +1262,102 @@ export class WindowForm {
     /**
      * Adds necessary CSS styles for the menu
      */
+
     _addMenuStyles() {
-        // Only add styles if they don't already exist
         if (document.getElementById('window-menu-styles')) return;
 
         const styleEl = document.createElement('style');
         styleEl.id = 'window-menu-styles';
         styleEl.textContent = `
-            .window-menu-bar {
-                display: flex;
-                background-color: #f0f0f0;
-                border-bottom: 1px solid #ccc;
-                padding: 2px 0;
-                font-family: Arial, sans-serif;
-                font-size: 14px;
-                position: relative;
-            }
-            
-            .menu-item {
-                padding: 4px 10px;
-                cursor: pointer;
-                position: relative;
-            }
-            
-            .menu-item:hover {
-                background-color: #e0e0e0;
-            }
-            
-            .menu-dropdown {
-                display: none;
-                position: absolute;
-                top: 100%;
-                left: 0;
-                background-color: #f8f8f8;
-                border: 1px solid #ccc;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
-                z-index: 1000;
-                min-width: 150px;
-                padding: 2px 0;
-            }
-            
-            .menu-dropdown.active {
-                display: block;
-            }
-            
-            .dropdown-item {
-                padding: 6px 15px;
-                cursor: pointer;
-                position: relative;
-                white-space: nowrap;
-            }
-            
-            .dropdown-item:hover {
-                background-color: #e0e0e0;
-            }
-            
-            .menu-separator {
-                height: 1px;
-                background-color: #ccc;
-                margin: 5px 0;
-            }
-            
-            .has-submenu {
-                position: relative;
-            }
-            
-            .has-submenu::after {
-                content: '▶';
-                position: absolute;
-                right: 10px;
-                font-size: 10px;
-            }
-            
-            .submenu-dropdown {
-                display: none;
-                position: absolute;
-                top: -2px; /* Align with parent menu item */
-                left: 100%;
-                background-color: #f8f8f8;
-                border: 1px solid #ccc;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
-                z-index: 1001;
-                min-width: 150px;
-                padding: 2px 0;
-            }
-            
-            .submenu-dropdown.active {
-                display: block;
-            }
-            
-            /* Small delay on hover to prevent accidental menu opening */
-            .menu-item,
-            .dropdown-item.has-submenu {
-                transition: background-color 0.2s;
-            }
+          .window-menu-bar {
+            display: flex;
+            background-color: #f0f0f0;
+            border-bottom: 1px solid #ccc;
+            padding: 1px 0;
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            position: relative;
+          }
+          
+          .menu-item {
+            padding: 2px 6px;
+            cursor: pointer;
+            position: relative;
+          }
+          
+          .menu-item:hover {
+            background-color: #e0e0e0;
+          }
+          
+          .menu-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: #f8f8f8;
+            border: 1px solid #ccc;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+            z-index: 1000;
+            min-width: 120px;
+            padding: 1px 0;
+          }
+          
+          .menu-dropdown.active {
+            display: block;
+          }
+          
+          .dropdown-item {
+            padding: 4px 8px;
+            cursor: pointer;
+            position: relative;
+            white-space: nowrap;
+          }
+          
+          .dropdown-item:hover {
+            background-color: #e0e0e0;
+          }
+          
+          .menu-separator {
+            height: 1px;
+            background-color: #ccc;
+            margin: 3px 0;
+          }
+          
+          .has-submenu {
+            position: relative;
+          }
+          
+          .has-submenu::after {
+            content: '▶';
+            position: absolute;
+            right: 4px;
+            font-size: 10px;
+          }
+          
+          .submenu-dropdown {
+            display: none;
+            position: absolute;
+            top: -2px;
+            left: 100%;
+            background-color: #f8f8f8;
+            border: 1px solid #ccc;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+            z-index: 1001;
+            min-width: 120px;
+            padding: 1px 0;
+          }
+          
+          .submenu-dropdown.active {
+            display: block;
+          }
+          
+          .menu-item,
+          .dropdown-item.has-submenu {
+            transition: background-color 0.2s;
+          }
         `;
-
         document.head.appendChild(styleEl);
     }
+
+
 }

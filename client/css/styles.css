@@ -22,10 +22,10 @@
   --color-success: #2ecc71;
   
   /* Shadow variables */
-  --shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.2), 0 5px 10px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 15px 35px rgba(0, 0, 0, 0.25), 0 8px 15px rgba(0, 0, 0, 0.15);
+  --shadow-sm: 0 2px 5px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.1);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,0.2), 0 5px 10px rgba(0,0,0,0.1);
+  --shadow-xl: 0 15px 35px rgba(0,0,0,0.25), 0 8px 15px rgba(0,0,0,0.15);
 }
 
 body {
@@ -35,8 +35,8 @@ body {
   height: 100vh;
   overflow: hidden;
   position: relative;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 10px;      /* Reduced */
+  line-height: 1.3;     /* Tighter */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -46,8 +46,7 @@ body {
   background: var(--color-primary) !important;
   color: var(--color-text-light);
   width: 100%;
-  height: 42px;
-  position: relative;
+  height: 24px;         /* Reduced height */
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
@@ -55,57 +54,43 @@ body {
   box-shadow: var(--shadow-md);
 }
 
-/* Left side menu (application menus) */
-.top-menu-bar .left-menu {
-  display: flex !important;
-  list-style: none !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  height: 100%;
-}
-
-/* Right side menu (user/settings) */
+.top-menu-bar .left-menu,
 .top-menu-bar .right-menu {
   display: flex !important;
   list-style: none !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  margin-right: 15px !important;
-}
-
-/* Settings menu item */
-.top-menu-bar .settings-menu {
-  position: relative;
+  margin: 0;
+  padding: 0;
   height: 100%;
 }
 
-/* Settings button */
+.top-menu-bar .right-menu {
+  margin-right: 6px;    /* Reduced */
+}
+
 .top-menu-bar .settings-button {
   display: flex;
   align-items: center;
   height: 100%;
-  padding: 0 15px;
+  padding: 0 6px;       /* Reduced */
   color: var(--color-text-light);
   text-decoration: none;
   font-weight: 500;
-  font-size: 16px;
+  font-size: 10px;      /* Smaller */
   cursor: pointer;
 }
 
-/* Menu icon */
 .top-menu-bar .menu-icon {
-  font-size: 20px;
+  font-size: 16px;      /* Reduced */
 }
 
-/* Settings dropdown */
 .top-menu-bar .settings-menu ul {
   position: absolute;
   top: 100%;
   right: 0;
-  background: white;
+  background: #fff;
   border-radius: 0 0 4px 4px;
   box-shadow: var(--shadow-md);
-  min-width: 180px;
+  min-width: 140px;     /* Reduced */
   opacity: 0;
   visibility: hidden;
   transform: translateY(-10px);
@@ -113,43 +98,26 @@ body {
   overflow: hidden;
 }
 
-/* Show dropdown on hover */
 .top-menu-bar .settings-menu:hover ul {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
 }
 
-/* Dropdown items */
-.top-menu-bar .settings-menu ul li {
-  display: block;
-  width: 100%;
-}
-
-/* Username display */
+.top-menu-bar .settings-menu ul li a,
 .top-menu-bar .username-display {
-  padding: 12px 15px;
-  color: var(--color-primary);
-  font-weight: 500;
-  background-color: #f5f5f5;
-  border-bottom: 1px solid #eee;
-}
-
-/* Logout link */
-.top-menu-bar .settings-menu ul li a {
-  display: block;
-  padding: 12px 15px;
+  padding: 6px 8px;     /* Reduced */
+  font-size: 10px;      /* Smaller */
   color: var(--color-text);
   text-decoration: none;
-  transition: background-color 0.2s;
 }
 
 .top-menu-bar .settings-menu ul li a:hover {
   background-color: var(--color-accent);
-  color: white;
+  color: #fff;
 }
 
-/* Main menu list */
+/* Main Menu */
 .top-menu-bar > ul {
   list-style: none;
   margin: 0;
@@ -158,80 +126,63 @@ body {
   height: 100%;
 }
 
-/* Main menu items */
-.top-menu-bar > ul > li {
-  position: relative;
-  height: 100%;
-}
-
-/* Main menu links */
 .top-menu-bar > ul > li > a {
   display: flex;
   align-items: center;
   height: 100%;
-  padding: 0 20px;
+  padding: 0 6px;       /* Reduced */
   color: var(--color-text-light);
   text-decoration: none;
-  font-size: 14px;
+  font-size: 10px;      /* Smaller */
   font-weight: 500;
   letter-spacing: 0.2px;
   transition: background-color 0.2s, color 0.2s;
 }
 
-/* Main menu hover effect */
 .top-menu-bar > ul > li:hover > a {
   background-color: var(--color-secondary);
-  color: white;
+  color: #fff;
 }
 
-/* Submenu container */
+/* Submenu */
 .top-menu-bar ul ul {
   position: absolute;
   top: 100%;
   left: 0;
   background: var(--color-secondary);
-  min-width: 200px;
+  min-width: 140px;     /* Reduced */
   display: none;
   list-style: none;
   margin: 0;
-  padding: 5px 0;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 4px 8px rgba(0, 0, 0, 0.15);
-  border-radius: 0 0 4px 4px;
+  padding: 4px 0;       /* Reduced */
+  box-shadow: 0 6px 16px rgba(0,0,0,0.3), 0 3px 6px rgba(0,0,0,0.15);
+  border-radius: 4px;
   z-index: 1001;
   animation: submenuFadeIn 0.2s ease-out;
 }
 
 @keyframes submenuFadeIn {
-  from { opacity: 0; transform: translateY(-5px); }
+  from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Show submenu on hover */
 .top-menu-bar li:hover > ul {
   display: block;
 }
 
-/* Submenu items */
-.top-menu-bar ul ul li {
-  width: 100%;
-  position: relative;
-}
-
-/* Submenu links */
 .top-menu-bar ul ul li a {
   display: block;
-  padding: 10px 15px;
+  padding: 6px 8px;     /* Reduced */
   color: var(--color-text-light);
   text-decoration: none;
-  font-size: 13px;
+  font-size: 10px;      /* Smaller */
   font-weight: 400;
   transition: background-color 0.2s, padding-left 0.2s;
 }
 
-/* Submenu hover effect */
 .top-menu-bar ul ul li a:hover {
   background-color: rgba(255, 255, 255, 0.1);
-  padding-left: 18px;
+  padding-left: 10px;
 }
 
 /* Loading Indicator */
@@ -240,25 +191,25 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background-color: rgba(44, 62, 80, 0.9);
-  color: white;
-  padding: 20px 30px;
+  background-color: rgba(44,62,80,0.9);
+  color: #fff;
+  padding: 10px 12px;   /* Reduced */
   border-radius: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   z-index: 2000;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.35), 0 5px 10px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35), 0 4px 8px rgba(0,0,0,0.2);
 }
 
 .loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
+  width: 24px;          /* Reduced */
+  height: 24px;
+  border: 2px solid rgba(255,255,255,0.3);
   border-radius: 50%;
   border-top-color: #fff;
   animation: spin 1s ease-in-out infinite;
-  margin-bottom: 15px;
+  margin-bottom: 6px;   /* Reduced */
 }
 
 @keyframes spin {
@@ -266,24 +217,24 @@ body {
 }
 
 .loading-text {
-  font-size: 14px;
+  font-size: 10px;      /* Smaller */
   font-weight: 500;
 }
 
 /* Error Message */
 .error-message {
   position: fixed;
-  top: 60px; /* Below the menu bar */
+  top: 24px;            /* Adjusted for new menu height */
   left: 50%;
   transform: translateX(-50%);
   background-color: var(--color-error);
-  color: white;
-  padding: 12px 20px;
+  color: #fff;
+  padding: 6px 8px;     /* Reduced */
   border-radius: 6px;
   z-index: 1500;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25), 0 4px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.25), 0 3px 6px rgba(0,0,0,0.15);
   font-family: var(--font-primary);
-  font-size: 14px;
+  font-size: 10px;      /* Smaller */
   font-weight: 500;
   max-width: 80%;
   text-align: center;
@@ -291,33 +242,33 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translate(-50%, -10px); }
+  from { opacity: 0; transform: translate(-50%, -6px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
-/* Desktop area - adjust to account for top menu bar */
+/* Desktop Area */
 #desktop {
   position: absolute;
-  top: 42px; /* Match the height of the top menu bar */
+  top: 24px;            /* Matches top menu bar height */
   left: 0;
   right: 0;
   bottom: 0;
   overflow: hidden;
   background-color: var(--color-bg);
-  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0));
+  background-image: linear-gradient(to bottom, rgba(255,255,255,0.5), rgba(255,255,255,0));
 }
 
-/* Draggable, Resizable Window Container */
+/* Window Container */
 .window {
   position: absolute;
-  top: 50px;
-  left: 50px;
-  width: 700px;
-  min-width: 300px;
-  min-height: 400px;
+  top: 30px;            /* Reduced offset */
+  left: 30px;
+  width: 500px;         /* Reduced default width */
+  min-width: 250px;     /* Reduced min width */
+  min-height: 300px;    /* Reduced min height */
   background: #fff;
   border-radius: 8px;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2), 0 8px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.2), 0 6px 12px rgba(0,0,0,0.1);
   overflow: hidden;
   z-index: 100;
   display: flex;
@@ -331,7 +282,7 @@ body {
 .window-header {
   background: var(--color-primary);
   color: var(--color-text-light);
-  padding: 10px 14px;
+  padding: 6px 8px;     /* Reduced */
   cursor: move;
   display: flex;
   align-items: center;
@@ -341,7 +292,7 @@ body {
 
 .window-header h2 {
   font-family: var(--font-headings);
-  font-size: 15px;
+  font-size: 12px;      /* Smaller */
   font-weight: 600;
   margin: 0;
   letter-spacing: 0.3px;
@@ -351,33 +302,33 @@ body {
   background: transparent;
   border: none;
   color: var(--color-text-light);
-  font-size: 16px;
-  margin-left: 8px;
-  padding: 4px 6px;
+  font-size: 12px;      /* Reduced */
+  margin-left: 4px;     /* Reduced */
+  padding: 2px 4px;     /* Reduced */
   border-radius: 3px;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .window-controls button:hover {
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: rgba(255,255,255,0.15);
 }
 
-/* In-window Menu Bar with Submenus */
+/* In-window Menu Bar */
 .menu-bar {
   background: #34495e;
-  padding: 6px 12px;
+  padding: 2px 4px;     /* Reduced */
   position: relative;
 }
 
 .menu-bar ul {
   list-style: none;
   display: flex;
-  gap: 20px;
+  gap: 6px;             /* Reduced gap */
 }
 
 .menu-bar li {
-  font-size: 14px;
+  font-size: 10px;      /* Smaller */
   position: relative;
 }
 
@@ -397,7 +348,7 @@ body {
   top: 100%;
   left: 0;
   background: #34495e;
-  padding: 5px 0;
+  padding: 4px 0;       /* Reduced */
   border-radius: 4px;
   display: none;
   min-width: 120px;
@@ -409,11 +360,11 @@ body {
 }
 
 .menu-bar li ul li {
-  padding: 4px 15px;
+  padding: 2px 6px;     /* Reduced */
 }
 
 .menu-bar li ul li a {
-  font-size: 13px;
+  font-size: 9px;       /* Smaller */
   display: block;
 }
 
@@ -431,7 +382,7 @@ body {
 /* Window Body */
 .window-body {
   flex: 1;
-  padding: 20px;
+  padding: 8px;         /* Reduced */
   overflow: auto;
   background-color: #f8f9fa;
 }
@@ -440,8 +391,8 @@ body {
 .window-footer {
   background: #f9f9f9;
   border-top: 1px solid #ddd;
-  padding: 5px 10px;
-  font-size: 13px;
+  padding: 4px 6px;     /* Reduced */
+  font-size: 10px;      /* Smaller */
   color: #555;
   display: flex;
   align-items: center;
@@ -454,31 +405,31 @@ form {
 }
 
 .form-section {
-  margin-bottom: 25px;
-  background: white;
+  margin-bottom: 8px;   /* Reduced */
+  background: #fff;
   border-radius: 6px;
-  padding: 15px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1), 0 1px 4px rgba(0, 0, 0, 0.05);
+  padding: 8px;         /* Reduced */
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .section-title {
   font-family: var(--font-headings);
-  font-size: 16px;
+  font-size: 12px;      /* Smaller */
   font-weight: 600;
-  margin-bottom: 15px;
+  margin-bottom: 6px;   /* Reduced */
   color: var(--color-primary);
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  padding-bottom: 4px;  /* Reduced */
+  border-bottom: 1px solid rgba(0,0,0,0.1);
 }
 
 .field-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  grid-gap: 16px;
+  grid-gap: 6px;        /* Reduced */
 }
 
 .form-group {
-  margin-bottom: 15px;
+  margin-bottom: 6px;   /* Reduced */
 }
 
 .form-group.full-width {
@@ -487,10 +438,10 @@ form {
 
 .form-group label {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 2px;   /* Reduced */
   font-family: var(--font-secondary);
   font-weight: 500;
-  font-size: 13px;
+  font-size: 9px;       /* Smaller */
   color: #555;
 }
 
@@ -502,11 +453,11 @@ form {
 .form-group bindable-input::part(input),
 .form-group bindable-input::part(select) {
   width: 100%;
-  padding: 8px 10px;
+  padding: 4px 6px;     /* Reduced */
   border: 1px solid #ddd;
   border-radius: 4px;
   font-family: var(--font-primary);
-  font-size: 14px;
+  font-size: 10px;      /* Smaller */
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
@@ -514,41 +465,43 @@ form {
 .form-group bindable-input::part(select):focus {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.25);
+  box-shadow: 0 0 0 3px rgba(52,152,219,0.25);
 }
 
 button.submit-btn {
   background-color: var(--color-accent);
-  color: white;
+  color: #fff;
   border: none;
-  padding: 10px 15px;
+  padding: 6px 8px;     /* Reduced */
   border-radius: 4px;
   cursor: pointer;
   font-family: var(--font-primary);
   font-weight: 500;
+  font-size: 10px;      /* Smaller */
   transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
-  margin-top: 10px;
-  box-shadow: 0 2px 5px rgba(52, 152, 219, 0.3);
+  margin-top: 4px;      /* Reduced */
+  box-shadow: 0 2px 4px rgba(52,152,219,0.3);
 }
 
 button.submit-btn:hover {
   background-color: #2980b9;
-  box-shadow: 0 4px 8px rgba(52, 152, 219, 0.4);
+  box-shadow: 0 4px 6px rgba(52,152,219,0.4);
   transform: translateY(-1px);
 }
 
-/* Form notification styles for view updates */
+/* Form notification */
 .form-notification {
   background-color: var(--color-success);
-  color: white;
-  padding: 12px;
-  margin: 10px 0;
+  color: #fff;
+  padding: 6px;         /* Reduced */
+  margin: 4px 0;        /* Reduced */
   border-radius: 4px;
   text-align: center;
-  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.2), 0 2px 5px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.1);
   animation: fadeOut 3s forwards;
   font-family: var(--font-primary);
   font-weight: 500;
+  font-size: 10px;      /* Smaller */
 }
 
 @keyframes fadeOut {
@@ -560,8 +513,8 @@ button.submit-btn:hover {
 /* Resize Handle */
 .resize-handle {
   position: absolute;
-  width: 16px;
-  height: 16px;
+  width: 8px;           /* Reduced */
+  height: 8px;
   right: 0;
   bottom: 0;
   cursor: se-resize;
@@ -569,23 +522,12 @@ button.submit-btn:hover {
   z-index: 101;
 }
 
-/* Form Status and Error Messages */
-.form-error {
-  background-color: rgba(231, 76, 60, 0.1);
-  border-left: 3px solid var(--color-error);
-  color: var(--color-error);
-  padding: 10px 15px;
-  margin: 10px 0;
-  border-radius: 4px;
-  font-size: 14px;
-  font-family: var(--font-primary);
-}
-
+/* Form Status Messages */
 #statusMessage {
   text-align: center;
-  padding: 5px;
-  font-size: 13px;
-  margin: 10px auto;
+  padding: 4px;         /* Reduced */
+  font-size: 10px;      /* Smaller */
+  margin: 4px auto;
   border-radius: 4px;
   transition: all 0.3s ease;
 }
@@ -608,100 +550,91 @@ button.submit-btn:hover {
   border-left: 4px solid #3498db;
 }
 
-/* Record Navigation Toolbar Styles */
-/* Window footer */
-.window-footer {
-    border-top: 1px solid #ddd;
-    padding: 8px 12px;
-    background-color: #f5f5f5;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-/* Record navigation toolbar */
+/* Record Navigation Toolbar */
 .record-navigation-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;             /* Reduced */
 }
 
 .record-navigation-toolbar .nav-button {
-    width: 32px;
-    height: 32px;
-    border: 1px solid #ccc;
-    background-color: #fff;
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 18px;
-    color: #333;
+  width: 24px;          /* Reduced */
+  height: 24px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 14px;
+  color: #333;
 }
 
 .record-navigation-toolbar .nav-button:hover {
-    background-color: #f0f0f0;
-    border-color: #999;
+  background-color: #f0f0f0;
+  border-color: #999;
 }
 
 .record-navigation-toolbar .nav-button:active {
-    background-color: #e0e0e0;
+  background-color: #e0e0e0;
 }
 
 .record-navigation-toolbar .record-indicator {
-    padding: 0 12px;
-    min-width: 100px;
-    text-align: center;
-    font-size: 14px;
-    color: #555;
+  padding: 0 6px;       /* Reduced */
+  min-width: 60px;      /* Reduced */
+  text-align: center;
+  font-size: 10px;
+  color: #555;
 }
 
 /* Footer text */
 .footer-text {
-    color: #777;
-    font-size: 12px;
+  color: #777;
+  font-size: 8px;       /* Smaller */
 }
 
-/* Success message */
+/* Success Message */
 .success-message {
   position: fixed;
-  top: 60px;
+  top: 24px;
   left: 50%;
   transform: translateX(-50%);
   background-color: var(--color-success);
-  color: white;
-  padding: 12px 24px;
+  color: #fff;
+  padding: 6px 10px;    /* Reduced */
   border-radius: 4px;
   box-shadow: var(--shadow-md);
   z-index: 1000;
+  font-size: 10px;      /* Smaller */
   animation: fadeInOut 3s ease-in-out;
 }
 
 @keyframes fadeInOut {
-  0% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+  0% { opacity: 0; transform: translateX(-50%) translateY(-12px); }
   15% { opacity: 1; transform: translateX(-50%) translateY(0); }
   85% { opacity: 1; transform: translateX(-50%) translateY(0); }
-  100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-12px); }
 }
 
-/* Authentication error message in forms */
+/* Authentication Error Message */
 .form-error.auth-error {
-  padding: 15px;
-  margin: 10px;
+  padding: 6px;         /* Reduced */
+  margin: 4px;          /* Reduced */
   border-radius: 4px;
   background-color: #ffecec;
   border-left: 4px solid var(--color-error);
   color: #333;
   font-weight: 500;
   text-align: center;
+  font-size: 10px;      /* Smaller */
 }
 
 .auth-refresh-btn {
-  margin-top: 10px;
-  padding: 8px 16px;
+  margin-top: 4px;      /* Reduced */
+  padding: 4px 8px;     /* Reduced */
   background-color: var(--color-accent);
-  color: white;
+  color: #fff;
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -712,7 +645,7 @@ button.submit-btn:hover {
   background-color: #2980b9;
 }
 
-/* Top Menu Bar Styling - Left Menu */
+/* Top Menu Bar - Left Menu */
 .top-menu-bar .left-menu > li {
   position: relative;
   float: left;
@@ -723,27 +656,26 @@ button.submit-btn:hover {
   display: flex;
   align-items: center;
   height: 100%;
-  padding: 0 15px;
+  padding: 0 6px;       /* Reduced */
   color: var(--color-text-light);
   text-decoration: none;
   font-weight: 500;
-  font-size: 14px;
+  font-size: 10px;      /* Smaller */
   transition: background-color 0.2s;
 }
 
 .top-menu-bar .left-menu > li:hover > a {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255,255,255,0.1);
 }
 
-/* Submenu Styling */
 .top-menu-bar .left-menu ul {
   position: absolute;
   top: 100%;
   left: 0;
-  background: white;
+  background: #fff;
   border-radius: 0 0 4px 4px;
   box-shadow: var(--shadow-md);
-  min-width: 180px;
+  min-width: 140px;     /* Reduced */
   opacity: 0;
   visibility: hidden;
   transform: translateY(-10px);
@@ -752,42 +684,21 @@ button.submit-btn:hover {
   display: none;
 }
 
-/* Animation for submenu */
-@keyframes submenuFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Show submenu on hover */
 .top-menu-bar .left-menu li:hover > ul {
   opacity: 1;
   visibility: visible;
   display: block;
 }
 
-/* Submenu items */
-.top-menu-bar .left-menu ul li {
-  display: block;
-  width: 100%;
-}
-
-/* Submenu links */
 .top-menu-bar .left-menu ul li a {
   display: block;
-  padding: 12px 15px;
+  padding: 6px 8px;     /* Reduced */
   color: var(--color-text);
   text-decoration: none;
   transition: background-color 0.2s;
 }
 
-/* Submenu hover effect */
 .top-menu-bar .left-menu ul li a:hover {
   background-color: var(--color-accent);
-  color: white;
+  color: #fff;
 }

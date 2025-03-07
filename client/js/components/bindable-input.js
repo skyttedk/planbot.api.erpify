@@ -119,14 +119,15 @@ class BindableInput extends HTMLElement {
       style.textContent = `
         :host {
           display: inline-block;
+          /* Compact input variables */
           --input-background: white;
           --input-color: black;
-          --input-border: 1px solid #ccc;
+          --input-border: 1px solid #ddd;
           --input-border-radius: 4px;
-          --input-padding: 8px;
-          --input-font-size: 16px;
-          --input-focus-border: 1px solid #0066cc;
-          --input-focus-outline: 2px solid rgba(0, 102, 204, 0.25);
+          --input-padding: 4px 6px;       /* Reduced padding */
+          --input-font-size: 10px;        /* Smaller font */
+          --input-focus-border: 1px solid #3498db;
+          --input-focus-outline: 2px solid rgba(52,152,219,0.25);
           --input-error-border: 1px solid #cc0000;
           --input-error-background: #fff8f8;
           --input-disabled-background: #f2f2f2;
@@ -176,7 +177,7 @@ class BindableInput extends HTMLElement {
         .error-message {
           color: #cc0000;
           font-size: 0.85em;
-          margin-top: 4px;
+          margin-top: 2px;        /* Tighter spacing */
           display: none;
         }
         
@@ -186,7 +187,7 @@ class BindableInput extends HTMLElement {
       `;
       this.shadowRoot.appendChild(style);
     }
-  
+    
     _createInput() {
       // Clean up existing input and error message (if any)
       if (this.inputElement && this.shadowRoot.contains(this.inputElement)) {
