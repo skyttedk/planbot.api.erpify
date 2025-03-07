@@ -79,13 +79,8 @@ export class WindowForm {
         // Initialize dragging behavior on header
         this._makeDraggable(header);
 
-        // Optional menu bar if specified in config
-        if (this.config.menu) {
-            const menuBar = document.createElement('div');
-            menuBar.className = 'menu-bar';
-            // Populate menu items based on this.config.menu if needed
-            this.windowElement.appendChild(menuBar);
-        }
+        // Add menu bar to all forms
+        this._createMenuBar();
 
         // Create window body (where the form is injected)
         const body = document.createElement('div');
@@ -790,5 +785,272 @@ export class WindowForm {
      */
     _ensureTokenInMessage(message) {
         return { ...message, token: message.token || this.socketService.getAuthToken() };
+    }
+
+    /**
+     * Creates a menu bar with support for submenus similar to Windows forms
+     */
+    _createMenuBar() {
+        // Create main menu bar container
+        const menuBar = document.createElement('div');
+        menuBar.className = 'window-menu-bar';
+        
+        // Get form model name from config or default to "Form"
+        // For this example, we'll hardcode "Customer" as an example case
+        const modelName = this.config.formConfig?.model;
+        
+        // Sample menu structure - this would normally come from config
+        const menuConfig = [
+            {
+                label: modelName, // Use the model name instead of "File"
+                items: [
+                    { label: 'New', action: () => console.log('New record clicked') },
+                    { label: 'Delete', action: () => console.log('Delete record clicked') }
+                ]
+            },
+            {
+                label: 'Edit',
+                items: [
+                    { label: 'Cut', action: () => console.log('Cut clicked') },
+                    { label: 'Copy', action: () => console.log('Copy clicked') },
+                    { label: 'Paste', action: () => console.log('Paste clicked') }
+                ]
+            },
+            {
+                label: 'View',
+                items: [
+                    { label: 'Refresh', action: () => this._loadDefaultRecord() },
+                    { 
+                        label: 'Options',
+                        items: [
+                            { label: 'Option 1', action: () => console.log('Option 1 clicked') },
+                            { label: 'Option 2', action: () => console.log('Option 2 clicked') }
+                        ]
+                    }
+                ]
+            },
+            {
+                label: 'Help',
+                items: [
+                    { label: 'About', action: () => console.log('About clicked') }
+                ]
+            }
+        ];
+        
+        // Create menu items
+        menuConfig.forEach(menu => {
+            const menuItem = document.createElement('div');
+            menuItem.className = 'menu-item';
+            menuItem.textContent = menu.label;
+            
+            // Create dropdown for this menu item
+            const dropdown = document.createElement('div');
+            dropdown.className = 'menu-dropdown';
+            
+            // Add menu subitems
+            this._createSubMenu(dropdown, menu.items);
+            
+            // Show dropdown on hover
+            menuItem.addEventListener('mouseenter', () => {
+                // Close any other open dropdowns at this level
+                document.querySelectorAll('.menu-dropdown.active').forEach(el => {
+                    if (el !== dropdown) el.classList.remove('active');
+                });
+                dropdown.classList.add('active');
+            });
+            
+            // Add click event for touch devices that don't support hover
+            menuItem.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            
+            menuItem.appendChild(dropdown);
+            menuBar.appendChild(menuItem);
+        });
+        
+        // Handle closing menus when moving away from the menu bar
+        menuBar.addEventListener('mouseleave', () => {
+            // Only close top-level dropdowns when leaving the menu bar completely
+            setTimeout(() => {
+                // Check if we've truly left the menu area (including dropdowns)
+                const isOverMenuElement = document.querySelectorAll('.window-menu-bar:hover, .menu-dropdown:hover, .submenu-dropdown:hover').length > 0;
+                if (!isOverMenuElement) {
+                    document.querySelectorAll('.menu-dropdown.active, .submenu-dropdown.active').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                }
+            }, 100); // Small delay to check if we're still over a menu element
+        });
+        
+        // Still close menus when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.window-menu-bar')) {
+                document.querySelectorAll('.menu-dropdown.active, .submenu-dropdown.active').forEach(el => {
+                    el.classList.remove('active');
+                });
+            }
+        });
+        
+        this.windowElement.appendChild(menuBar);
+        this.menuBar = menuBar;
+        
+        // Add default CSS if needed
+        this._addMenuStyles();
+    }
+    
+    /**
+     * Recursively creates submenu items
+     * @param {HTMLElement} parent - The parent element to append items to
+     * @param {Array} items - Array of menu item configurations
+     */
+    _createSubMenu(parent, items) {
+        items.forEach(item => {
+            if (item.type === 'separator') {
+                const separator = document.createElement('div');
+                separator.className = 'menu-separator';
+                parent.appendChild(separator);
+                return;
+            }
+            
+            const menuItem = document.createElement('div');
+            menuItem.className = 'dropdown-item';
+            menuItem.textContent = item.label;
+            
+            // If there are subitems, create a nested dropdown
+            if (item.items && item.items.length) {
+                menuItem.classList.add('has-submenu');
+                const subDropdown = document.createElement('div');
+                subDropdown.className = 'submenu-dropdown';
+                
+                // Recursively create nested menu
+                this._createSubMenu(subDropdown, item.items);
+                
+                menuItem.appendChild(subDropdown);
+                
+                // Show submenu on hover
+                menuItem.addEventListener('mouseenter', () => {
+                    subDropdown.classList.add('active');
+                });
+                
+                menuItem.addEventListener('mouseleave', () => {
+                    subDropdown.classList.remove('active');
+                });
+            } else if (item.action) {
+                // Add click handler for menu action
+                menuItem.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    // Close all dropdowns
+                    document.querySelectorAll('.menu-dropdown.active, .submenu-dropdown.active').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    // Execute the menu action
+                    item.action();
+                });
+            }
+            
+            parent.appendChild(menuItem);
+        });
+    }
+    
+    /**
+     * Adds necessary CSS styles for the menu
+     */
+    _addMenuStyles() {
+        // Only add styles if they don't already exist
+        if (document.getElementById('window-menu-styles')) return;
+        
+        const styleEl = document.createElement('style');
+        styleEl.id = 'window-menu-styles';
+        styleEl.textContent = `
+            .window-menu-bar {
+                display: flex;
+                background-color: #f0f0f0;
+                border-bottom: 1px solid #ccc;
+                padding: 2px 0;
+                font-family: Arial, sans-serif;
+                font-size: 14px;
+                position: relative;
+            }
+            
+            .menu-item {
+                padding: 4px 10px;
+                cursor: pointer;
+                position: relative;
+            }
+            
+            .menu-item:hover {
+                background-color: #e0e0e0;
+            }
+            
+            .menu-dropdown {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                background-color: #f8f8f8;
+                border: 1px solid #ccc;
+                box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+                z-index: 1000;
+                min-width: 150px;
+                padding: 2px 0;
+            }
+            
+            .menu-dropdown.active {
+                display: block;
+            }
+            
+            .dropdown-item {
+                padding: 6px 15px;
+                cursor: pointer;
+                position: relative;
+                white-space: nowrap;
+            }
+            
+            .dropdown-item:hover {
+                background-color: #e0e0e0;
+            }
+            
+            .menu-separator {
+                height: 1px;
+                background-color: #ccc;
+                margin: 5px 0;
+            }
+            
+            .has-submenu {
+                position: relative;
+            }
+            
+            .has-submenu::after {
+                content: '▶';
+                position: absolute;
+                right: 10px;
+                font-size: 10px;
+            }
+            
+            .submenu-dropdown {
+                display: none;
+                position: absolute;
+                top: -2px; /* Align with parent menu item */
+                left: 100%;
+                background-color: #f8f8f8;
+                border: 1px solid #ccc;
+                box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+                z-index: 1001;
+                min-width: 150px;
+                padding: 2px 0;
+            }
+            
+            .submenu-dropdown.active {
+                display: block;
+            }
+            
+            /* Small delay on hover to prevent accidental menu opening */
+            .menu-item,
+            .dropdown-item.has-submenu {
+                transition: background-color 0.2s;
+            }
+        `;
+        
+        document.head.appendChild(styleEl);
     }
 }
