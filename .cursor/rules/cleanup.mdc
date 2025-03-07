@@ -1,0 +1,21 @@
+---
+description: Code Clean Up and Refactoring
+globs: 
+alwaysApply: false
+---
+When asked to do any form of clean up, refactoring and streamlining 
+use the following principles
+
+1. Code Clean Up.
+   Is there any redundant code that can be removed.
+
+2. Refactor. 
+   Can we refactor, without adding complexity.
+
+3. Update documentation for functions.
+
+In general, Keep code clean and sleek and simple. Dont build a Rube Goldberg Machine.
+
+
+
+
