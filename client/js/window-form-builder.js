@@ -35,18 +35,18 @@ class FormMenuManager {
 
         // Generate unique ID for this menu item
         const menuItemId = `menu_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-        
+
         // Add ID to the menu item
         const newMenuItem = {
             ...menuItem,
             id: menuItemId,
             formId: formId // Store the formId with the menu item for reference
         };
-        
+
         // Add to the collection
         this.menuItems[formId].push(newMenuItem);
         console.log(`FormMenuManager: Added menu item to form ${formId}, total items: ${this.menuItems[formId].length}`);
-        
+
         return menuItemId;
     }
 
@@ -62,13 +62,13 @@ class FormMenuManager {
             console.log(`FormMenuManager: No items found for form ${formId}`);
             return false;
         }
-        
+
         const initialCount = this.menuItems[formId].length;
         this.menuItems[formId] = this.menuItems[formId].filter(item => item.id !== menuItemId);
-        
+
         const removed = initialCount !== this.menuItems[formId].length;
         console.log(`FormMenuManager: Removed item from form ${formId}? ${removed}`);
-        
+
         return removed;
     }
 
@@ -92,20 +92,20 @@ class FormMenuManager {
      */
     buildMenuStructure(items) {
         const menuStructure = [];
-        
+
         items.forEach(item => {
             // If the item has a location, use it to determine position
             if (item.location) {
                 const path = item.location.split('.');
                 let currentLevel = menuStructure;
-                
+
                 // Process path segments except the last one (which is the menu item)
                 for (let i = 0; i < path.length - 1; i++) {
                     const segment = path[i];
-                    
+
                     // Look for existing menu group at this level
                     let menuGroup = currentLevel.find(group => group.label === segment);
-                    
+
                     // Create new menu group if it doesn't exist
                     if (!menuGroup) {
                         menuGroup = {
@@ -114,20 +114,20 @@ class FormMenuManager {
                         };
                         currentLevel.push(menuGroup);
                     }
-                    
+
                     // Initialize items array if needed
                     if (!menuGroup.items) {
                         menuGroup.items = [];
                     }
-                    
+
                     // Move to next level
                     currentLevel = menuGroup.items;
                 }
-                
+
                 // Add the menu item at the last segment
                 const lastSegment = path[path.length - 1];
                 const menuItemLabel = item.caption || lastSegment;
-                
+
                 // Check if item already exists (avoid duplicates)
                 if (!currentLevel.some(existing => existing.label === menuItemLabel)) {
                     currentLevel.push({
@@ -150,10 +150,10 @@ class FormMenuManager {
                 });
             }
         });
-        
+
         return menuStructure;
     }
-    
+
     // Clear out all menu items
     clear() {
         console.log('FormMenuManager: Clearing all menu items');
@@ -178,13 +178,13 @@ export class WindowForm {
         this.currentRecord = {};
         this.currentRecordIndex = 0;
         this.totalRecords = 0;
-        
+
         // Track active window forms globally
         if (!window.activeWindowForms) {
             window.activeWindowForms = [];
         }
         window.activeWindowForms.push(this);
-        
+
         this.record = {};
         this.dirtyFields = new Set(); // Track unsaved fields
         this.isSaving = false;
@@ -192,14 +192,14 @@ export class WindowForm {
         this.isNavigating = false;
         this.currentFocusElement = null;
         this.messageHandlers = [];
-        
+
         // Register any menu items from the form config BEFORE creating the window
         this._registerConfigMenuItems();
-        
+
         // Create the window and form
         this._createWindow();
         this._generateForm();
-        
+
         // Setup keyboard handlers for navigation
         this._setupKeyboardHandlers();
         this._loadDefaultRecord();
@@ -685,6 +685,11 @@ export class WindowForm {
         this.body.appendChild(this.formElement);
     }
 
+
+    async _Zoom() {
+        // Not implemented yet
+    }
+
     async _loadDefaultRecord() {
         const formCfg = this.config.formConfig;
         if (!formCfg?.model) {
@@ -792,12 +797,12 @@ export class WindowForm {
     close() {
         this._cleanupEventListeners();
         this.windowElement.remove();
-        
+
         // Remove this form from active windows
         if (window.activeWindowForms) {
             window.activeWindowForms = window.activeWindowForms.filter(wf => wf !== this);
         }
-        
+
         // Clean up form menu items
         if (formMenuManager.menuItems[this.formId]) {
             delete formMenuManager.menuItems[this.formId];
@@ -989,24 +994,24 @@ export class WindowForm {
      */
     _registerConfigMenuItems() {
         const formConfig = this.config.formConfig;
-        
+
         // If the form has menu items defined, register them
         if (formConfig && Array.isArray(formConfig.menu) && formConfig.menu.length > 0) {
             console.log(`[${this.formId}] Registering ${formConfig.menu.length} menu items for form`);
-            
+
             formConfig.menu.forEach(menuItem => {
                 // Ensure caption is set for display (use location's last segment if not provided)
                 if (!menuItem.caption && menuItem.location) {
                     const segments = menuItem.location.split('.');
                     menuItem.caption = segments[segments.length - 1];
                 }
-                
+
                 console.log(`[${this.formId}] Registering menu item:`, menuItem);
-                
+
                 // Register menu item with the form menu manager
                 formMenuManager.addMenuItem(this.formId, menuItem);
             });
-            
+
             // Verify items were registered
             const items = formMenuManager.getMenuItems(this.formId);
             console.log(`[${this.formId}] Verified ${items.length} menu items are registered`);
@@ -1020,38 +1025,32 @@ export class WindowForm {
      */
     _createMenuBar() {
         console.log(`[${this.formId}] Creating menu bar`);
-        
+
         // Create main menu bar container
         const menuBar = document.createElement('div');
         menuBar.className = 'window-menu-bar';
         this.menuBar = menuBar;
-        
+
         // Get form model name from config or default to "Form"
         const modelName = this.config.formConfig?.model || 'Form';
-        
+
         // Define standard menu items that every form will have
         const standardMenus = {
             [modelName]: [
                 { label: 'New', action: () => console.log('New record clicked') },
                 { label: 'Delete', action: () => console.log('Delete record clicked') }
             ],
-            'Edit': [
-                { label: 'Cut', action: () => console.log('Cut clicked') },
-                { label: 'Copy', action: () => console.log('Copy clicked') },
-                { label: 'Paste', action: () => console.log('Paste clicked') }
-            ],
             'View': [
-                { label: 'Refresh', action: () => this._loadDefaultRecord() }
-            ],
-            'Help': [
-                { label: 'About', action: () => console.log('About clicked') }
+                { label: 'Refresh', action: () => this._loadDefaultRecord() },
+                { label: 'Zoom', action: () => this._Zoom() }
+
             ]
         };
-        
+
         // Get custom menu items for this form
         const customMenuItems = formMenuManager.getMenuItems(this.formId);
         console.log(`[${this.formId}] Found ${customMenuItems.length} custom menu items:`, customMenuItems);
-        
+
         // Add custom menu items to the appropriate menus
         customMenuItems.forEach(item => {
             const menuName = item.location || 'Custom';
@@ -1059,7 +1058,7 @@ export class WindowForm {
                 standardMenus[menuName] = [];
                 console.log(`[${this.formId}] Created new menu section: ${menuName}`);
             }
-            
+
             standardMenus[menuName].push({
                 label: item.caption,
                 type: item.type,
@@ -1068,29 +1067,29 @@ export class WindowForm {
             });
             console.log(`[${this.formId}] Added item "${item.caption}" to menu "${menuName}"`);
         });
-        
+
         // Log all menu sections we'll be creating
         console.log(`[${this.formId}] Creating menu sections:`, Object.keys(standardMenus));
-        
+
         // Create each menu in the menu bar
         Object.entries(standardMenus).forEach(([menuName, menuItems]) => {
             if (menuItems.length === 0) {
                 console.log(`[${this.formId}] Skipping empty menu: ${menuName}`);
                 return; // Skip empty menus
             }
-            
+
             const menuItem = document.createElement('div');
             menuItem.className = 'menu-item';
             menuItem.textContent = menuName;
             console.log(`[${this.formId}] Created menu: ${menuName} with ${menuItems.length} items`);
-            
+
             // Create dropdown for this menu item
             const dropdown = document.createElement('div');
             dropdown.className = 'menu-dropdown';
-            
+
             // Add menu subitems
             this._createSubMenu(dropdown, menuItems);
-            
+
             // Show dropdown on hover
             menuItem.addEventListener('mouseenter', () => {
                 // Close any other open dropdowns at this level
@@ -1099,16 +1098,16 @@ export class WindowForm {
                 });
                 dropdown.classList.add('active');
             });
-            
+
             // Add click event for touch devices that don't support hover
             menuItem.addEventListener('click', (e) => {
                 e.stopPropagation();
             });
-            
+
             menuItem.appendChild(dropdown);
             menuBar.appendChild(menuItem);
         });
-        
+
         // Handle closing menus when moving away from the menu bar
         menuBar.addEventListener('mouseleave', () => {
             // Only close top-level dropdowns when leaving the menu bar completely
@@ -1122,7 +1121,7 @@ export class WindowForm {
                 }
             }, 100); // Small delay to check if we're still over a menu element
         });
-        
+
         // Close menus when clicking outside
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.window-menu-bar')) {
@@ -1131,13 +1130,13 @@ export class WindowForm {
                 });
             }
         });
-        
+
         this.windowElement.appendChild(menuBar);
-        
+
         // Add default CSS if needed
         this._addMenuStyles();
     }
-    
+
     /**
      * Refreshes the menu bar with the latest menu items
      * Called when menu items are dynamically added or removed
@@ -1147,11 +1146,11 @@ export class WindowForm {
         if (this.menuBar) {
             this.menuBar.remove();
         }
-        
+
         // Recreate the menu bar
         this._createMenuBar();
     }
-    
+
     /**
      * Recursively creates submenu items and handles controller actions
      * @param {HTMLElement} parent - The parent element to append items to
@@ -1165,33 +1164,33 @@ export class WindowForm {
                 parent.appendChild(separator);
                 return;
             }
-            
+
             const menuItem = document.createElement('div');
             menuItem.className = 'dropdown-item';
-            
+
             // Use caption or label property for display
             menuItem.textContent = item.caption || item.label || '';
-            
+
             // If there are subitems, create a nested dropdown
             if (item.items && item.items.length) {
                 menuItem.classList.add('has-submenu');
                 const subDropdown = document.createElement('div');
                 subDropdown.className = 'submenu-dropdown';
-                
+
                 // Recursively create nested menu
                 this._createSubMenu(subDropdown, item.items);
-                
+
                 menuItem.appendChild(subDropdown);
-                
+
                 // Show submenu on hover
                 menuItem.addEventListener('mouseenter', () => {
                     subDropdown.classList.add('active');
                 });
-                
+
                 menuItem.addEventListener('mouseleave', () => {
                     subDropdown.classList.remove('active');
                 });
-            } 
+            }
             // Handle controller action menu items
             else if (item.type === 'controller' && item.name && item.action) {
                 menuItem.addEventListener('click', async (e) => {
@@ -1200,15 +1199,15 @@ export class WindowForm {
                     document.querySelectorAll('.menu-dropdown.active, .submenu-dropdown.active').forEach(el => {
                         el.classList.remove('active');
                     });
-                    
+
                     // Call controller action via socket
                     try {
                         const controllerName = item.name;
                         const actionName = item.action;
-                        
+
                         console.log(`Calling controller: ${controllerName}, action: ${actionName}`);
                         console.log('Menu item:', item);  // Debug the menu item
-                        
+
                         // Example implementation of controller call
                         if (this.socketService) {
                             // Fix: Match parameter names expected by the server
@@ -1219,9 +1218,9 @@ export class WindowForm {
                                 parameters: [],           // Changed from "params" to "parameters"
                                 requestId: `req-${controllerName}-${actionName}`
                             };
-                            
+
                             console.log('Sending request:', requestData);  // Debug the request
-                            
+
                             const result = await this._sendRequest(requestData);
                             console.log('Controller result:', result);
                         } else {
@@ -1255,18 +1254,18 @@ export class WindowForm {
                     console.log(`Menu action clicked: ${item.action}`);
                 });
             }
-            
+
             parent.appendChild(menuItem);
         });
     }
-    
+
     /**
      * Adds necessary CSS styles for the menu
      */
     _addMenuStyles() {
         // Only add styles if they don't already exist
         if (document.getElementById('window-menu-styles')) return;
-        
+
         const styleEl = document.createElement('style');
         styleEl.id = 'window-menu-styles';
         styleEl.textContent = `
@@ -1358,7 +1357,7 @@ export class WindowForm {
                 transition: background-color 0.2s;
             }
         `;
-        
+
         document.head.appendChild(styleEl);
     }
 }
