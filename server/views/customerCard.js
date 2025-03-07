@@ -6,6 +6,15 @@ export const customerCardForm = {
     "type": "form",
     "model": "Customer",
     "menuLocation": "Customers.CustomerCard",
+    "menu": [
+        {
+            "location": "Test.Submenu",
+            "caption": "Test",
+            "type": "controller",
+            "name": "test",
+            "action": "performTest"
+        }
+    ],
     "layout": {
         "groups": [
             {
