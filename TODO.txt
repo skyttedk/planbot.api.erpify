@@ -5,6 +5,7 @@ in config file, define database name for running unit test.
   then before test, db schemasync.. and use that db
 
 
+record id : should some how be visible on fomrs.. not editable..)
 
 
 pasword hasing:

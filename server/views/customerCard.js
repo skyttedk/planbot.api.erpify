@@ -8,10 +8,10 @@ export const customerCardForm = {
     "menuLocation": "Customers.CustomerCard",
     "menu": [
         {
-            "location": "Test.Submenu",
-            "caption": "Test",
+            "location": "Test",
+            "caption": "Run Test",
             "type": "controller",
-            "name": "test",
+            "name": "Test",
             "action": "performTest"
         }
     ],
