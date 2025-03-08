@@ -28,6 +28,7 @@ class BindableInput extends HTMLElement {
       this._field = null;
       this._debounceDelay = 300;
       this._immutable = false;
+      this._valueChanged = false;
   
       // Form internals for form association
       if (BindableInput.formAssociated) {
@@ -312,13 +313,17 @@ class BindableInput extends HTMLElement {
         this._updateFormValidity();
         if (this._record && this._field) {
           const value = this._getValueFromPath(this._record, this._field);
-          this.dispatchEvent(
-            new CustomEvent("data-changed", {
-              bubbles: true,
-              composed: true,
-              detail: { field: this._field, value, record: this._record },
-            })
-          );
+          const inputType = this.getAttribute("type") || "text";
+          if (this._valueChanged || ["checkbox", "radio", "select"].includes(inputType)) {
+            this.dispatchEvent(
+              new CustomEvent("data-changed", {
+                bubbles: true,
+                composed: true,
+                detail: { field: this._field, value, record: this._record },
+              })
+            );
+          }
+          this._valueChanged = false;
         }
       };
     }
@@ -378,6 +383,8 @@ class BindableInput extends HTMLElement {
         }
         const currentValue = this._getValueFromPath(this._record, this._field);
         const hasChanged = this._hasValueChanged(currentValue, value);
+        this._valueChanged = hasChanged;
+        
         if (this._immutable) {
           this.dispatchEvent(
             new CustomEvent("value-change", {
