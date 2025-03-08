@@ -237,6 +237,22 @@ export class SocketService {
         return;
       }
   
+      // Check specifically for token expiration errors
+      if (
+        message.success === false &&
+        message.message &&
+        (message.message.includes("jwt expired") || 
+         message.message.includes("Invalid or expired token"))
+      ) {
+        this._log("Token expired, emitting auth_error event");
+        this._emit("auth_error", { 
+          message: message.message,
+          type: "token_expired" 
+        });
+        return; // Stop processing after emitting auth_error
+      }
+      
+      // Check for other authentication errors
       if (
         message.success === false &&
         message.message &&

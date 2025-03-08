@@ -273,6 +273,21 @@ class App {
 
   handleAuthError(data) {
     console.warn("Authentication error detected:", data.message);
+    
+    // Always show login dialog for expired tokens, regardless of form visibility
+    if (data.type === "token_expired" || 
+        (data.message && (data.message.includes("jwt expired") || 
+                          data.message.includes("Invalid or expired token")))) {
+      console.warn("Token expired, forcing login dialog");
+      this.socketService.clearAuthToken();
+      this.showLoginDialog();
+      
+      // Notify the user that their session has expired
+      this.showErrorMessage("Your session has expired. Please log in again.");
+      return;
+    }
+    
+    // For other auth errors, maintain the existing behavior
     if (this.hasVisibleForms()) {
       console.log("Ignoring auth error because forms are already visible");
       return;
@@ -281,6 +296,7 @@ class App {
       console.warn("Ignoring auth error during view loading:", data.message);
       return;
     }
+    
     this.socketService.clearAuthToken();
     this.showLoginDialog();
   }
@@ -319,6 +335,16 @@ class App {
       this.hideLoadingIndicator();
       this.showErrorMessage(`Error: ${message.error}`);
 
+      // Check specifically for token expiration errors
+      if (message.error.includes("jwt expired") || message.error.includes("Invalid or expired token")) {
+        console.warn("Token expiration detected, showing login dialog");
+        this.socketService.clearAuthToken();
+        this.showLoginDialog();
+        this.showErrorMessage("Your session has expired. Please log in again.");
+        this.viewBeingLoaded = null;
+        return;
+      }
+
       if (
         (message.error.includes("Unauthorized") ||
           message.error.includes("authentication") ||
@@ -333,6 +359,21 @@ class App {
           console.log("Ignoring auth error because forms are already visible");
         }
       }
+      this.viewBeingLoaded = null;
+      return;
+    }
+
+    // Check specifically for token expiration errors in message
+    if (
+      message.message &&
+      !message.success &&
+      (message.message.includes("jwt expired") || message.message.includes("Invalid or expired token"))
+    ) {
+      console.warn("Token expiration detected in message:", message.message);
+      this.hideLoadingIndicator();
+      this.socketService.clearAuthToken();
+      this.showLoginDialog();
+      this.showErrorMessage("Your session has expired. Please log in again.");
       this.viewBeingLoaded = null;
       return;
     }
