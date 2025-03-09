@@ -282,9 +282,17 @@ export class WindowForm {
         // Create footer (for status messages or controls)
         const footer = document.createElement('div');
         footer.className = 'window-footer';
+        
+        // Add navigation toolbar on the left side of the footer
         this._createNavigationToolbar(footer);
 
-        // Footer text if provided
+        // Add status message div in the middle of the footer
+        const statusDiv = document.createElement('div');
+        statusDiv.id = 'statusMessage';
+        statusDiv.className = '';
+        footer.appendChild(statusDiv);
+
+        // Footer text if provided (right side)
         const footerText = document.createElement('div');
         footerText.className = 'footer-text';
         footerText.textContent = this.config.footerText ?? '';
@@ -503,7 +511,7 @@ export class WindowForm {
             return;
         }
 
-        const statusDiv = this.formElement.querySelector('#statusMessage');
+        const statusDiv = document.getElementById('statusMessage');
         if (statusDiv) {
             statusDiv.textContent = (!recordId || recordId === 0) ? 'Creating...' : 'Saving...';
             statusDiv.className = 'saving';
@@ -656,11 +664,6 @@ export class WindowForm {
             this.formElement.appendChild(section);
         });
 
-        const statusDiv = document.createElement('div');
-        statusDiv.id = 'statusMessage';
-        statusDiv.className = 'success';
-        this.formElement.appendChild(statusDiv);
-
         // Set up conditional display for groups and fields
         (formCfg.layout.groups || []).forEach(group => {
             if (group.conditional) {
@@ -714,7 +717,6 @@ export class WindowForm {
             });
         });
 
-
         // Inside _generateForm(), after building fieldMap:
         const autoSave = this._debounce(async (event) => {
             if (this.isClosing || this.isSaving) return;
@@ -736,11 +738,15 @@ export class WindowForm {
             }
 
             const recordId = this.record.id;
+            const statusDiv = document.getElementById('statusMessage');
+            
             // New record: if id is 0 (or falsy), call create; otherwise update
             if (!recordId || recordId === 0) {
                 console.log(`Creating new record for model ${modelName} with data:`, { [changedField]: this.record[changedField] });
-                statusDiv.textContent = 'Creating...';
-                statusDiv.className = 'saving';
+                if (statusDiv) {
+                    statusDiv.textContent = 'Creating...';
+                    statusDiv.className = 'saving';
+                }
 
                 const requestId = `req-create-${modelName}-${Date.now()}`;
                 const message = {
@@ -754,12 +760,14 @@ export class WindowForm {
                 try {
                     const response = await this._sendRequest(message);
                     if (response.success) {
-                        statusDiv.textContent = 'Created';
-                        statusDiv.className = 'success';
-                        setTimeout(() => {
-                            statusDiv.textContent = '';
-                            statusDiv.className = '';
-                        }, 1500);
+                        if (statusDiv) {
+                            statusDiv.textContent = 'Created';
+                            statusDiv.className = 'success';
+                            setTimeout(() => {
+                                statusDiv.textContent = '';
+                                statusDiv.className = '';
+                            }, 1500);
+                        }
                         if (response.result) {
                             console.log(`Response for ${changedField} creation:`, response.result);
                             Object.assign(this.record, response.result);
@@ -768,27 +776,37 @@ export class WindowForm {
                         }
                     } else {
                         console.error('Error creating record:', response.error);
-                        statusDiv.textContent = `Error: ${response.error || 'Create failed'}`;
-                        statusDiv.className = 'error';
+                        if (statusDiv) {
+                            statusDiv.textContent = `Error: ${response.error || 'Create failed'}`;
+                            statusDiv.className = 'error';
+                        } else {
+                            this._showFormError(`Error: ${response.error || 'Create failed'}`);
+                        }
                         this.dirtyFields.add(changedField);
+                        setTimeout(() => {
+                            if (statusDiv) {
+                                statusDiv.textContent = '';
+                                statusDiv.className = '';
+                            }
+                        }, 3000);
+                    }
+                } catch (error) {
+                    if (statusDiv) {
+                        statusDiv.textContent = 'Create operation timed out';
+                        statusDiv.className = 'error';
                         setTimeout(() => {
                             statusDiv.textContent = '';
                             statusDiv.className = '';
                         }, 3000);
                     }
-                } catch (error) {
-                    statusDiv.textContent = 'Create operation timed out';
-                    statusDiv.className = 'error';
-                    setTimeout(() => {
-                        statusDiv.textContent = '';
-                        statusDiv.className = '';
-                    }, 3000);
                 }
             } else {
                 // Existing record: call update
                 console.log(`Auto-saving field ${changedField} for model ${modelName}`, this.record[changedField]);
-                statusDiv.textContent = 'Saving...';
-                statusDiv.className = 'saving';
+                if (statusDiv) {
+                    statusDiv.textContent = 'Saving...';
+                    statusDiv.className = 'saving';
+                }
 
                 const requestId = `req-update-${modelName}-${Date.now()}`;
                 const message = {
@@ -802,12 +820,14 @@ export class WindowForm {
                 try {
                     const response = await this._sendRequest(message);
                     if (response.success) {
-                        statusDiv.textContent = 'Saved';
-                        statusDiv.className = 'success';
-                        setTimeout(() => {
-                            statusDiv.textContent = '';
-                            statusDiv.className = '';
-                        }, 1500);
+                        if (statusDiv) {
+                            statusDiv.textContent = 'Saved';
+                            statusDiv.className = 'success';
+                            setTimeout(() => {
+                                statusDiv.textContent = '';
+                                statusDiv.className = '';
+                            }, 1500);
+                        }
                         if (response.result) {
                             console.log(`Response for ${changedField} update:`, response.result);
                             Object.assign(this.record, response.result);
@@ -816,21 +836,29 @@ export class WindowForm {
                         }
                     } else {
                         console.error('Error updating record:', response.error);
-                        statusDiv.textContent = `Error: ${response.error || 'Save failed'}`;
-                        statusDiv.className = 'error';
+                        if (statusDiv) {
+                            statusDiv.textContent = `Error: ${response.error || 'Save failed'}`;
+                            statusDiv.className = 'error';
+                        } else {
+                            this._showFormError(`Error: ${response.error || 'Save failed'}`);
+                        }
                         this.dirtyFields.add(changedField);
+                        setTimeout(() => {
+                            if (statusDiv) {
+                                statusDiv.textContent = '';
+                                statusDiv.className = '';
+                            }
+                        }, 3000);
+                    }
+                } catch (error) {
+                    if (statusDiv) {
+                        statusDiv.textContent = 'Save operation timed out';
+                        statusDiv.className = 'error';
                         setTimeout(() => {
                             statusDiv.textContent = '';
                             statusDiv.className = '';
                         }, 3000);
                     }
-                } catch (error) {
-                    statusDiv.textContent = 'Save operation timed out';
-                    statusDiv.className = 'error';
-                    setTimeout(() => {
-                        statusDiv.textContent = '';
-                        statusDiv.className = '';
-                    }, 3000);
                 }
             }
         }, 10);
@@ -861,10 +889,8 @@ export class WindowForm {
 
         });
 
-
         this.body.appendChild(this.formElement);
     }
-
 
     async _Zoom() {
         // Not implemented yet
@@ -966,14 +992,21 @@ export class WindowForm {
         }
     }
 
+    /**
+     * Displays an error message in the form
+     * @param {string} message - The error message to display
+     */
     _showFormError(message) {
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'form-error';
-        errorDiv.textContent = message;
-        const formTitle = this.formElement.querySelector('#formTitle');
-        if (formTitle && formTitle.parentNode) {
-            formTitle.parentNode.insertBefore(errorDiv, formTitle.nextSibling);
-            setTimeout(() => errorDiv.remove(), 5000);
+        const statusDiv = document.getElementById('statusMessage');
+        if (statusDiv) {
+            statusDiv.textContent = message;
+            statusDiv.className = 'error';
+            setTimeout(() => {
+                statusDiv.textContent = '';
+                statusDiv.className = '';
+            }, 3000);
+        } else {
+            console.error('Form error:', message);
         }
     }
 
@@ -1069,7 +1102,7 @@ export class WindowForm {
 
         this.recordIndicator = document.createElement('span');
         this.recordIndicator.className = 'record-indicator';
-        this.recordIndicator.textContent = 'Record: -';
+        this.recordIndicator.textContent = 'Record Id: -';
         navToolbar.appendChild(this.recordIndicator);
 
         const nextButton = document.createElement('button');
@@ -1164,9 +1197,9 @@ export class WindowForm {
 
     _updateRecordIndicator() {
         if (this.recordIndicator && this.record?.id) {
-            this.recordIndicator.textContent = `Record: ${this.record.id}`;
+            this.recordIndicator.textContent = `Record Id: ${this.record.id}`;
         } else if (this.recordIndicator) {
-            this.recordIndicator.textContent = 'Record: -';
+            this.recordIndicator.textContent = 'Record Id: -';
         }
     }
 
@@ -1659,7 +1692,7 @@ export class WindowForm {
         console.log('Created new blank record');
 
         // Show status message
-        const statusDiv = this.formElement.querySelector('#statusMessage');
+        const statusDiv = document.getElementById('statusMessage');
         if (statusDiv) {
             statusDiv.textContent = 'New record';
             statusDiv.className = 'info';
@@ -1677,7 +1710,7 @@ export class WindowForm {
         // Check if we have a valid record with an ID
         if (!this.record || !this.record.id || this.record.id === 0) {
             // Show message that there's no record to delete
-            const statusDiv = this.formElement.querySelector('#statusMessage');
+            const statusDiv = document.getElementById('statusMessage');
             if (statusDiv) {
                 statusDiv.textContent = 'No record to delete';
                 statusDiv.className = 'error';
@@ -1709,7 +1742,7 @@ export class WindowForm {
         const deletedRecordId = recordId;
 
         // Show status
-        const statusDiv = this.formElement.querySelector('#statusMessage');
+        const statusDiv = document.getElementById('statusMessage');
         if (statusDiv) {
             statusDiv.textContent = 'Deleting...';
             statusDiv.className = 'saving';
