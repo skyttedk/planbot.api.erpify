@@ -1510,7 +1510,6 @@ export class WindowForm {
     /**
      * Adds necessary CSS styles for the menu
      */
-
     _addMenuStyles() {
         if (document.getElementById('window-menu-styles')) return;
 
