@@ -1,13 +1,44 @@
 
 
+when calling controllers, or in general.... hmm we should have a messages
+system to client. So if controller retsult in success, then perhaps a message : ""
+that will be disdplayied in footer og modal 
+
+   result_message : "som eaction was performed",
+
+   dialog_message : "soma ction performed"
+
+   so we have to options to show messages on clinet. Either in footer, or a as dialog_message'
+
+
+idea: client.log
+
+  so during copde,m we can add severa log message to client, log, then when server response it returns a 
+  array of client log to clinet. If a client log is returned, then like zoom dialog, 
+  is should open a wia list of log messages... nicely formatted,
+
+      created custoemr
+
+      updated customer dicyumtes
+
+      checed stock for itmes...
+
+      ...
+
+
+
+//Field validation code.
+eks. email. ser ud til format valideres allere i client.. der er også nice.
+men regex til validering skal jo hentes fra field templates (Eller model)
+
 seperate database for unit test.
 in config file, define database name for running unit test.
   then before test, db schemasync.. and use that db
 
 
-record id : should some how be visible on fomrs.. not editable..)
 
-migrate the green toolbar, to footer toolbar, with status messages... 
+
+
 
 
 strign field vs text field,

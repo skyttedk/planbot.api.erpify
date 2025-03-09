@@ -18,6 +18,7 @@ class BindableInput extends HTMLElement {
         "pattern",
         "minlength",
         "maxlength",
+        "autocomplete",
       ];
     }
   
@@ -151,6 +152,8 @@ class BindableInput extends HTMLElement {
           padding: var(--input-padding);
           font-size: var(--input-font-size);
           font-family: inherit;
+          /* Disable autocomplete UI */
+          background-image: none !important;
         }
         
         input:focus, select:focus, textarea:focus {
@@ -166,6 +169,41 @@ class BindableInput extends HTMLElement {
         
         input::placeholder, textarea::placeholder {
           color: var(--input-placeholder-color);
+        }
+        
+        /* Aggressive browser autocomplete disabling - inside shadow DOM */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover, 
+        input:-webkit-autofill:focus,
+        input:-webkit-autofill:active,
+        input:autofill,
+        input:autofill:hover,
+        input:autofill:focus,
+        input:autofill:active {
+          transition-property: background-color, color !important;
+          transition-delay: 99999s !important;
+          transition-duration: 99999s !important;
+          -webkit-text-fill-color: var(--input-color) !important;
+          caret-color: var(--input-color) !important;
+          box-shadow: 0 0 0 30px transparent inset !important;
+        }
+        
+        /* Remove browser-specific UI elements inside shadow DOM */
+        input::-webkit-contacts-auto-fill-button,
+        input::-webkit-credentials-auto-fill-button,
+        input::-webkit-credit-card-auto-fill-button,
+        input::-webkit-calendar-picker-indicator,
+        input::-webkit-inner-spin-button,
+        input::-webkit-outer-spin-button,
+        input::-webkit-search-cancel-button,
+        input::-webkit-search-decoration,
+        input::-webkit-search-results-button,
+        input::-webkit-search-results-decoration {
+          display: none !important;
+          visibility: hidden !important;
+          opacity: 0 !important;
+          appearance: none !important;
+          -webkit-appearance: none !important;
         }
         
         :host([invalid]) input, 
@@ -216,19 +254,32 @@ class BindableInput extends HTMLElement {
     }
   
     _createInputByType(inputType) {
-      
+      let element;
       
       if (inputType === "textarea") {
-        return document.createElement("textarea");
+        element = document.createElement("textarea");
+      } else if (inputType === "select" || inputType === "enum") {
+        element = document.createElement("select");
+        this._populateSelectOptions(element);
+      } else {
+        element = document.createElement("input");
+        element.type = inputType;
       }
-      if (inputType === "select" || inputType === "enum") {
-        const select = document.createElement("select");
-        this._populateSelectOptions(select);
-        return select;
+      
+      // Apply aggressive autocomplete disabling
+      // Use multiple techniques to ensure browsers respect it
+      element.setAttribute("autocomplete", "off");
+      element.setAttribute("autocorrect", "off");
+      element.setAttribute("autocapitalize", "off");
+      element.setAttribute("spellcheck", "false");
+      
+      // For text/search inputs, add additional attributes browsers look for
+      if (["text", "search", "email", "url", "tel", "number"].includes(inputType)) {
+        // Chrome respects "new-password" for disabling autocomplete
+        element.setAttribute("autocomplete", "new-password");
       }
-      const input = document.createElement("input");
-      input.type = inputType;
-      return input;
+      
+      return element;
     }
   
     _populateSelectOptions(select) {
@@ -282,6 +333,18 @@ class BindableInput extends HTMLElement {
           this.inputElement.setAttribute(attr, this.getAttribute(attr));
         }
       });
+      
+      // Always enforce autocomplete off regardless of attribute settings
+      // Chrome respects "new-password" for disabling autocomplete on text fields
+      if (["text", "search", "email", "url", "tel", "number"].includes(this.getAttribute("type"))) {
+        this.inputElement.setAttribute("autocomplete", "new-password");
+      } else {
+        this.inputElement.setAttribute("autocomplete", "off");
+      }
+      this.inputElement.setAttribute("autocorrect", "off");
+      this.inputElement.setAttribute("autocapitalize", "off");
+      this.inputElement.setAttribute("spellcheck", "false");
+      
       if (["checkbox", "radio"].includes(this.getAttribute("type"))) {
         this.inputElement.setAttribute("role", this.getAttribute("type"));
       }

@@ -935,3 +935,48 @@ button.submit-btn:hover {
 .zoom-copy-btn:hover {
   background-color: #2980b9;
 }
+
+/* Aggressive browser autocomplete disabling */
+input, 
+select, 
+textarea {
+  /* Disable autocomplete UI */
+  background-image: none !important;
+}
+
+/* Target all browsers' autofill styles */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+input:autofill,
+input:autofill:hover,
+input:autofill:focus,
+input:autofill:active {
+  /* Override the autofill background and text colors */
+  transition-property: background-color, color !important;
+  transition-delay: 99999s !important;
+  transition-duration: 99999s !important;
+  /* Ensure text remains readable */
+  -webkit-text-fill-color: var(--color-text) !important;
+  caret-color: var(--color-text) !important;
+  box-shadow: 0 0 0 30px transparent inset !important;
+}
+
+/* Remove browser-specific UI elements */
+input::-webkit-contacts-auto-fill-button,
+input::-webkit-credentials-auto-fill-button,
+input::-webkit-credit-card-auto-fill-button,
+input::-webkit-calendar-picker-indicator,
+input::-webkit-inner-spin-button,
+input::-webkit-outer-spin-button,
+input::-webkit-search-cancel-button,
+input::-webkit-search-decoration,
+input::-webkit-search-results-button,
+input::-webkit-search-results-decoration {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}

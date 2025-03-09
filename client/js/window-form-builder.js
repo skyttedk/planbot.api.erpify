@@ -588,6 +588,10 @@ export class WindowForm {
         const formCfg = this.config.formConfig;
         this.formElement = document.createElement('form');
         this.formElement.id = formCfg.id ?? 'recordForm';
+        // Disable browser autocomplete at the form level with multiple techniques
+        this.formElement.setAttribute('autocomplete', 'off');
+        // Add a random attribute to avoid browser fingerprinting the form
+        this.formElement.setAttribute('data-form-random', Math.random().toString(36).substring(2));
 
         const fieldMap = {};
         const groupMap = {};
@@ -621,8 +625,19 @@ export class WindowForm {
                 const inputType = field.type === 'lookup' ? 'select' : field.type;
                 input.setAttribute('type', inputType);
                 input.setAttribute('field', field.name);
-                input.setAttribute('name', field.name);
+                
+                // Generate a randomized name to prevent browser from recognizing the field
+                const randomizedName = `${field.name}_${Math.random().toString(36).substring(2)}`;
+                input.setAttribute('name', randomizedName);
+                
                 input.setAttribute('aria-label', field.caption ?? field.name);
+                // Ensure autocomplete is disabled with multiple techniques
+                input.setAttribute('autocomplete', 'off');
+                input.setAttribute('autocomplete', 'new-password'); // Trick Chrome
+                input.setAttribute('autocorrect', 'off');
+                input.setAttribute('autocapitalize', 'off');
+                input.setAttribute('spellcheck', 'false');
+                
                 if (field.required) input.setAttribute('required', '');
                 if (field.maxLength) input.setAttribute('maxLength', field.maxLength);
                 if (field.pattern) input.setAttribute('pattern', field.pattern);
