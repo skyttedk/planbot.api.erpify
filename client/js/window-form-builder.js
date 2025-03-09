@@ -422,6 +422,14 @@ export class WindowForm {
             return;
         }
         
+        // Handle F8 key for zoom (view record as JSON)
+        if (event.key === 'F8') {
+            this._Zoom();
+            event.stopPropagation();
+            event.preventDefault();
+            return;
+        }
+        
         // Handle Alt key shortcuts
         if (event.altKey) {
             let handled = true;
@@ -477,6 +485,11 @@ export class WindowForm {
     }
 
     _handleEscapeKey() {
+        // If a zoom dialog is open, don't close the form
+        if (window.zoomDialogOpen) {
+            return;
+        }
+        
         if (this.isClosing || this.isSaving) return;
         if (this.dirtyFields.size > 0) {
             const confirmAction = window.confirm('You have unsaved changes! Do you want to save before closing?');
@@ -893,7 +906,108 @@ export class WindowForm {
     }
 
     async _Zoom() {
-        // Not implemented yet
+        // Get current record data
+        if (!this.record) {
+            this._showFormError("No record data available to display");
+            return;
+        }
+        
+        // Add a marker to indicate that the zoom dialog is open
+        window.zoomDialogOpen = true;
+        
+        // Create a dialog overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'zoom-overlay';
+        
+        // Create dialog container
+        const dialog = document.createElement('div');
+        dialog.className = 'zoom-dialog';
+        
+        // Add header with title and close button
+        const header = document.createElement('div');
+        header.className = 'zoom-header';
+        
+        const title = document.createElement('h3');
+        title.textContent = 'Record Details';
+        header.appendChild(title);
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.className = 'zoom-close-btn';
+        closeBtn.addEventListener('click', () => {
+            closeZoomDialog();
+        });
+        header.appendChild(closeBtn);
+        dialog.appendChild(header);
+        
+        // Format record as pretty JSON
+        const content = document.createElement('div');
+        content.className = 'zoom-content';
+        
+        const pre = document.createElement('pre');
+        pre.className = 'json-display';
+        pre.textContent = JSON.stringify(this.record, null, 2);
+        content.appendChild(pre);
+        dialog.appendChild(content);
+        
+        // Add copy button
+        const actions = document.createElement('div');
+        actions.className = 'zoom-actions';
+        
+        const copyBtn = document.createElement('button');
+        copyBtn.textContent = 'Copy to Clipboard';
+        copyBtn.className = 'zoom-copy-btn';
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(JSON.stringify(this.record, null, 2))
+                .then(() => {
+                    copyBtn.textContent = 'Copied!';
+                    setTimeout(() => {
+                        copyBtn.textContent = 'Copy to Clipboard';
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('Failed to copy: ', err);
+                    copyBtn.textContent = 'Copy Failed';
+                    setTimeout(() => {
+                        copyBtn.textContent = 'Copy to Clipboard';
+                    }, 2000);
+                });
+        });
+        actions.appendChild(copyBtn);
+        dialog.appendChild(actions);
+        
+        // Add to DOM
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        
+        // Function to close the zoom dialog
+        const closeZoomDialog = () => {
+            if (document.body.contains(overlay)) {
+                document.body.removeChild(overlay);
+                window.zoomDialogOpen = false;
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        
+        // Add escape key handler to close
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                e.stopPropagation();
+                e.preventDefault();
+                closeZoomDialog();
+                return false;
+            }
+        };
+        
+        // Ensure this handler runs before the window's ESC handler by using capture phase
+        document.addEventListener('keydown', escHandler, { capture: true });
+        
+        // Add click outside to close
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                closeZoomDialog();
+            }
+        });
     }
 
     async _loadDefaultRecord() {
@@ -1322,7 +1436,8 @@ export class WindowForm {
                 },
                 { 
                     label: 'Zoom', 
-                    action: () => this._Zoom() 
+                    action: () => this._Zoom(),
+                    shortcut: 'F8'
                 }
             ]
         };
