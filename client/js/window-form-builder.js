@@ -1416,8 +1416,11 @@ export class WindowForm {
             const menuItem = document.createElement('div');
             menuItem.className = 'dropdown-item';
 
-            // Use caption or label property for display
-            menuItem.textContent = item.caption || item.label || '';
+            // Create a container for the menu item text
+            const textSpan = document.createElement('span');
+            textSpan.className = 'menu-item-text';
+            textSpan.textContent = item.caption || item.label || '';
+            menuItem.appendChild(textSpan);
             
             // Add shortcut text if available
             if (item.shortcut) {
@@ -1553,7 +1556,7 @@ export class WindowForm {
                 border: var(--dropdown-border);
                 box-shadow: var(--dropdown-shadow);
                 z-index: 1000;
-                min-width: 120px;
+                min-width: 180px;
                 padding: 1px 0;
             }
             
@@ -1567,11 +1570,20 @@ export class WindowForm {
                 position: relative;
                 white-space: nowrap;
                 color: var(--dropdown-text);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
             }
             
             .dropdown-item:hover {
                 background-color: var(--dropdown-hover-bg);
                 color: var(--dropdown-hover-text);
+            }
+            
+            .menu-item-text {
+                flex-grow: 1;
+                text-overflow: ellipsis;
+                overflow: hidden;
             }
             
             .menu-separator {
@@ -1600,7 +1612,7 @@ export class WindowForm {
                 border: var(--dropdown-border);
                 box-shadow: var(--dropdown-shadow);
                 z-index: 1001;
-                min-width: 120px;
+                min-width: 180px;
                 padding: 1px 0;
             }
             
@@ -1614,11 +1626,12 @@ export class WindowForm {
             }
             
             .menu-shortcut {
-                margin-left: 10px;
+                margin-left: 20px;
                 opacity: 0.7;
                 font-size: 0.85em;
                 color: var(--dropdown-text);
-                float: right;
+                text-align: right;
+                flex-shrink: 0;
             }
             
             .dropdown-item:hover .menu-shortcut {
