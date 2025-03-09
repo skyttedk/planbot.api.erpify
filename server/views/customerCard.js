@@ -24,6 +24,9 @@ export const customerCardForm = {
                         "name": "name"
                     },
                     {
+                        "name": "gender"
+                    },
+                    {
                         "name": "address"
 
                     },

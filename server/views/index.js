@@ -329,6 +329,11 @@ class ViewLoader {
                             if (field.type === undefined && modelField.type !== undefined) {
                                 field.type = this._mapModelTypeToFieldType(modelField.type, modelField.constructor.name);
                             }
+                            
+                            // For enum fields, include the options
+                            if ((field.type === 'enum' || modelField.constructor.name === 'EnumField') && modelField._options) {
+                                field.options = [...modelField._options];
+                            }
                         }
                     }
                 }
@@ -351,6 +356,8 @@ class ViewLoader {
                 return 'tel';
             case 'ZipField':
                 return 'text'; // Most ZIP codes need text format for leading zeros
+            case 'EnumField':
+                return 'enum'; // Special handling for enum fields
         }
         
         // Then check by data type
@@ -381,6 +388,8 @@ class ViewLoader {
                 return 'color';
             case 'url':
                 return 'url';
+            case 'enum':
+                return 'enum'; // Handle enum type directly
             default:
                 return 'text'; // Default to text input for unknown types
         }

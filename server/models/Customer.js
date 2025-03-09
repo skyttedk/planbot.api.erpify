@@ -20,6 +20,11 @@ class Customer extends Model {
         phone: new fields.PhoneField(),
         zip: new fields.ZipField(),
         email: new fields.Email(),
+        gender: new fields.EnumField({
+            caption: 'Gender',
+            options: ['Male', 'Female', 'Non-binary', 'Prefer not to say'],
+            default: 'Prefer not to say'
+        }),
     };
 
     // Optionally add renameMap, indexes, etc.

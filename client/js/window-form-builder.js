@@ -527,7 +527,7 @@ export class WindowForm {
                 ) {
                     input.setAttribute('readonly', '');
                 }
-                if (field.type === 'select' || field.type === 'lookup') {
+                if (field.type === 'select' || field.type === 'lookup' || field.type === 'enum') {
                     let options = [];
                     if (field.type === 'lookup') {
                         options = [];
@@ -536,6 +536,16 @@ export class WindowForm {
                             this._fetchLookupOptions(field, input);
                         } else {
                             console.warn(`Lookup field ${field.name} has no dataSource specified`);
+                        }
+                    } else if (field.type === 'enum') {
+                        // For enum fields, use the options provided by the field definition
+                        if (field.options && Array.isArray(field.options)) {
+                            options = field.options.map(opt => ({
+                                value: opt,
+                                label: opt
+                            }));
+                        } else {
+                            console.warn(`Enum field ${field.name} has no options specified`);
                         }
                     } else {
                         options = field.options.map(opt => ({

@@ -61,7 +61,7 @@ class BindableInput extends HTMLElement {
           this._createInputHandlerWithDebounce();
           break;
         case "options":
-          if (this.getAttribute("type") === "select") {
+          if (this.getAttribute("type") === "select" || this.getAttribute("type") === "enum") {
             this._createInput();
             this.updateValue();
           }
@@ -219,7 +219,7 @@ class BindableInput extends HTMLElement {
       if (inputType === "textarea") {
         return document.createElement("textarea");
       }
-      if (inputType === "select") {
+      if (inputType === "select" || inputType === "enum") {
         const select = document.createElement("select");
         this._populateSelectOptions(select);
         return select;

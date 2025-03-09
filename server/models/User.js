@@ -45,6 +45,7 @@ class User extends Model {
             caption: 'Is Active',
             default: true
         })
+        
     };
 
     // Define indexes for performance and uniqueness.
