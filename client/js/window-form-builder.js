@@ -164,6 +164,9 @@ class FormMenuManager {
 // Create a singleton instance
 const formMenuManager = new FormMenuManager();
 
+// Initialize the active window forms tracking array
+window.activeWindowForms = window.activeWindowForms || [];
+
 export class WindowForm {
     /**
      * Creates a window container with a form inside
@@ -173,11 +176,17 @@ export class WindowForm {
     constructor(config, socketService) {
         this.config = config;
         this.socketService = socketService;
-        this.formId = config.formConfig?.id || `form_${Date.now()}`;
-        this.hasUnsavedChanges = false;
-        this.currentRecord = {};
-        this.currentRecordIndex = 0;
-        this.totalRecords = 0;
+        this.formId = this.config.formConfig?.id || `form-${Date.now()}`;
+        this.windowElement = null;
+        this.menuBar = null;
+        this.isClosing = false;
+        this.isSaving = false;
+        this.record = { id: 0 };
+        this.messageHandlers = [];
+        this.dirtyFields = new Set();
+        
+        // Register any menu items from the form config BEFORE creating the window
+        this._registerConfigMenuItems();
 
         // Track active window forms globally
         if (!window.activeWindowForms) {
@@ -185,16 +194,13 @@ export class WindowForm {
         }
         window.activeWindowForms.push(this);
 
-        this.record = {};
-        this.dirtyFields = new Set(); // Track unsaved fields
-        this.isSaving = false;
-        this.isClosing = false;
-        this.isNavigating = false;
+        this.hasUnsavedChanges = false;
+        this.currentRecord = {};
+        this.currentRecordIndex = 0;
+        this.totalRecords = 0;
         this.currentFocusElement = null;
-        this.messageHandlers = [];
-
-        // Register any menu items from the form config BEFORE creating the window
-        this._registerConfigMenuItems();
+        this.isNavigating = false;
+        this.recordIndicator = null;
 
         // Create the window and form
         this._createWindow();
@@ -359,9 +365,22 @@ export class WindowForm {
     }
 
     _setupKeyboardHandlers() {
-        this.keydownHandler = this._handleKeydown.bind(this);
+        this.keydownHandler = (event) => {
+            // Handle Escape key specifically
+            if (event.key === 'Escape') {
+                this._handleEscapeKey();
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+            
+            // Handle other keyboard shortcuts
+            this._handleKeydown(event);
+        };
+        
+        // Use capture phase for all keyboard events
         document.addEventListener('keydown', this.keydownHandler, { capture: true });
-
+        
         this.focusHandler = (e) => {
             if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) {
                 this.currentFocusElement = e.target;
@@ -372,10 +391,67 @@ export class WindowForm {
 
     _handleKeydown(event) {
         if (!this.windowElement.isConnected) return;
-        if (event.key === 'Escape') {
-            event.stopPropagation();
-            event.preventDefault();
-            this._handleEscapeKey();
+        
+        // Only process shortcut keys when our window is active
+        if (!this.windowElement.contains(document.activeElement) && 
+            document.activeElement !== document.body) {
+            return;
+        }
+        
+        // Handle Alt key shortcuts
+        if (event.altKey) {
+            let handled = true;
+            
+            switch(event.key.toLowerCase()) {
+                case 'n':  // Alt+N - New record
+                    this._createNewRecord();
+                    break;
+                case 'r':  // Alt+R - Refresh
+                    this._loadDefaultRecord();
+                    break;
+                default:
+                    handled = false;
+                    break;
+            }
+            
+            if (handled) {
+                event.stopPropagation();
+                event.preventDefault();
+                return;
+            }
+        }
+        
+        // Handle Ctrl key shortcuts
+        if (event.ctrlKey) {
+            let handled = true;
+            
+            switch(event.key.toLowerCase()) {
+                case 's':  // CTRL+S - Save
+                    this._saveAndClose();
+                    break;
+                case 'arrowleft':  // CTRL+Left - Previous record
+                    this._navigateToRecord('previous');
+                    break;
+                case 'arrowright':  // CTRL+Right - Next record
+                    this._navigateToRecord('next');
+                    break;
+                case 'home':  // CTRL+Home - First record
+                    this._navigateToRecord('first');
+                    break;
+                case 'end':  // CTRL+End - Last record
+                    this._navigateToRecord('last');
+                    break;
+                default:
+                    handled = false;
+                    break;
+            }
+            
+            // If we handled the shortcut, prevent the default browser action
+            if (handled) {
+                event.stopPropagation();
+                event.preventDefault();
+                return;
+            }
         }
     }
 
@@ -901,23 +977,42 @@ export class WindowForm {
     }
 
     _cleanupEventListeners() {
+        // Remove keydown event listener
         if (this.keydownHandler) {
-            document.removeEventListener('keydown', this.keydownHandler);
+            document.removeEventListener('keydown', this.keydownHandler, { capture: true });
+            this.keydownHandler = null;
         }
-        if (this.focusHandler) {
+        
+        // Remove focus event listener
+        if (this.focusHandler && this.windowElement) {
             this.windowElement.removeEventListener('focusin', this.focusHandler);
+            this.focusHandler = null;
         }
-        const inputs = this.formElement.querySelectorAll('bindable-input');
-        inputs.forEach(input => {
-            if (input._record) {
-                input._record = {};
-            }
-        });
-        if (this.messageHandlers.length > 0) {
+        
+        // Clean up form inputs
+        if (this.formElement) {
+            const inputs = this.formElement.querySelectorAll('bindable-input');
+            inputs.forEach(input => {
+                if (input._record) {
+                    input._record = {};
+                }
+            });
+        }
+        
+        // Clean up message handlers
+        if (this.messageHandlers && this.messageHandlers.length > 0) {
             this.messageHandlers.forEach(handler => {
-                this.socketService.off('message', handler);
+                if (this.socketService) {
+                    this.socketService.off('message', handler);
+                }
             });
             this.messageHandlers = [];
+        }
+        
+        // Remove from global tracking
+        const index = window.activeWindowForms.indexOf(this);
+        if (index !== -1) {
+            window.activeWindowForms.splice(index, 1);
         }
     }
 
@@ -1128,13 +1223,46 @@ export class WindowForm {
         // Define standard menu items that every form will have
         const standardMenus = {
             [modelName]: [
-                { label: 'New', action: () => this._createNewRecord() },
-                { label: 'Delete', action: () => console.log('Delete record clicked') }
+                { 
+                    label: 'New', 
+                    action: () => this._createNewRecord(),
+                    shortcut: 'Alt+N'
+                },
+                { 
+                    label: 'Delete', 
+                    action: () => console.log('Delete record clicked') 
+                }
             ],
             'View': [
-                { label: 'Refresh', action: () => this._loadDefaultRecord() },
-                { label: 'Zoom', action: () => this._Zoom() }
-
+                { 
+                    label: 'Refresh', 
+                    action: () => this._loadDefaultRecord(),
+                    shortcut: 'Alt+R'
+                },
+                { 
+                    label: 'First Record', 
+                    action: () => this._navigateToRecord('first'),
+                    shortcut: 'Ctrl+Home'
+                },
+                { 
+                    label: 'Previous Record', 
+                    action: () => this._navigateToRecord('previous'),
+                    shortcut: 'Ctrl+←'
+                },
+                { 
+                    label: 'Next Record', 
+                    action: () => this._navigateToRecord('next'),
+                    shortcut: 'Ctrl+→'
+                },
+                { 
+                    label: 'Last Record', 
+                    action: () => this._navigateToRecord('last'),
+                    shortcut: 'Ctrl+End'
+                },
+                { 
+                    label: 'Zoom', 
+                    action: () => this._Zoom() 
+                }
             ]
         };
 
@@ -1256,11 +1384,20 @@ export class WindowForm {
                 return;
             }
 
+            // Add directly executable action items
             const menuItem = document.createElement('div');
             menuItem.className = 'dropdown-item';
 
             // Use caption or label property for display
             menuItem.textContent = item.caption || item.label || '';
+            
+            // Add shortcut text if available
+            if (item.shortcut) {
+                const shortcutSpan = document.createElement('span');
+                shortcutSpan.className = 'menu-shortcut';
+                shortcutSpan.textContent = item.shortcut;
+                menuItem.appendChild(shortcutSpan);
+            }
 
             // If there are subitems, create a nested dropdown
             if (item.items && item.items.length) {
@@ -1334,17 +1471,6 @@ export class WindowForm {
                     item.action();
                 });
             }
-            // Handle string action (for compatibility)
-            else if (item.action && typeof item.action === 'string') {
-                menuItem.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    // Close all dropdowns
-                    document.querySelectorAll('.menu-dropdown.active, .submenu-dropdown.active').forEach(el => {
-                        el.classList.remove('active');
-                    });
-                    console.log(`Menu action clicked: ${item.action}`);
-                });
-            }
 
             parent.appendChild(menuItem);
         });
@@ -1360,92 +1486,116 @@ export class WindowForm {
         const styleEl = document.createElement('style');
         styleEl.id = 'window-menu-styles';
         styleEl.textContent = `
-          .window-menu-bar {
-            display: flex;
-            background-color: #f0f0f0;
-            border-bottom: 1px solid #ccc;
-            padding: 1px 0;
-            font-family: Arial, sans-serif;
-            font-size: 10px;
-            position: relative;
-          }
-          
-          .menu-item {
-            padding: 2px 6px;
-            cursor: pointer;
-            position: relative;
-          }
-          
-          .menu-item:hover {
-            background-color: #e0e0e0;
-          }
-          
-          .menu-dropdown {
-            display: none;
-            position: absolute;
-            top: 100%;
-            left: 0;
-            background-color: #f8f8f8;
-            border: 1px solid #ccc;
-            box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-            z-index: 1000;
-            min-width: 120px;
-            padding: 1px 0;
-          }
-          
-          .menu-dropdown.active {
-            display: block;
-          }
-          
-          .dropdown-item {
-            padding: 4px 8px;
-            cursor: pointer;
-            position: relative;
-            white-space: nowrap;
-          }
-          
-          .dropdown-item:hover {
-            background-color: #e0e0e0;
-          }
-          
-          .menu-separator {
-            height: 1px;
-            background-color: #ccc;
-            margin: 3px 0;
-          }
-          
-          .has-submenu {
-            position: relative;
-          }
-          
-          .has-submenu::after {
-            content: '▶';
-            position: absolute;
-            right: 4px;
-            font-size: 10px;
-          }
-          
-          .submenu-dropdown {
-            display: none;
-            position: absolute;
-            top: -2px;
-            left: 100%;
-            background-color: #f8f8f8;
-            border: 1px solid #ccc;
-            box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-            z-index: 1001;
-            min-width: 120px;
-            padding: 1px 0;
-          }
-          
-          .submenu-dropdown.active {
-            display: block;
-          }
-          
-          .menu-item,
-          .dropdown-item.has-submenu {
-            transition: background-color 0.2s;
-          }
+            /* CSS Variables for theming */
+            :root {
+                --dropdown-bg: #f8f8f8;
+                --dropdown-text: #333;
+                --dropdown-hover-bg: #e0e0e0;
+                --dropdown-hover-text: #000;
+                --dropdown-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+                --dropdown-border: 1px solid #ccc;
+            }
+            
+            .window-menu-bar {
+                display: flex;
+                background-color: #f0f0f0;
+                border-bottom: 1px solid #ccc;
+                padding: 1px 0;
+                font-family: Arial, sans-serif;
+                font-size: 10px;
+                position: relative;
+            }
+            
+            .menu-item {
+                padding: 2px 6px;
+                cursor: pointer;
+                position: relative;
+            }
+            
+            .menu-item:hover {
+                background-color: #e0e0e0;
+            }
+            
+            .menu-dropdown {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                background-color: var(--dropdown-bg);
+                border: var(--dropdown-border);
+                box-shadow: var(--dropdown-shadow);
+                z-index: 1000;
+                min-width: 120px;
+                padding: 1px 0;
+            }
+            
+            .menu-dropdown.active {
+                display: block;
+            }
+            
+            .dropdown-item {
+                padding: 4px 8px;
+                cursor: pointer;
+                position: relative;
+                white-space: nowrap;
+                color: var(--dropdown-text);
+            }
+            
+            .dropdown-item:hover {
+                background-color: var(--dropdown-hover-bg);
+                color: var(--dropdown-hover-text);
+            }
+            
+            .menu-separator {
+                height: 1px;
+                background-color: #ccc;
+                margin: 3px 0;
+            }
+            
+            .has-submenu {
+                position: relative;
+            }
+            
+            .has-submenu::after {
+                content: '▶';
+                position: absolute;
+                right: 4px;
+                font-size: 10px;
+            }
+            
+            .submenu-dropdown {
+                display: none;
+                position: absolute;
+                top: -2px;
+                left: 100%;
+                background-color: var(--dropdown-bg);
+                border: var(--dropdown-border);
+                box-shadow: var(--dropdown-shadow);
+                z-index: 1001;
+                min-width: 120px;
+                padding: 1px 0;
+            }
+            
+            .submenu-dropdown.active {
+                display: block;
+            }
+            
+            .menu-item,
+            .dropdown-item.has-submenu {
+                transition: background-color 0.2s;
+            }
+            
+            .menu-shortcut {
+                margin-left: 10px;
+                opacity: 0.7;
+                font-size: 0.85em;
+                color: var(--dropdown-text);
+                float: right;
+            }
+            
+            .dropdown-item:hover .menu-shortcut {
+                color: var(--dropdown-hover-text);
+            }
         `;
         document.head.appendChild(styleEl);
     }

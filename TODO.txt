@@ -7,9 +7,7 @@ in config file, define database name for running unit test.
 
 record id : should some how be visible on fomrs.. not editable..)
 
-
-
-enums:
+migrate the green toolbar, to footer toolbar, with status messages... 
 
 
 strign field vs text field,
