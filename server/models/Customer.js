@@ -23,7 +23,8 @@ class Customer extends Model {
         gender: new fields.EnumField({
             caption: 'Gender',
             options: ['Male', 'Female', 'Non-binary', 'Prefer not to say'],
-            default: 'Prefer not to say'
+            default: 'Prefer not to say',
+            caseSensitive: false
         }),
     };
 

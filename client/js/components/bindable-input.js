@@ -216,6 +216,8 @@ class BindableInput extends HTMLElement {
     }
   
     _createInputByType(inputType) {
+      console.log(`Creating input of type: ${inputType}`);
+      
       if (inputType === "textarea") {
         return document.createElement("textarea");
       }
@@ -243,6 +245,9 @@ class BindableInput extends HTMLElement {
         this._reportError(`Invalid options format: ${e.message}`);
         options = [];
       }
+      
+      console.log(`Populating select options for ${this._field}:`, options);
+      
       if (!this.hasAttribute("required")) {
         const emptyOption = document.createElement("option");
         emptyOption.value = "";
@@ -286,7 +291,7 @@ class BindableInput extends HTMLElement {
     }
   
     _addInputEventListeners(inputType) {
-      if (["checkbox", "radio", "select"].includes(inputType)) {
+      if (["checkbox", "radio", "select", "enum"].includes(inputType)) {
         this.inputElement.addEventListener("change", this._inputHandler);
       } else {
         this.inputElement.addEventListener("input", this._inputHandler);
@@ -314,7 +319,7 @@ class BindableInput extends HTMLElement {
         if (this._record && this._field) {
           const value = this._getValueFromPath(this._record, this._field);
           const inputType = this.getAttribute("type") || "text";
-          if (this._valueChanged || ["checkbox", "radio", "select"].includes(inputType)) {
+          if (this._valueChanged || ["checkbox", "radio", "select", "enum"].includes(inputType)) {
             this.dispatchEvent(
               new CustomEvent("data-changed", {
                 bubbles: true,
@@ -337,11 +342,24 @@ class BindableInput extends HTMLElement {
       try {
         const inputType = this.getAttribute("type") || "text";
         const currentValue = this._getValueFromPath(this._record, this._field);
+        
+        console.log(`Updating value for ${this._field}, type ${inputType}, value: ${currentValue}`);
+        
         if (["checkbox", "radio"].includes(inputType)) {
           const newChecked = !!currentValue;
           if (this.inputElement.checked !== newChecked) {
             this.inputElement.checked = newChecked;
           }
+        } else if (["select", "enum"].includes(inputType)) {
+          // For select and enum fields, handle null values gracefully
+          const newValue = currentValue != null ? String(currentValue) : "";
+          if (this.inputElement.value !== newValue) {
+            this.inputElement.value = newValue;
+          }
+          // Log the available options and selected value for debugging
+          console.log(`Select/Enum options for ${this._field}:`, 
+            Array.from(this.inputElement.options).map(o => ({ value: o.value, text: o.text })));
+          console.log(`Selected value: ${this.inputElement.value}`);
         } else {
           const newValue = currentValue != null ? String(currentValue) : "";
           if (this.inputElement.value !== newValue) {
@@ -363,8 +381,15 @@ class BindableInput extends HTMLElement {
       try {
         const inputType = this.getAttribute("type") || "text";
         let value;
+        
+        console.log(`onInput triggered for ${this._field}, type: ${inputType}`);
+        
         if (["checkbox", "radio"].includes(inputType)) {
           value = this.inputElement.checked;
+        } else if (["select", "enum"].includes(inputType)) {
+          // For select and enum fields, empty string becomes null
+          value = this.inputElement.value === "" ? null : this.inputElement.value;
+          console.log(`Select/Enum value for ${this._field}: ${value}`);
         } else {
           value = this.inputElement.value;
           if (inputType === "number") {
@@ -394,6 +419,7 @@ class BindableInput extends HTMLElement {
             })
           );
         } else if (hasChanged) {
+          console.log(`Value changed for field ${this._field}:`, value);
           this._setValueAtPath(this._record, this._field, value);
           if (!this.hasAttribute("name")) {
             this.setAttribute("name", this._field);
@@ -405,7 +431,7 @@ class BindableInput extends HTMLElement {
               detail: { field: this._field, value, record: this._record },
             })
           );
-          if (["checkbox", "radio", "select"].includes(inputType)) {
+          if (["checkbox", "radio", "select", "enum"].includes(inputType)) {
             this.dispatchEvent(
               new CustomEvent("data-changed", {
                 bubbles: true,

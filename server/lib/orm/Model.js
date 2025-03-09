@@ -383,11 +383,14 @@ export default class Model {
       // Skip the primary key from updates
       if (key === this.primaryKey) continue;
 
+      console.log(`Processing field ${key} with value: ${JSON.stringify(value)}`);
+
       // Process the field through onSet transformation
       if (fields[key] && typeof fields[key].onSet === 'function') {
         try {
           // Handle async onSet methods
           processedData[key] = await fields[key].onSet(value);
+          console.log(`After onSet, field ${key} value: ${JSON.stringify(processedData[key])}`);
         } catch (error) {
           console.error(`Error processing field ${key}:`, error);
           throw error;

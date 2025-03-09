@@ -540,10 +540,12 @@ export class WindowForm {
                     } else if (field.type === 'enum') {
                         // For enum fields, use the options provided by the field definition
                         if (field.options && Array.isArray(field.options)) {
+                            // Preserve the exact case of options as defined in the model
                             options = field.options.map(opt => ({
-                                value: opt,
-                                label: opt
+                                value: opt, // Preserve exact case
+                                label: opt  // Preserve exact case
                             }));
+                            console.log(`Enum options for ${field.name}:`, options);
                         } else {
                             console.warn(`Enum field ${field.name} has no options specified`);
                         }
@@ -670,6 +672,7 @@ export class WindowForm {
                             statusDiv.className = '';
                         }, 1500);
                         if (response.result) {
+                            console.log(`Response for ${changedField} creation:`, response.result);
                             Object.assign(this.record, response.result);
                             this._updateFormFields();
                             this._updateRecordIndicator();
@@ -717,6 +720,7 @@ export class WindowForm {
                             statusDiv.className = '';
                         }, 1500);
                         if (response.result) {
+                            console.log(`Response for ${changedField} update:`, response.result);
                             Object.assign(this.record, response.result);
                             this._updateFormFields();
                             this._updateRecordIndicator();
@@ -749,6 +753,18 @@ export class WindowForm {
                 const fieldName = input.getAttribute('field');
                 this.dirtyFields.add(fieldName);
             });
+            
+            // Special handler for enum fields to ensure their values are properly synchronized
+            if (input.getAttribute('type') === 'enum') {
+                input.addEventListener('change', (event) => {
+                    console.log(`Enum field ${input.getAttribute('field')} changed:`, event.target.value);
+                    const fieldName = input.getAttribute('field');
+                    // Ensure value is set in the record
+                    this.record[fieldName] = event.target.value === "" ? null : event.target.value;
+                    this.dirtyFields.add(fieldName);
+                });
+            }
+            
             // Trigger auto-save when the field loses focus.
             input.addEventListener('blur', autoSave);
             // Also trigger auto-save on data-changed if needed.

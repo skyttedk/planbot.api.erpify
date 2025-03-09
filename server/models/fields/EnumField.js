@@ -16,14 +16,24 @@ class EnumField extends Field {
         // Fixed properties for an enum field.
         const fixedProperties = {
             uid: '7e3a9f82-5c8e-4d2c-b6a0-3e4c8e3b7f2d',
-            type: 'enum',
+            // Use varchar instead of enum for database compatibility
+            type: 'varchar',
+            // Set a length for the varchar field
+            length: 255,
             caption: options.caption || 'Enum',
         };
+
+        // Default value processing - ensure it's properly quoted if it's a string
+        let processedDefault = options.default;
+        if (typeof processedDefault === 'string') {
+            // Store default directly, the ORM will handle quoting
+            processedDefault = options.default;
+        }
 
         // Only allow specific properties to be overridden by options.
         const allowedOverrides = {
             required: options.required,
-            default: options.default,
+            default: processedDefault,
             caption: options.caption,
         };
 
@@ -39,7 +49,11 @@ class EnumField extends Field {
         
         // Store enum options - MUST BE AFTER super() call
         this._options = Array.isArray(options.options) ? options.options : [];
+        // Default to case-insensitive unless explicitly set to true
         this._caseSensitive = options.caseSensitive === true;
+        
+        // Store original options for reference
+        this._originalOptions = options;
         
         // Validate default value against options if provided
         if (options.default !== undefined && this._options.length > 0) {
@@ -57,7 +71,11 @@ class EnumField extends Field {
      * @returns {string|null} The validated value or null.
      */
     onSet(value) {
-        if (value === null || value === undefined) {
+        console.log(`EnumField.onSet called with value: ${JSON.stringify(value)}`);
+        console.log(`Available options: ${JSON.stringify(this._options)}`);
+        
+        if (value === null || value === undefined || value === '') {
+            console.log(`Returning null for empty value`);
             return null;
         }
 
@@ -66,14 +84,29 @@ class EnumField extends Field {
         
         // Validate against options
         if (this._options.length > 0) {
-            const isValid = this._validateAgainstOptions(stringValue);
-            if (!isValid) {
+            // Find the matching option (case insensitive if configured)
+            let matchedOption;
+            if (this._caseSensitive) {
+                matchedOption = this._options.includes(stringValue) ? stringValue : null;
+            } else {
+                const lowerValue = stringValue.toLowerCase();
+                matchedOption = this._options.find(option => 
+                    String(option).toLowerCase() === lowerValue
+                );
+            }
+            
+            if (!matchedOption) {
+                console.log(`Validation failed for value: ${stringValue}`);
                 throw new Error(`Value "${stringValue}" is not in the allowed options: ${this._options.join(', ')}`);
             }
+            
+            // Return the matched option with correct case from the options list
+            console.log(`Returning normalized value: ${matchedOption}`);
+            return matchedOption;
         }
         
-        // Return the normalized value
-        return this._caseSensitive ? stringValue : stringValue.toLowerCase();
+        // If no options defined, just return the value as is
+        return stringValue;
     }
 
     /**
@@ -98,11 +131,22 @@ class EnumField extends Field {
             return true; // No options defined, so any value is valid
         }
         
+        // Handle null, undefined, and empty strings
+        if (value === null || value === undefined || value === '') {
+            return false; // These values are handled by onSet, not valid options here
+        }
+        
+        // Use case sensitive or insensitive comparison as configured
         if (this._caseSensitive) {
             return this._options.includes(value);
         } else {
             const lowerValue = String(value).toLowerCase();
-            return this._options.some(option => String(option).toLowerCase() === lowerValue);
+            const foundOption = this._options.find(option => 
+                String(option).toLowerCase() === lowerValue
+            );
+            
+            console.log(`Case-insensitive validation: ${lowerValue} against options, found: ${foundOption}`);
+            return foundOption !== undefined;
         }
     }
 
