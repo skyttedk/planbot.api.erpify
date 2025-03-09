@@ -398,14 +398,27 @@ export class WindowForm {
             return;
         }
         
+        // Handle F3 key for new record
+        if (event.key === 'F3') {
+            this._createNewRecord();
+            event.stopPropagation();
+            event.preventDefault();
+            return;
+        }
+        
+        // Handle F4 key for delete record
+        if (event.key === 'F4') {
+            this._deleteRecord();
+            event.stopPropagation();
+            event.preventDefault();
+            return;
+        }
+        
         // Handle Alt key shortcuts
         if (event.altKey) {
             let handled = true;
             
             switch(event.key.toLowerCase()) {
-                case 'n':  // Alt+N - New record
-                    this._createNewRecord();
-                    break;
                 case 'r':  // Alt+R - Refresh
                     this._loadDefaultRecord();
                     break;
@@ -877,14 +890,14 @@ export class WindowForm {
             const response = await this._sendRequest(message);
             if (response.success && response.result) {
                 console.log(`Received default record for ${modelName}:`, response.result);
-                Object.assign(this.record, response.result);
+                // Create a fresh record object
+                this.record = response.result;
                 this._updateFormFields();
                 this._updateRecordIndicator();
             } else {
-                console.warn(`Failed to load default record for ${modelName}:`, response.success ? 'No data received' : response.message || 'Unknown error');
-                if (!response.success) {
-                    this._showFormError(`Failed to load data: ${response.message || 'Unknown error'}`);
-                }
+                console.log(`No records found for ${modelName}, creating a new blank record`);
+                // If no records found, create a new blank record
+                this._createNewRecord();
             }
         } catch (error) {
             console.warn(`findFirst request for ${modelName} timed out`);
@@ -893,11 +906,25 @@ export class WindowForm {
     }
 
     _updateFormFields() {
+        console.log('Updating form fields with record:', this.record);
         const inputs = this.formElement.querySelectorAll('bindable-input');
+        
+        // First reset all inputs to ensure they don't show old values
+        inputs.forEach(input => {
+            input.value = '';
+        });
+        
+        // Then update with current record values
         inputs.forEach(input => {
             input.record = this.record;
             input.updateValue();
         });
+        
+        // Force a repaint to ensure UI is updated
+        this.formElement.style.opacity = '0.99';
+        setTimeout(() => {
+            this.formElement.style.opacity = '1';
+        }, 10);
     }
 
     async _fetchLookupOptions(field, inputElement) {
@@ -1226,11 +1253,12 @@ export class WindowForm {
                 { 
                     label: 'New', 
                     action: () => this._createNewRecord(),
-                    shortcut: 'Alt+N'
+                    shortcut: 'F3'
                 },
                 { 
                     label: 'Delete', 
-                    action: () => console.log('Delete record clicked') 
+                    action: () => this._deleteRecord(),
+                    shortcut: 'F4'
                 }
             ],
             'View': [
@@ -1627,6 +1655,164 @@ export class WindowForm {
                 statusDiv.textContent = '';
                 statusDiv.className = '';
             }, 1500);
+        }
+    }
+
+    /**
+     * Deletes the current record after confirmation
+     */
+    async _deleteRecord() {
+        // Check if we have a valid record with an ID
+        if (!this.record || !this.record.id || this.record.id === 0) {
+            // Show message that there's no record to delete
+            const statusDiv = this.formElement.querySelector('#statusMessage');
+            if (statusDiv) {
+                statusDiv.textContent = 'No record to delete';
+                statusDiv.className = 'error';
+                setTimeout(() => {
+                    statusDiv.textContent = '';
+                    statusDiv.className = '';
+                }, 1500);
+            }
+            return;
+        }
+
+        // Show confirmation dialog
+        const confirmDelete = window.confirm(`Are you sure you want to delete this record (ID: ${this.record.id})?`);
+        if (!confirmDelete) {
+            return; // User cancelled the deletion
+        }
+
+        const formCfg = this.config.formConfig;
+        if (!formCfg?.model) {
+            console.error("Cannot delete: model name is missing in form configuration");
+            this._showFormError("Cannot delete: Form configuration is incomplete");
+            return;
+        }
+
+        const recordId = this.record.id;
+        const modelName = formCfg.model;
+
+        // Store deleted record ID for later reference
+        const deletedRecordId = recordId;
+
+        // Show status
+        const statusDiv = this.formElement.querySelector('#statusMessage');
+        if (statusDiv) {
+            statusDiv.textContent = 'Deleting...';
+            statusDiv.className = 'saving';
+        }
+
+        try {
+            // First delete the record
+            const deleteRequestId = `req-delete-${modelName}-${Date.now()}`;
+            const deleteMessage = {
+                type: 'model',
+                name: modelName,
+                action: 'delete',
+                parameters: { id: recordId },
+                requestId: deleteRequestId
+            };
+
+            console.log('Sending delete request for record ID:', recordId);
+            const deleteResponse = await this._sendRequest(deleteMessage);
+            console.log('Delete response:', deleteResponse);
+            
+            if (!deleteResponse || !deleteResponse.success) {
+                const errorMsg = deleteResponse?.error || 'Failed to delete record';
+                this._showFormError(errorMsg);
+                return;
+            }
+            
+            // Clear the UI immediately after successful deletion
+            // to prevent showing deleted record
+            this.record = { id: 0 };
+            this.dirtyFields.clear();
+            
+            // Clear all form inputs
+            const inputs = this.formElement.querySelectorAll('bindable-input');
+            inputs.forEach(input => {
+                if (input.reset) {
+                    input.reset();
+                } else {
+                    input.value = '';
+                }
+            });
+            
+            // Show success message
+            if (statusDiv) {
+                statusDiv.textContent = 'Record deleted';
+                statusDiv.className = 'success';
+            }
+            
+            // Now find the next record after deletion
+            const nextRequestId = `req-findNext-${modelName}-${Date.now()}`;
+            const nextMessage = {
+                type: 'model',
+                name: modelName,
+                action: 'findNext',
+                parameters: { id: deletedRecordId },
+                requestId: nextRequestId
+            };
+            
+            console.log('Looking for next record after deletion...');
+            try {
+                const nextResponse = await this._sendRequest(nextMessage);
+                console.log('Next record response:', nextResponse);
+                
+                if (nextResponse.success && nextResponse.result) {
+                    // Verify the next record isn't the same as the deleted one
+                    if (nextResponse.result.id !== deletedRecordId) {
+                        console.log('Found valid next record:', nextResponse.result);
+                        this.record = nextResponse.result;
+                        this._updateFormFields();
+                        this._updateRecordIndicator();
+                        return;
+                    } else {
+                        console.warn('Server returned the deleted record as next record!');
+                    }
+                }
+                
+                // If no next record found or it returned the deleted record, 
+                // try to find the previous record
+                const prevRequestId = `req-findPrevious-${modelName}-${Date.now()}`;
+                const prevMessage = {
+                    type: 'model',
+                    name: modelName,
+                    action: 'findPrevious',
+                    parameters: { id: deletedRecordId },
+                    requestId: prevRequestId
+                };
+                
+                console.log('Looking for previous record after deletion...');
+                const prevResponse = await this._sendRequest(prevMessage);
+                console.log('Previous record response:', prevResponse);
+                
+                if (prevResponse.success && prevResponse.result) {
+                    // Verify the previous record isn't the same as the deleted one
+                    if (prevResponse.result.id !== deletedRecordId) {
+                        console.log('Found valid previous record:', prevResponse.result);
+                        this.record = prevResponse.result;
+                        this._updateFormFields();
+                        this._updateRecordIndicator();
+                        return;
+                    } else {
+                        console.warn('Server returned the deleted record as previous record!');
+                    }
+                }
+                
+                // If we still don't have a valid record, create a new one
+                console.log('No valid next or previous records found, creating new record');
+                this._createNewRecord();
+                
+            } catch (navError) {
+                console.error('Error finding next/previous record:', navError);
+                // If navigation fails, create a new record
+                this._createNewRecord();
+            }
+        } catch (error) {
+            console.error('Error in delete process:', error);
+            this._showFormError(`Error: ${error.message || 'Failed to delete record'}`);
         }
     }
 }
