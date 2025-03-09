@@ -8,6 +8,19 @@ in config file, define database name for running unit test.
 record id : should some how be visible on fomrs.. not editable..)
 
 
+
+enums:
+
+
+strign field vs text field,
+a string field, shoud be a on liner.
+a test field, should me a multi liner,
+
+a file upload fields. tempales:
+
+  perhaps. file_upload_small  (Stored in a blob)
+           file_upload_large  (stored in a file location)
+
 pasword hasing:
 
      * Mock hash implementation for testing

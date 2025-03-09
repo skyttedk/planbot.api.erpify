@@ -402,13 +402,8 @@ export class WindowForm {
         }
 
         const recordId = this.record.id;
-        if (!recordId) {
-            console.warn("Cannot update record: record ID is missing");
-            this._showFormError("Cannot save: No record ID found");
-            this.isClosing = false;
-            return;
-        }
 
+        // Collect changed data
         const changedData = {};
         this.dirtyFields.forEach(field => {
             changedData[field] = this.record[field];
@@ -421,21 +416,35 @@ export class WindowForm {
 
         const statusDiv = this.formElement.querySelector('#statusMessage');
         if (statusDiv) {
-            statusDiv.textContent = 'Saving...';
+            statusDiv.textContent = (!recordId || recordId === 0) ? 'Creating...' : 'Saving...';
             statusDiv.className = 'saving';
         }
 
         this.isSaving = true;
         const modelName = formCfg.model;
-        const requestId = `req-update-close-${modelName}-${Date.now()}`;
 
-        const message = {
-            type: 'model',
-            name: modelName,
-            action: 'update',
-            parameters: { id: recordId, data: changedData },
-            requestId
-        };
+        // For new records (id=0 or no id), use create operation
+        let message;
+        if (!recordId || recordId === 0) {
+            const requestId = `req-create-close-${modelName}-${Date.now()}`;
+            message = {
+                type: 'model',
+                name: modelName,
+                action: 'create',
+                parameters: { data: changedData },
+                requestId
+            };
+        } else {
+            // For existing records, use update operation
+            const requestId = `req-update-close-${modelName}-${Date.now()}`;
+            message = {
+                type: 'model',
+                name: modelName,
+                action: 'update',
+                parameters: { id: recordId, data: changedData },
+                requestId
+            };
+        }
 
         try {
             const response = await this._sendRequest(message);
@@ -443,13 +452,14 @@ export class WindowForm {
             if (response.success) {
                 this.close();
             } else {
-                console.error('Error updating record:', response.error);
+                const action = (!recordId || recordId === 0) ? 'creating' : 'updating';
+                console.error(`Error ${action} record:`, response.error);
                 this.isClosing = false;
                 if (statusDiv) {
-                    statusDiv.textContent = `Error: ${response.error || 'Save failed'}`;
+                    statusDiv.textContent = `Error: ${response.error || ((!recordId || recordId === 0) ? 'Create failed' : 'Save failed')}`;
                     statusDiv.className = 'error';
                 } else {
-                    this._showFormError(`Error: ${response.error || 'Save failed'}`);
+                    this._showFormError(`Error: ${response.error || ((!recordId || recordId === 0) ? 'Create failed' : 'Save failed')}`);
                 }
                 this.currentFocusElement?.focus();
             }
@@ -457,7 +467,7 @@ export class WindowForm {
             this.isSaving = false;
             this.isClosing = false;
             if (statusDiv) {
-                statusDiv.textContent = 'Save operation timed out';
+                statusDiv.textContent = (!recordId || recordId === 0) ? 'Create operation timed out' : 'Save operation timed out';
                 statusDiv.className = 'error';
             }
             this.currentFocusElement?.focus();
@@ -603,7 +613,8 @@ export class WindowForm {
             });
         });
 
-        // Auto-save functionality (debounced)
+
+        // Inside _generateForm(), after building fieldMap:
         const autoSave = this._debounce(async (event) => {
             if (this.isClosing || this.isSaving) return;
             const changedField = event?.detail?.field || event?.target?.name;
@@ -611,76 +622,130 @@ export class WindowForm {
                 console.warn("Auto-save triggered but couldn't determine which field changed");
                 return;
             }
+            // Only proceed if the field is marked as dirty
+            if (!this.dirtyFields.has(changedField)) return;
+            // Remove dirty flag for this field
             this.dirtyFields.delete(changedField);
+
             const modelName = formCfg.model;
             if (!modelName) {
                 console.error("Cannot update record: model name is missing in form configuration");
                 this._showFormError("Cannot save: Form configuration is incomplete");
                 return;
             }
-            console.log(`Auto-saving field ${changedField} for model ${modelName}`, this.record[changedField]);
+
             const recordId = this.record.id;
-            if (!recordId) {
-                console.warn("Cannot update record: record ID is missing");
-                this._showFormError("Cannot save: No record ID found");
-                return;
-            }
-            statusDiv.textContent = 'Saving...';
-            statusDiv.className = 'saving';
+            // New record: if id is 0 (or falsy), call create; otherwise update
+            if (!recordId || recordId === 0) {
+                console.log(`Creating new record for model ${modelName} with data:`, { [changedField]: this.record[changedField] });
+                statusDiv.textContent = 'Creating...';
+                statusDiv.className = 'saving';
 
-            const requestId = `req-update-${modelName}-${Date.now()}`;
-            const message = {
-                type: 'model',
-                name: modelName,
-                action: 'update',
-                parameters: { id: recordId, data: { [changedField]: this.record[changedField] } },
-                requestId
-            };
+                const requestId = `req-create-${modelName}-${Date.now()}`;
+                const message = {
+                    type: 'model',
+                    name: modelName,
+                    action: 'create',
+                    parameters: { data: { [changedField]: this.record[changedField] } },
+                    requestId
+                };
 
-            try {
-                const response = await this._sendRequest(message);
-                if (response.success) {
-                    statusDiv.textContent = 'Saved';
-                    statusDiv.className = 'success';
-                    setTimeout(() => {
-                        statusDiv.textContent = '';
-                        statusDiv.className = '';
-                    }, 1500);
-                    if (response.result) {
-                        Object.assign(this.record, response.result);
-                        this._updateFormFields();
-                        this._updateRecordIndicator();
+                try {
+                    const response = await this._sendRequest(message);
+                    if (response.success) {
+                        statusDiv.textContent = 'Created';
+                        statusDiv.className = 'success';
+                        setTimeout(() => {
+                            statusDiv.textContent = '';
+                            statusDiv.className = '';
+                        }, 1500);
+                        if (response.result) {
+                            Object.assign(this.record, response.result);
+                            this._updateFormFields();
+                            this._updateRecordIndicator();
+                        }
+                    } else {
+                        console.error('Error creating record:', response.error);
+                        statusDiv.textContent = `Error: ${response.error || 'Create failed'}`;
+                        statusDiv.className = 'error';
+                        this.dirtyFields.add(changedField);
+                        setTimeout(() => {
+                            statusDiv.textContent = '';
+                            statusDiv.className = '';
+                        }, 3000);
                     }
-                } else {
-                    console.error('Error updating record:', response.error);
-                    statusDiv.textContent = `Error: ${response.error || 'Save failed'}`;
+                } catch (error) {
+                    statusDiv.textContent = 'Create operation timed out';
                     statusDiv.className = 'error';
-                    this.dirtyFields.add(changedField);
                     setTimeout(() => {
                         statusDiv.textContent = '';
                         statusDiv.className = '';
                     }, 3000);
                 }
-            } catch (error) {
-                statusDiv.textContent = 'Save operation timed out';
-                statusDiv.className = 'error';
-                setTimeout(() => {
-                    statusDiv.textContent = '';
-                    statusDiv.className = '';
-                }, 3000);
+            } else {
+                // Existing record: call update
+                console.log(`Auto-saving field ${changedField} for model ${modelName}`, this.record[changedField]);
+                statusDiv.textContent = 'Saving...';
+                statusDiv.className = 'saving';
+
+                const requestId = `req-update-${modelName}-${Date.now()}`;
+                const message = {
+                    type: 'model',
+                    name: modelName,
+                    action: 'update',
+                    parameters: { id: recordId, data: { [changedField]: this.record[changedField] } },
+                    requestId
+                };
+
+                try {
+                    const response = await this._sendRequest(message);
+                    if (response.success) {
+                        statusDiv.textContent = 'Saved';
+                        statusDiv.className = 'success';
+                        setTimeout(() => {
+                            statusDiv.textContent = '';
+                            statusDiv.className = '';
+                        }, 1500);
+                        if (response.result) {
+                            Object.assign(this.record, response.result);
+                            this._updateFormFields();
+                            this._updateRecordIndicator();
+                        }
+                    } else {
+                        console.error('Error updating record:', response.error);
+                        statusDiv.textContent = `Error: ${response.error || 'Save failed'}`;
+                        statusDiv.className = 'error';
+                        this.dirtyFields.add(changedField);
+                        setTimeout(() => {
+                            statusDiv.textContent = '';
+                            statusDiv.className = '';
+                        }, 3000);
+                    }
+                } catch (error) {
+                    statusDiv.textContent = 'Save operation timed out';
+                    statusDiv.className = 'error';
+                    setTimeout(() => {
+                        statusDiv.textContent = '';
+                        statusDiv.className = '';
+                    }, 3000);
+                }
             }
         }, 10);
 
-        // Track changes and attach auto-save to inputs
-        const trackChangesHandler = (event) => {
-            const changedField = event?.detail?.field;
-            if (changedField) this.dirtyFields.add(changedField);
-        };
-
+        // Update event listeners so that we mark fields as dirty on input but only trigger auto-save on blur:
         Object.values(fieldMap).forEach(input => {
-            input.addEventListener('input', trackChangesHandler);
+            // Mark the field as dirty whenever its content changes.
+            input.addEventListener('input', () => {
+                const fieldName = input.getAttribute('field');
+                this.dirtyFields.add(fieldName);
+            });
+            // Trigger auto-save when the field loses focus.
+            input.addEventListener('blur', autoSave);
+            // Also trigger auto-save on data-changed if needed.
             input.addEventListener('data-changed', autoSave);
+            console.log('Added blur and data-changed event listeners to input for field:', input.getAttribute('field'));
         });
+
 
         this.body.appendChild(this.formElement);
     }
@@ -1037,7 +1102,7 @@ export class WindowForm {
         // Define standard menu items that every form will have
         const standardMenus = {
             [modelName]: [
-                { label: 'New', action: () => console.log('New record clicked') },
+                { label: 'New', action: () => this._createNewRecord() },
                 { label: 'Delete', action: () => console.log('Delete record clicked') }
             ],
             'View': [
@@ -1359,5 +1424,33 @@ export class WindowForm {
         document.head.appendChild(styleEl);
     }
 
+    /**
+     * Creates a new blank record for the form
+     */
+    _createNewRecord() {
+        // Clear the current record and create a blank one with id=0
+        this.record = { id: 0 };
 
+        // Reset dirty fields
+        this.dirtyFields.clear();
+
+        // Update form fields with the blank record
+        this._updateFormFields();
+
+        // Update the record indicator
+        this._updateRecordIndicator();
+
+        console.log('Created new blank record');
+
+        // Show status message
+        const statusDiv = this.formElement.querySelector('#statusMessage');
+        if (statusDiv) {
+            statusDiv.textContent = 'New record';
+            statusDiv.className = 'info';
+            setTimeout(() => {
+                statusDiv.textContent = '';
+                statusDiv.className = '';
+            }, 1500);
+        }
+    }
 }

@@ -19,6 +19,7 @@ const fieldPaths = {
     Code10: './Code10.js',
     PasswordField: './PasswordField.js',
     BooleanField: './BooleanField.js',
+    EnumField: './EnumField.js',
 };
 
 // Dynamically import each module based on the above configuration.
