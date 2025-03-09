@@ -216,7 +216,7 @@ class BindableInput extends HTMLElement {
     }
   
     _createInputByType(inputType) {
-      console.log(`Creating input of type: ${inputType}`);
+      
       
       if (inputType === "textarea") {
         return document.createElement("textarea");
@@ -343,7 +343,7 @@ class BindableInput extends HTMLElement {
         const inputType = this.getAttribute("type") || "text";
         const currentValue = this._getValueFromPath(this._record, this._field);
         
-        console.log(`Updating value for ${this._field}, type ${inputType}, value: ${currentValue}`);
+
         
         if (["checkbox", "radio"].includes(inputType)) {
           const newChecked = !!currentValue;
@@ -356,10 +356,7 @@ class BindableInput extends HTMLElement {
           if (this.inputElement.value !== newValue) {
             this.inputElement.value = newValue;
           }
-          // Log the available options and selected value for debugging
-          console.log(`Select/Enum options for ${this._field}:`, 
-            Array.from(this.inputElement.options).map(o => ({ value: o.value, text: o.text })));
-          console.log(`Selected value: ${this.inputElement.value}`);
+
         } else {
           const newValue = currentValue != null ? String(currentValue) : "";
           if (this.inputElement.value !== newValue) {

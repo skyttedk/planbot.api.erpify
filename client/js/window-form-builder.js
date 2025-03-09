@@ -769,7 +769,7 @@ export class WindowForm {
             input.addEventListener('blur', autoSave);
             // Also trigger auto-save on data-changed if needed.
             input.addEventListener('data-changed', autoSave);
-            console.log('Added blur and data-changed event listeners to input for field:', input.getAttribute('field'));
+
         });
 
 
