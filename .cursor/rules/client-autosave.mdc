@@ -1,0 +1,36 @@
+---
+description: General description of client autosave functionality
+globs: 
+alwaysApply: false
+---
+When coding changes in the client form autosave feature, make sure the following is always true.
+
+1. Send updates/insert only when user tabs out of a dirty input field.
+
+2. If id = 0, then we should create a record, if id <> 1 then wo shuold update record.
+
+3. ENTER should work like TAB.
+
+4. If we changed a value, and did not tab out of input field. 
+    then if user presses Escape. then
+
+     -undo value
+
+    if the user presses escape again,
+    
+    - close form as today.
+
+5. If we changed a value, and did not tab out of input field. 
+  then if user uses navigation/new/delete
+
+    there should come a modal dialog with something like "You have unsaved changes"..
+
+if the user presses escape again,
+
+- close form as today.
+
+5. when receiving a response from server after injserting /creating we shuold check
+   if there success = false, and if so, we should show the message from server in a modal dialog. We should not be able to exit a input field with error, unless we
+   roll back to old value.
+
+
