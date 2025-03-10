@@ -1,0 +1,93 @@
+/**
+ * View configuration for <ViewName>
+ * This template defines a standard structure for creating view configurations
+ * that can be used with the window-form-builder component.
+ */
+
+// Define the form configuration
+export const <viewName>Form = {
+    "id": "<viewName>Form",
+    "caption": "<ViewName> Information",
+    "type": "form",
+    "model": "<ModelName>", // The model this form is associated with
+    "menuLocation": "<MenuCategory>.<ViewName>", // Where this appears in the menu structure
+    
+    // Optional: Custom menu items for this form
+    "menu": [
+        // Example of a controller action menu item
+        // {
+        //     "location": "Actions", // Menu category
+        //     "caption": "Perform Action", // Display name
+        //     "type": "controller", // Type: controller, form, report, etc.
+        //     "name": "ControllerName", // Controller to call
+        //     "action": "actionName" // Method to invoke
+        // }
+    ],
+    
+    // Form layout definition
+    "layout": {
+        "groups": [
+            {
+                "caption": "General Information",
+                "fields": [
+                    // Field definitions - each corresponds to a model field
+                    // Simple field with default settings
+                    {
+                        "name": "fieldName1"
+                    },
+                    // Field with custom caption and editability
+                    {
+                        "name": "fieldName2",
+                        "caption": "Custom Label",
+                        "editable": true
+                    },
+                    // Field with custom rendering options
+                    {
+                        "name": "fieldName3",
+                        "type": "enum", // Override field type if needed
+                        "options": ["Option1", "Option2"] // For enum/select fields
+                    }
+                ]
+            },
+            // Additional field groups
+            {
+                "caption": "Additional Information",
+                "fields": [
+                    // More fields...
+                ]
+            }
+        ]
+    }
+};
+
+// Create a window configuration that includes the form
+const <viewName>View = [
+    {
+        "id": "<viewName>Window",
+        "type": "window",
+        "title": "<ViewName>", // Window title
+        "resizable": true,
+        "movable": true,
+        
+        // Initial position on screen
+        "position": {
+            "top": 100,
+            "left": 200
+        },
+        
+        // Window dimensions
+        "size": {
+            "width": 800,
+            "height": 600
+        },
+        
+        // Include the form configuration
+        "formConfig": <viewName>Form
+    }
+];
+
+/**
+ * Export the window configuration as the default export
+ * This is what will be loaded by the view loader
+ */
+export default <viewName>View; 
