@@ -20,6 +20,7 @@ class Customer extends Model {
         phone: new fields.PhoneField(),
         zip: new fields.ZipField(),
         email: new fields.Email(),
+        country: new fields.CountryField(),
         gender: new fields.EnumField({
             caption: 'Gender',
             options: ['Male', 'Female', 'Non-binary', 'Prefer not to say'],

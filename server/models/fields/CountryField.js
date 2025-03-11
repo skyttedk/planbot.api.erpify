@@ -2,7 +2,7 @@ import Field from '../../lib/orm/Field.js';
 
 /**
  * A field class for establishing a one-to-many relationship with the Country table.
- * This field stores a reference to a country record.
+ * This field stores a reference to a country record using an integer ID.
  *
  * @param {Object} options - Configuration options.
  * @param {boolean} [options.required=false] - Whether the field is required.
@@ -13,7 +13,7 @@ class CountryField extends Field {
         // Fixed properties for a Country reference field
         const fixedProperties = {
             uid: '{a7e9d312-8f56-4b91-b954-c0e76c3d8e2f}',
-            type: 'lookup',
+            type: 'integer', // Use integer type for the database column
             caption: 'Country',
         };
 
@@ -39,6 +39,7 @@ class CountryField extends Field {
                 displayField: 'name',
                 valueField: 'id',
                 required: options.required || false,
+                fieldType: 'lookup', // This is for UI/application layer, not database
                 validation: {
                     message: 'Please select a valid country'
                 }
@@ -49,6 +50,17 @@ class CountryField extends Field {
     // Get default value (no default country)
     getDefaultValue() {
         return null;
+    }
+
+    // Validate that the value is a valid integer or null
+    validate(value) {
+        if (value === null || value === undefined) {
+            return !this.required;
+        }
+        
+        // Check if it's a valid integer
+        const intValue = parseInt(value, 10);
+        return !isNaN(intValue) && intValue.toString() === value.toString();
     }
 }
 
