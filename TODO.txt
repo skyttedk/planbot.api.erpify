@@ -25,6 +25,9 @@ idea: client.log
 
       ...
 
+shoud we use mongose ????
+
+https://www.npmjs.com/package/mongoose
 
 
 //Field validation code.
@@ -34,11 +37,6 @@ men regex til validering skal jo hentes fra field templates (Eller model)
 seperate database for unit test.
 in config file, define database name for running unit test.
   then before test, db schemasync.. and use that db
-
-
-
-
-
 
 
 strign field vs text field,

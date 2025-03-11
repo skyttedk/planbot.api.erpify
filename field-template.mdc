@@ -1,0 +1,108 @@
+# Creating Field Templates
+
+Field templates are located in `server/models/fields`
+
+## Creating a Relationship Field Template
+
+To create a field template that establishes a relationship with another table:
+
+1. Create a new file in the `fields` directory
+2. Import the base Field class from '../../lib/orm/Field.js'
+3. Define the relationship in the constructor options:
+   - Set `type` to 'lookup'
+   - Configure the relationship options with dataSource, displayField, and valueField
+4. Add any relationship-specific validation or default values
+5. Export the class
+6. Add the field to `fieldPaths` in `index.js`
+
+Example: Country Field Template
+
+```javascript
+import Field from '../../lib/orm/Field.js';
+
+class CountryField extends Field {
+    constructor(options = {}) {
+        const fixedProperties = {
+            uid: '{unique-uuid}',
+            type: 'lookup',
+            caption: 'Country',
+        };
+        
+        super({ 
+            ...fixedProperties,
+            options: {
+                dataSource: 'Country',
+                displayField: 'name',
+                valueField: 'id'
+            }
+        });
+    }
+}
+```
+
+Key Considerations:
+- Ensure the related table exists in your database
+- Add appropriate validation for the relationship
+- Handle null/undefined values appropriately
+
+## Creating One-to-Many Relationships
+
+To create a field template that establishes a one-to-many relationship with another table:
+
+1. Create a new field template file named after the related model (e.g., `CountryField.js`)
+2. Import the Field class from '../../lib/orm/Field.js'
+3. Set the `type` to 'lookup' in the fixed properties
+4. Configure the relationship with options:
+   - `dataSource`: The name of the related table/collection
+   - `displayField`: The field to display in the UI
+   - `valueField`: The field to use as the value
+5. Add the field to `fieldPaths` in `index.js`
+
+Example:
+```javascript
+import Field from '../../lib/orm/Field.js';
+
+class RelatedModelField extends Field {
+    constructor(options = {}) {
+        const fixedProperties = {
+            uid: '{unique-uuid}',
+            type: 'lookup',
+            caption: 'Related Model',
+        };
+        
+        const allowedOverrides = {
+            required: options.required || false,
+            default: options.default || null,
+        };
+        
+        const documentation = {
+            description: 'Establishes a one-to-many relationship with the Related Model table',
+            examples: ['1', '2'],
+            usage: 'Use this field to reference a related model',
+        };
+        
+        super({ 
+            ...fixedProperties, 
+            ...allowedOverrides, 
+            documentation,
+            options: {
+                dataSource: 'RelatedModel',
+                displayField: 'name',
+                valueField: 'id',
+                required: options.required || false,
+                validation: {
+                    message: 'Please select a valid related model'
+                }
+            }
+        });
+    }
+    
+    getDefaultValue() {
+        return null;
+    }
+}
+
+export default RelatedModelField;
+```
+
+Don't forget to add the new field to the `fieldPaths` array in `index.js`. 

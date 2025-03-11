@@ -5,7 +5,7 @@ import ora from 'ora';
 import logger from '../../lib/logger.js';
 
 // Define a single configuration object that maps field names to their module paths.
-const fieldPaths = {
+export const fieldPaths = {
     Field: '../../lib/orm/Field.js',
     PhoneField: './PhoneField.js',
     ZipField: './ZipField.js',
@@ -20,6 +20,7 @@ const fieldPaths = {
     PasswordField: './PasswordField.js',
     BooleanField: './BooleanField.js',
     EnumField: './EnumField.js',
+    CountryField: './CountryField.js'
 };
 
 // Dynamically import each module based on the above configuration.
