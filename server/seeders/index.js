@@ -5,10 +5,12 @@ import  pool  from '../config/db.js'
 
 // Import all seeders here
 import userSeeder from './userSeeder.js';
+import countrySeeder from './countrySeeder.js';
 
 // Collect all seeders in an array
 const seeders = [
     userSeeder,
+    countrySeeder,
     // Add more seeders here as needed
 ];
 
