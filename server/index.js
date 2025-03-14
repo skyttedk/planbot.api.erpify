@@ -7,6 +7,17 @@ import modelLoader from './models/index.js';
 import viewLoader from './views/index.js';
 import controllerLoader from './controllers/index.js';
 import logger from './lib/logger.js';
+import http from 'http';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get the directory of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Path to uploads directory
+const UPLOADS_DIR = path.join(__dirname, '../storage/uploads');
 
 // Check for command line arguments
 const args = process.argv.slice(2);
@@ -25,6 +36,119 @@ const controllers = await controllerLoader.init();
 
 const rateLimiter = new RateLimiterMemory({ points: 100, duration: 60 });
 const clients = new Set();
+
+// Create HTTP server to serve files and host WebSocket
+const server = http.createServer((req, res) => {
+  // Simple handling of file requests for uploads
+  if (req.url.startsWith('/uploads/')) {
+    const filename = req.url.replace('/uploads/', '');
+    
+    // Decode URL if it contains encoded characters
+    const decodedFilename = decodeURIComponent(filename);
+    
+    // Sanitize the filename to prevent directory traversal
+    const sanitizedFilename = path.normalize(decodedFilename).replace(/^(\.\.[\/\\])+/, '');
+    const filePath = path.join(UPLOADS_DIR, sanitizedFilename);
+    
+    console.log(`File request for: ${decodedFilename}`);
+    console.log(`Looking for file at: ${filePath}`);
+    
+    // Check if file exists
+    fs.stat(filePath, (err, stats) => {
+      if (err || !stats.isFile()) {
+        console.error(`File not found: ${filePath}`, err ? err.message : 'Not a file');
+        res.writeHead(404, {
+          'Content-Type': 'text/plain',
+          // Add CORS headers
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        });
+        res.end('File not found');
+        return;
+      }
+      
+      // Determine content type based on extension
+      const ext = path.extname(filePath).toLowerCase();
+      let contentType = 'application/octet-stream';
+      
+      // Map common extensions to MIME types
+      const mimeTypes = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.pdf': 'application/pdf',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.xls': 'application/vnd.ms-excel',
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        '.txt': 'text/plain',
+        '.csv': 'text/csv',
+        '.json': 'application/json',
+        '.xml': 'application/xml',
+        '.zip': 'application/zip'
+      };
+      
+      if (ext in mimeTypes) {
+        contentType = mimeTypes[ext];
+      }
+      
+      console.log(`Serving file: ${filePath}, size: ${stats.size}, type: ${contentType}`);
+      
+      // Set response headers
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'Content-Length': stats.size,
+        // Add CORS headers
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        // Add cache control
+        'Cache-Control': 'max-age=3600'
+      });
+      
+      // Stream the file to the response
+      const readStream = fs.createReadStream(filePath);
+      readStream.pipe(res);
+      
+      // Handle errors
+      readStream.on('error', (streamErr) => {
+        console.error(`Error streaming file ${filePath}:`, streamErr.message);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.end('Error streaming file');
+        } else {
+          res.end();
+        }
+      });
+    });
+  } else if (req.method === 'OPTIONS') {
+    // Handle preflight CORS requests
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Max-Age': '86400' // 24 hours
+    });
+    res.end();
+  } else {
+    // For any other requests
+    res.writeHead(404, {
+      'Content-Type': 'text/plain',
+      'Access-Control-Allow-Origin': '*'
+    });
+    res.end('Not found');
+  }
+});
+
+// Create WebSocket server on the HTTP server
+const wss = new WebSocketServer({ server });
+
+// Handle WebSocket connections
+wss.on('connection', handleClientConnection);
+wss.on('error', (error) => logger.error('Server error:', error));
+pool.on('error', (error) => logger.error('Pool error:', error));
 
 // Handle individual client connections
 async function handleClientConnection(ws) {
@@ -188,6 +312,22 @@ async function handleModelRequest(modelName, action, parameters) {
       throw new Error(`Missing or invalid 'data' parameter for update operation on model "${modelName}"`);
     }
     
+    // Check for file fields
+    console.log(`Examining data for file fields`);
+    for (const [field, value] of Object.entries(parameters.data)) {
+      if (value && typeof value === 'object') {
+        console.log(`Field ${field} contains an object:`, {
+          keys: Object.keys(value),
+          hasData: !!value.data,
+          dataLength: value.data ? value.data.length : 0,
+          dataPreview: value.data ? `${value.data.substring(0, 50)}...` : null,
+          sourceFilePath: value.sourceFilePath,
+          filename: value.filename,
+          mimeType: value.mimeType
+        });
+      }
+    }
+    
     // Convert id to number if it's a numeric string
     if (typeof parameters.id === 'string' && !isNaN(parseInt(parameters.id, 10))) {
       parameters.id = parseInt(parameters.id, 10);
@@ -211,7 +351,74 @@ async function handleModelRequest(modelName, action, parameters) {
   
   try {
     // Call the method
-    const result = await ModelClass[action](...paramArray);
+    let result = await ModelClass[action](...paramArray);
+    
+    // Special handling for get/find actions to handle async onGet methods on fields
+    if (action === 'get' || action === 'find' || action === 'findAll') {
+      console.log(`Processing results from ${action} action for async field getters`);
+      
+      // Handle single result or array of results
+      if (Array.isArray(result)) {
+        // For findAll results
+        const processedResults = [];
+        for (const item of result) {
+          if (item && typeof item === 'object') {
+            const processedItem = { ...item };
+            // Process each field that might have an async getter
+            for (const fieldName in item) {
+              if (ModelClass._fieldDefinitions && ModelClass._fieldDefinitions[fieldName]) {
+                const fieldDef = ModelClass._fieldDefinitions[fieldName];
+                if (fieldDef && typeof fieldDef.onGet === 'function') {
+                  try {
+                    // Call onGet and await if it returns a Promise
+                    const fieldValue = fieldDef.onGet(item[fieldName]);
+                    if (fieldValue instanceof Promise) {
+                      processedItem[fieldName] = await fieldValue;
+                      console.log(`Processed async field ${fieldName} in ${modelName}`);
+                    } else {
+                      processedItem[fieldName] = fieldValue;
+                    }
+                  } catch (err) {
+                    console.error(`Error processing field ${fieldName}:`, err);
+                    // Keep original value on error
+                  }
+                }
+              }
+            }
+            processedResults.push(processedItem);
+          } else {
+            processedResults.push(item);
+          }
+        }
+        result = processedResults;
+      } else if (result && typeof result === 'object') {
+        // For single result from get
+        const processedResult = { ...result };
+        // Process each field that might have an async getter
+        for (const fieldName in result) {
+          if (ModelClass._fieldDefinitions && ModelClass._fieldDefinitions[fieldName]) {
+            const fieldDef = ModelClass._fieldDefinitions[fieldName];
+            if (fieldDef && typeof fieldDef.onGet === 'function') {
+              try {
+                // Call onGet and await if it returns a Promise
+                const fieldValue = fieldDef.onGet(result[fieldName]);
+                if (fieldValue instanceof Promise) {
+                  processedResult[fieldName] = await fieldValue;
+                  console.log(`Processed async field ${fieldName} in ${modelName}`);
+                } else {
+                  processedResult[fieldName] = fieldValue;
+                }
+              } catch (err) {
+                console.error(`Error processing field ${fieldName}:`, err);
+                // Keep original value on error
+              }
+            }
+          }
+        }
+        result = processedResult;
+      }
+    }
+    
     console.log(`${modelName}.${action} completed successfully`, result ? 'with result' : 'with no result');
     return result;
   } catch (error) {
@@ -266,15 +473,17 @@ async function handleMenuRequest() {
 // Main function to start the server (unchanged)
 async function main() {
   const { PORT = 8011 } = process.env;
-  const wss = new WebSocketServer({ port: PORT });
-  logger.success(`WebSocket server running on ws://localhost:${PORT}`);
-
-  wss.on('connection', handleClientConnection);
-  wss.on('error', (error) => logger.error('Server error:', error));
-  pool.on('error', (error) => logger.error('Pool error:', error));
-
+  
+  // Start HTTP server
+  server.listen(PORT, () => {
+    logger.success(`HTTP server running on http://localhost:${PORT}`);
+    logger.success(`WebSocket server running on ws://localhost:${PORT}`);
+    logger.info(`File uploads accessible at http://localhost:${PORT}/uploads/filename`);
+  });
+  
+  // Handle shutdown
   async function shutdown() {
-    wss.close();
+    server.close();
     await pool.end();
     logger.info('Server shut down');
     process.exit(0);

@@ -141,18 +141,34 @@ class FileBlobField extends Field {
      * @returns {Object} Formatted file data object
      */
     onGet(value) {
-        if (!value) return value;
+        if (!value) return null;
         
         // If it's a string, try to parse it as JSON
         if (typeof value === 'string') {
             try {
-                return JSON.parse(value);
+                value = JSON.parse(value);
             } catch (e) {
-                return value;
+                // If parsing fails, return null
+                console.error(`Error parsing FileBlobField value: ${e.message}`);
+                return null;
             }
         }
         
-        return value;
+        // Ensure we have a valid object
+        if (typeof value !== 'object') return null;
+        
+        // Return with standardized field names for client consistency
+        return {
+            // Original properties
+            ...value,
+            
+            // Add client-expected properties for consistency with FileDiskField
+            name: value.filename,
+            type: value.mimeType,
+            
+            // Add a last modified timestamp if not present
+            lastModified: value.lastModified || value.uploadDate || new Date().getTime()
+        };
     }
 }
 

@@ -716,21 +716,73 @@ class BindableInput extends HTMLElement {
           }
         } else if (inputType === "file") {
           // For file fields, we need to update the file preview with stored file information
-          if (currentValue && (currentValue.filename || currentValue.path)) {
-            console.log(`Displaying file preview for ${this._field}:`, currentValue);
+          if (currentValue) {
+            console.log(`Displaying file for ${this._field}:`, currentValue);
             
-            // Create a mock file object for display purposes
-            const mockFile = {
-              name: currentValue.filename || currentValue.path?.split('/').pop() || 'Unknown file',
-              type: currentValue.mimeType || this._getMimeTypeFromFilename(currentValue.filename || currentValue.path),
-              size: currentValue.size || 0
+            // Normalize file metadata to ensure all expected fields are present
+            const fileMetadata = {
+              // Basic defaults
+              name: 'Unknown file',
+              size: 0,
+              type: 'application/octet-stream',
+              
+              // Override with any values from currentValue that exist
+              ...(typeof currentValue === 'object' ? currentValue : {})
             };
+            
+            // If we only have a path string, extract filename from it
+            if (typeof currentValue === 'string') {
+              const pathParts = currentValue.split(/[/\\]/); // Split on both forward and backslashes
+              fileMetadata.name = pathParts[pathParts.length - 1] || 'Unknown file';
+              fileMetadata.path = currentValue;
+            }
+            
+            console.log('File metadata before normalization:', JSON.stringify(fileMetadata, null, 2));
+            
+            // Use sourceFilePath as name if available and name isn't set
+            if (!fileMetadata.name || fileMetadata.name === 'Unknown file') {
+              if (fileMetadata.sourceFilePath) {
+                fileMetadata.name = fileMetadata.sourceFilePath;
+              } else if (fileMetadata.filename) {
+                fileMetadata.name = fileMetadata.filename;
+              }
+            }
+            
+            // Priority for determining type: type > mimeType > extension lookup
+            if (!fileMetadata.type && fileMetadata.mimeType) {
+              fileMetadata.type = fileMetadata.mimeType;
+            }
+            
+            // For FileBlobField, ensure data field is preserved
+            if (fileMetadata.data) {
+              console.log(`File has base64 data (length: ${fileMetadata.data.length})`);
+            }
+            
+            console.log(`Normalized file metadata for ${this._field}:`, {
+              name: fileMetadata.name,
+              filename: fileMetadata.filename,
+              sourceFilePath: fileMetadata.sourceFilePath,
+              size: fileMetadata.size,
+              type: fileMetadata.type,
+              hasData: !!fileMetadata.data,
+              hasUrl: !!fileMetadata.url,
+              path: fileMetadata.path
+            });
+            
+            // Create mock file for display
+            const mockFile = {
+              name: fileMetadata.name,
+              type: fileMetadata.type || fileMetadata.mimeType || this._getMimeTypeFromFilename(fileMetadata.name),
+              size: fileMetadata.size || 0
+            };
+            
+            console.log('Created mockFile for display:', mockFile);
             
             // If preview elements exist, update them
             if (this._filePreviewArea) {
               const placeholderText = this._filePreviewArea.querySelector('span') || document.createElement('span');
               this._resetFilePreview(this._filePreviewArea, placeholderText);
-              this._displayStoredFile(mockFile, currentValue, this._filePreviewArea, placeholderText);
+              this._displayStoredFile(mockFile, fileMetadata, this._filePreviewArea, placeholderText);
             }
           } else {
             // If no file data, ensure preview area is reset
@@ -801,8 +853,10 @@ class BindableInput extends HTMLElement {
               size: value.size
             });
           } else {
+            // When clearing a file field, just use null
+            // The server has been updated to handle this properly
             value = null;
-            console.log(`No file selected for ${this._field}`);
+            console.log(`Clearing file field ${this._field}`);
           }
         } else {
           value = this.inputElement.value;
@@ -1198,6 +1252,12 @@ class BindableInput extends HTMLElement {
      * @private
      */
     _handleFileSelected(file, previewArea, placeholderText) {
+      console.log('File selected:', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+      });
+      
       // Clear previous preview
       previewArea.innerHTML = '';
       
@@ -1210,6 +1270,7 @@ class BindableInput extends HTMLElement {
       
       // Determine file type and show appropriate preview
       const fileType = file.type;
+      const isImage = fileType.startsWith('image/');
       
       // File icon based on type
       const fileIcon = document.createElement('div');
@@ -1218,40 +1279,59 @@ class BindableInput extends HTMLElement {
       fileIcon.style.fontSize = '24px';
       
       // Choose icon based on file type
-      if (fileType.startsWith('image/')) {
-        // For images, create an actual thumbnail
-        fileIcon.innerHTML = '🖼️';
+      if (isImage) fileIcon.innerHTML = '🖼️';
+      else if (fileType === 'application/pdf') fileIcon.innerHTML = '📄';
+      else if (fileType.includes('word') || fileType === 'application/msword') fileIcon.innerHTML = '📝';
+      else if (fileType.includes('excel') || fileType === 'application/vnd.ms-excel') fileIcon.innerHTML = '📊';
+      else if (fileType.includes('zip') || fileType.includes('compressed')) fileIcon.innerHTML = '🗜️';
+      else fileIcon.innerHTML = '📁';
+      
+      // For non-image files, add the icon immediately
+      if (!isImage) {
+        fileInfo.appendChild(fileIcon);
+      }
+      
+      // If it's an image, create a thumbnail preview
+      if (isImage) {
+        // Initially show the icon as a placeholder while image loads
+        fileInfo.appendChild(fileIcon);
         
-        // Create image preview if it's an image
+        // Create image preview element
         const imgPreview = document.createElement('img');
         imgPreview.style.maxHeight = '50px';
         imgPreview.style.maxWidth = '50px';
         imgPreview.style.objectFit = 'contain';
         imgPreview.style.marginRight = '10px';
+        imgPreview.style.border = '1px solid #eee';
+        imgPreview.style.borderRadius = '3px';
+        imgPreview.style.padding = '2px';
         
         // Read file as data URL
         const reader = new FileReader();
         reader.onload = (e) => {
+          // When the image data is ready
           imgPreview.src = e.target.result;
+          
+          // Once the image is actually loaded, replace the placeholder
+          imgPreview.onload = () => {
+            // Remove the placeholder icon
+            const existingIcon = fileInfo.querySelector('.file-icon');
+            if (existingIcon) {
+              existingIcon.remove();
+            }
+            // Add the image at the start
+            fileInfo.insertBefore(imgPreview, fileInfo.firstChild);
+          };
+          
+          // Handle errors
+          imgPreview.onerror = () => {
+            console.warn('Failed to load preview for selected image');
+            // Icon placeholder is already there, so no need to add it again
+          };
         };
-        reader.readAsDataURL(file);
         
-        fileInfo.appendChild(imgPreview);
-      } else if (fileType === 'application/pdf') {
-        fileIcon.innerHTML = '📄';
-        fileInfo.appendChild(fileIcon);
-      } else if (fileType.includes('word') || fileType === 'application/msword') {
-        fileIcon.innerHTML = '📝';
-        fileInfo.appendChild(fileIcon);
-      } else if (fileType.includes('excel') || fileType === 'application/vnd.ms-excel') {
-        fileIcon.innerHTML = '📊';
-        fileInfo.appendChild(fileIcon);
-      } else if (fileType.includes('zip') || fileType.includes('compressed')) {
-        fileIcon.innerHTML = '🗜️';
-        fileInfo.appendChild(fileIcon);
-      } else {
-        fileIcon.innerHTML = '📁';
-        fileInfo.appendChild(fileIcon);
+        // Start loading the image data
+        reader.readAsDataURL(file);
       }
       
       // File name and size
@@ -1261,15 +1341,18 @@ class BindableInput extends HTMLElement {
       fileDetails.style.textOverflow = 'ellipsis';
       fileDetails.style.flexGrow = '1';
       
+      // The File object already has a name property
+      const displayName = file.name || 'Unknown file';
+                         
       const fileName = document.createElement('div');
       fileName.className = 'file-name';
-      fileName.textContent = file.name;
+      fileName.textContent = displayName;
       fileName.style.fontWeight = 'bold';
       fileName.style.fontSize = '12px';
       
       const fileSize = document.createElement('div');
       fileSize.className = 'file-size';
-      fileSize.textContent = this._formatFileSize(file.size);
+      fileSize.textContent = this._formatFileSize(file.size || 0);
       fileSize.style.fontSize = '10px';
       fileSize.style.color = '#777';
       
@@ -1299,8 +1382,27 @@ class BindableInput extends HTMLElement {
           this._fileInput.value = '';
         }
         
-        // Update the record
-        this.onInput();
+        // Set value to null to clear the field
+        this._selectedFile = null;
+        
+        // Update the record with a simpler format for field clearing
+        // Just use null - the server has been updated to handle this properly
+        this._setValueAtPath(this._record, this._field, null);
+        
+        console.log(`Clearing file field ${this._field}`);
+        
+        // Trigger data-changed event to save the change immediately
+        this.dispatchEvent(
+          new CustomEvent("data-changed", {
+            bubbles: true,
+            composed: true,
+            detail: { 
+              field: this._field, 
+              value: null, 
+              record: this._record 
+            },
+          })
+        );
       });
       
       fileInfo.appendChild(removeButton);
@@ -1338,14 +1440,14 @@ class BindableInput extends HTMLElement {
         e.preventDefault();
         e.stopPropagation();
         dropZone.style.borderColor = '#3F7FE4';
-        dropZone.style.backgroundColor = '#F0F7FF';
+        e.target.style.backgroundColor = '#F0F7FF';
       };
       
       const handleDragLeave = (e) => {
         e.preventDefault();
         e.stopPropagation();
         dropZone.style.borderColor = '#ccc';
-        dropZone.style.backgroundColor = '';
+        e.target.style.backgroundColor = '';
       };
       
       const handleDrop = (e) => {
@@ -1386,14 +1488,23 @@ class BindableInput extends HTMLElement {
     }
     
     /**
-     * Displays a preview of a stored file (from server)
-     * @param {Object} fileInfo - Basic file info (name, type, size)
-     * @param {Object} storedFile - The file data from the server
-     * @param {HTMLElement} previewArea - The element for file preview
-     * @param {HTMLElement} placeholderText - The placeholder text element to hide
+     * Displays a stored file in the file preview area
+     * 
+     * @param {Object} mockFile - Basic file information (name, type, size)
+     * @param {Object} storedFile - Full file metadata from the server
+     * @param {HTMLElement} previewArea - The preview area element
+     * @param {HTMLElement} placeholderText - The placeholder text element
      * @private
      */
-    _displayStoredFile(fileInfo, storedFile, previewArea, placeholderText) {
+    _displayStoredFile(mockFile, storedFile, previewArea, placeholderText) {
+      console.log('Displaying stored file:', { 
+        name: mockFile.name,
+        type: mockFile.type,
+        size: mockFile.size,
+        hasData: !!storedFile.data,
+        hasUrl: !!storedFile.url
+      });
+      
       // Clear previous preview
       previewArea.innerHTML = '';
       
@@ -1404,60 +1515,111 @@ class BindableInput extends HTMLElement {
       fileInfo$.style.alignItems = 'center';
       fileInfo$.style.width = '100%';
       
-      // Determine file type and show appropriate preview
-      const fileType = fileInfo.type;
+      // Determine file type 
+      const fileType = mockFile.type || 'application/octet-stream';
+      const isImage = fileType.startsWith('image/');
       
-      // Add visual file indicator
+      // Add visual file indicator as placeholder initially
       const fileIcon = document.createElement('div');
       fileIcon.className = 'file-icon';
       fileIcon.style.marginRight = '10px';
       fileIcon.style.fontSize = '24px';
       
-      // Choose icon based on file type
-      if (fileType && fileType.startsWith('image/')) {
-        // For images, display icon or actual image if available
-        fileIcon.innerHTML = '🖼️';
+      // Set appropriate icon based on file type
+      if (isImage) fileIcon.innerHTML = '🖼️';
+      else if (fileType === 'application/pdf') fileIcon.innerHTML = '📄';
+      else if (fileType.includes('word') || fileType === 'application/msword') fileIcon.innerHTML = '📝';
+      else if (fileType.includes('excel') || fileType === 'application/vnd.ms-excel') fileIcon.innerHTML = '📊';
+      else if (fileType.includes('zip') || fileType.includes('compressed')) fileIcon.innerHTML = '🗜️';
+      else fileIcon.innerHTML = '📁';
+      
+      // For non-image files, add the icon immediately
+      if (!isImage) {
+        fileInfo$.appendChild(fileIcon);
+      }
+      
+      // Try to create an image preview for image files
+      if (isImage) {
+        console.log('File is an image, attempting to create thumbnail');
         
-        // If we have a FileBlobField with data, we can show actual image preview
-        if (storedFile.data) {
-          try {
-            // Create image preview
-            const imgPreview = document.createElement('img');
-            imgPreview.style.maxHeight = '50px';
-            imgPreview.style.maxWidth = '50px';
-            imgPreview.style.objectFit = 'contain';
-            imgPreview.style.marginRight = '10px';
-            
-            // Set source using base64 data
-            imgPreview.src = `data:${fileType};base64,${storedFile.data}`;
-            
-            fileInfo$.appendChild(imgPreview);
-          } catch (err) {
-            console.warn('Could not display image preview:', err);
-            fileInfo$.appendChild(fileIcon);
+        // Create image preview element
+        const imgPreview = document.createElement('img');
+        imgPreview.style.maxHeight = '50px';
+        imgPreview.style.maxWidth = '50px';
+        imgPreview.style.objectFit = 'contain';
+        imgPreview.style.marginRight = '10px';
+        imgPreview.style.border = '1px solid #eee';
+        imgPreview.style.borderRadius = '3px';
+        imgPreview.style.padding = '2px';
+        
+        // Fallback in case image doesn't load
+        imgPreview.style.minWidth = '40px';
+        imgPreview.style.minHeight = '40px';
+        
+        let previewSource = null;
+        
+        // Find the best source for the image preview (in order of preference):
+        
+        // 1. If we have a URL from the server, use that
+        if (storedFile.url) {
+          // Make sure the URL is absolute if it starts with /
+          if (storedFile.url.startsWith('/')) {
+            previewSource = window.location.origin + storedFile.url;
+          } else {
+            previewSource = storedFile.url;
           }
-        } else if (storedFile.path) {
-          // For FileDiskField, we might have a path to the image
-          // but showing it would require server support for serving the files
+          console.log('Using URL for image preview (absolute):', previewSource);
+        }
+        
+        // 2. If we have base64 data, use that
+        else if (storedFile.data) {
+          try {
+            previewSource = `data:${fileType};base64,${storedFile.data}`;
+            console.log('Using base64 data for image preview');
+          } catch (err) {
+            console.warn('Could not create data URL from base64:', err);
+          }
+        }
+        
+        // 3. As a last resort, if we have a path and it's accessible, try to use it
+        else if (storedFile.path) {
+          // Use path with origin to ensure absolute URL
+          previewSource = window.location.origin + '/uploads/' + this._extractFilenameFromPath(storedFile.path);
+          console.log('Attempting to use path for image preview:', previewSource);
+        }
+        
+        // If we found any preview source, try to use it
+        if (previewSource) {
+          // Start with a loading placeholder
           fileInfo$.appendChild(fileIcon);
+          
+          // Set up onload handler before setting src to ensure it captures the load event
+          imgPreview.onload = () => {
+            console.log('Image loaded successfully:', previewSource);
+            
+            // Remove the placeholder icon once the image loads
+            const existingIcon = fileInfo$.querySelector('.file-icon');
+            if (existingIcon) {
+              existingIcon.remove();
+            }
+            
+            // Add the loaded image
+            fileInfo$.insertBefore(imgPreview, fileInfo$.firstChild);
+          };
+          
+          // Add error handler in case image doesn't load
+          imgPreview.onerror = (err) => {
+            console.warn('Image failed to load:', previewSource, err);
+            // The file icon is already in place, so we don't need to do anything else
+          };
+          
+          // Now set the src to trigger loading
+          imgPreview.src = previewSource;
         } else {
+          // No preview source available, just use the icon
+          console.log('No preview source available for image, using icon');
           fileInfo$.appendChild(fileIcon);
         }
-      } else if (fileType === 'application/pdf') {
-        fileIcon.innerHTML = '📄';
-        fileInfo$.appendChild(fileIcon);
-      } else if (fileType.includes('word') || fileType === 'application/msword') {
-        fileIcon.innerHTML = '📝';
-        fileInfo$.appendChild(fileIcon);
-      } else if (fileType.includes('excel') || fileType === 'application/vnd.ms-excel') {
-        fileIcon.innerHTML = '📊';
-        fileInfo$.appendChild(fileIcon);
-      } else if (fileType.includes('zip') || fileType.includes('compressed')) {
-        fileIcon.innerHTML = '🗜️';
-        fileInfo$.appendChild(fileIcon);
-      } else {
-        fileIcon.innerHTML = '📁';
-        fileInfo$.appendChild(fileIcon);
       }
       
       // File name and size
@@ -1467,15 +1629,25 @@ class BindableInput extends HTMLElement {
       fileDetails.style.textOverflow = 'ellipsis';
       fileDetails.style.flexGrow = '1';
       
+      // Determine the best filename to display (with priorities)
+      const displayName = mockFile.name || 
+                         storedFile.name || 
+                         storedFile.filename || 
+                         storedFile.sourceFilePath ||
+                         (storedFile.path ? this._extractFilenameFromPath(storedFile.path) : '') ||
+                         'Unknown file';
+      
+      console.log('Display name determined to be:', displayName);
+                         
       const fileName = document.createElement('div');
       fileName.className = 'file-name';
-      fileName.textContent = fileInfo.name;
+      fileName.textContent = displayName;
       fileName.style.fontWeight = 'bold';
       fileName.style.fontSize = '12px';
       
       const fileSize = document.createElement('div');
       fileSize.className = 'file-size';
-      fileSize.textContent = this._formatFileSize(fileInfo.size);
+      fileSize.textContent = this._formatFileSize(mockFile.size || storedFile.size || 0);
       fileSize.style.fontSize = '10px';
       fileSize.style.color = '#777';
       
@@ -1508,8 +1680,24 @@ class BindableInput extends HTMLElement {
         // Set value to null to clear the field
         this._selectedFile = null;
         
-        // Update the record
-        this.onInput();
+        // Update the record with a simpler format for field clearing
+        // Just use null - the server has been updated to handle this properly
+        this._setValueAtPath(this._record, this._field, null);
+        
+        console.log(`Clearing file field ${this._field}`);
+        
+        // Trigger data-changed event to save the change immediately
+        this.dispatchEvent(
+          new CustomEvent("data-changed", {
+            bubbles: true,
+            composed: true,
+            detail: { 
+              field: this._field, 
+              value: null, 
+              record: this._record 
+            },
+          })
+        );
       });
       
       fileInfo$.appendChild(removeButton);
@@ -1560,6 +1748,20 @@ class BindableInput extends HTMLElement {
       };
       
       return mimeTypes[extension] || 'application/octet-stream';
+    }
+    
+    /**
+     * Extracts filename from a path string
+     * @param {string} filepath - Path string
+     * @returns {string} Extracted filename
+     * @private
+     */
+    _extractFilenameFromPath(filepath) {
+      if (!filepath) return '';
+      
+      // Split on both forward and backslashes
+      const parts = filepath.split(/[\/\\]/);
+      return parts[parts.length - 1] || '';
     }
   }
   

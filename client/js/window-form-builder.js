@@ -219,6 +219,37 @@ export class WindowForm {
      */
     _sendRequest(message, timeoutDuration = 10000) {
         return new Promise((resolve, reject) => {
+            if (message.parameters && message.parameters.data) {
+                // Check for file data in the message
+                for (const [field, value] of Object.entries(message.parameters.data)) {
+                    if (value && typeof value === 'object' && value.data) {
+                        console.log(`Request contains file data for field ${field}:`, {
+                            dataLength: value.data.length,
+                            dataPreview: `${value.data.substring(0, 50)}...`,
+                            filename: value.filename,
+                            mimeType: value.mimeType,
+                            sourceFilePath: value.sourceFilePath
+                        });
+                    }
+                }
+            }
+            
+            console.log(`Sending request ${message.requestId}:`, JSON.stringify({
+                ...message,
+                parameters: message.parameters ? {
+                    ...message.parameters,
+                    data: message.parameters.data ? 
+                        Object.fromEntries(
+                            Object.entries(message.parameters.data).map(([k, v]) => 
+                                typeof v === 'object' && v && v.data ? 
+                                [k, {...v, data: `[base64 data, length: ${v.data ? v.data.length : 0}]`}] : 
+                                [k, v]
+                            )
+                        ) : 
+                        message.parameters.data
+                } : null
+            }, null, 2));
+            
             const requestId = message.requestId;
             const responseHandler = (response) => {
                 if (response.requestId === requestId) {
@@ -1043,13 +1074,20 @@ export class WindowForm {
                     // Process file field if needed (containing tempFile property)
                     if (fieldValue && typeof fieldValue === 'object' && fieldValue.tempFile) {
                         console.log(`Processing file field ${changedField} for saving...`);
+                        console.log(`Original fieldValue:`, fieldValue);
                         fieldValue = await this._processFileForSave(fieldValue);
+                        console.log(`Processed fieldValue:`, {
+                            ...fieldValue,
+                            data: fieldValue.data ? `${fieldValue.data.length} characters` : 'none'
+                        });
                     }
                     
                     const changedData = { [changedField]: fieldValue };
                     console.log(`Preparing update operation for field ${changedField}:`, {
                         field: changedField,
-                        value: fieldValue,
+                        valueType: typeof fieldValue,
+                        isObject: typeof fieldValue === 'object',
+                        objectKeys: typeof fieldValue === 'object' ? Object.keys(fieldValue) : [],
                         recordId: recordId,
                         dataToSend: changedData
                     });
@@ -2388,6 +2426,12 @@ export class WindowForm {
      * @private
      */
     _processFileForSave(fileValue) {
+        console.log('_processFileForSave called with:', {
+            hasFileValue: !!fileValue,
+            hasTempFile: fileValue && !!fileValue.tempFile,
+            fileValueKeys: fileValue ? Object.keys(fileValue) : []
+        });
+        
         return new Promise((resolve, reject) => {
             if (!fileValue || !fileValue.tempFile) {
                 console.warn('No file to process:', fileValue);
@@ -2395,22 +2439,39 @@ export class WindowForm {
             }
             
             const file = fileValue.tempFile;
+            console.log('Processing file:', {
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                lastModified: file.lastModified
+            });
+            
             const reader = new FileReader();
             
             reader.onload = function(event) {
                 try {
                     // Convert the file to base64
                     const base64Data = event.target.result;
+                    console.log(`File read complete, data length: ${base64Data.length}`);
+                    console.log(`Data preview: ${base64Data.substring(0, 100)}...`);
+                    
                     // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
-                    const base64Content = base64Data.split(',')[1];
+                    const parts = base64Data.split(',');
+                    console.log(`Data URL prefix: ${parts[0]}`);
+                    const base64Content = parts[1];
+                    console.log(`Base64 content length: ${base64Content.length}`);
                     
                     const fileData = {
                         filename: file.name,
                         mimeType: file.type,
                         size: file.size,
-                        data: base64Content,
+                        data: base64Content,            // Include the base64 data for both field types
+                        sourceFilePath: file.name,      // Include sourceFilePath for FileDiskField
                         uploadDate: new Date().toISOString()
                     };
+                    
+                    console.log('Prepared file data with properties:', Object.keys(fileData));
+                    console.log(`Data length: ${fileData.data.length} characters`);
                     
                     console.log(`File processed successfully: ${file.name} (${file.type}, ${file.size} bytes)`);
                     resolve(fileData);
@@ -2425,6 +2486,7 @@ export class WindowForm {
                 reject(error);
             };
             
+            console.log('Starting file read as DataURL');
             reader.readAsDataURL(file);
         });
     }
