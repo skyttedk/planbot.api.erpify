@@ -20,7 +20,9 @@ export const fieldPaths = {
     PasswordField: './PasswordField.js',
     BooleanField: './BooleanField.js',
     EnumField: './EnumField.js',
-    CountryField: './CountryField.js'
+    CountryField: './CountryField.js',
+    FileBlobField: './FileBlobField.js',
+    FileDiskField: './FileDiskField.js'
 };
 
 // Dynamically import each module based on the above configuration.

@@ -1036,86 +1036,107 @@ export class WindowForm {
                     return;
                 }
                 
-                const changedData = { [changedField]: this.record[changedField] };
-                console.log(`Preparing update operation for field ${changedField}:`, {
-                    field: changedField,
-                    value: this.record[changedField],
-                    recordId: recordId,
-                    dataToSend: changedData
-                });
-
-                // Additional validation to ensure we have a valid ID for updating
-                if (!recordId || recordId === 0 || recordId === '0' || recordId === 'undefined') {
-                    console.error('Cannot update record: Invalid record ID', {
-                        recordId,
-                        recordIdType: typeof recordId,
-                        fullRecord: this.record
-                    });
-                    if (statusDiv) {
-                        statusDiv.textContent = 'Error: Invalid record ID for update';
-                        statusDiv.className = 'error';
-                        setTimeout(() => {
-                            statusDiv.textContent = '';
-                            statusDiv.className = '';
-                        }, 3000);
-                    }
-                    return;
-                }
-
-                const requestId = `req-update-${modelName}-${Date.now()}`;
-                
-                // Ensure we're using the correct format for the update operation
-                const message = {
-                    type: 'model',
-                    name: modelName,
-                    action: 'update',
-                    parameters: { 
-                        id: recordId,  // ID passed separately to identify the record to update
-                        data: changedData 
-                    },
-                    requestId
-                };
-                
-                console.log('Sending update request:', JSON.stringify(message));
-
                 try {
-                    console.log(`Awaiting response from update request ${requestId}...`);
-                    const response = await this._sendRequest(message);
-                    console.log(`Update response received for ${requestId}:`, response);
+                    // Get the field value
+                    let fieldValue = this.record[changedField];
                     
-                    if (response.success) {
+                    // Process file field if needed (containing tempFile property)
+                    if (fieldValue && typeof fieldValue === 'object' && fieldValue.tempFile) {
+                        console.log(`Processing file field ${changedField} for saving...`);
+                        fieldValue = await this._processFileForSave(fieldValue);
+                    }
+                    
+                    const changedData = { [changedField]: fieldValue };
+                    console.log(`Preparing update operation for field ${changedField}:`, {
+                        field: changedField,
+                        value: fieldValue,
+                        recordId: recordId,
+                        dataToSend: changedData
+                    });
+                
+                    // Additional validation to ensure we have a valid ID for updating
+                    if (!recordId || recordId === 0 || recordId === '0' || recordId === 'undefined') {
+                        console.error('Cannot update record: Invalid record ID', {
+                            recordId,
+                            recordIdType: typeof recordId,
+                            fullRecord: this.record
+                        });
                         if (statusDiv) {
-                            statusDiv.textContent = 'Saved';
-                            statusDiv.className = 'success';
+                            statusDiv.textContent = 'Error: Invalid record ID for update';
+                            statusDiv.className = 'error';
                             setTimeout(() => {
                                 statusDiv.textContent = '';
                                 statusDiv.className = '';
-                            }, 1500);
+                            }, 3000);
                         }
-                        if (response.result) {
-                            console.log(`Response for ${changedField} update:`, response.result);
-                            Object.assign(this.record, response.result);
-                            this._updateFormFields();
-                            this._updateRecordIndicator();
-                        }
-                    } else {
-                        console.error('Error updating record:', response.error);
-                        if (statusDiv) {
-                            statusDiv.textContent = `Error: ${response.error || 'Save failed'}`;
-                            statusDiv.className = 'error';
-                        } else {
-                            this._showFormError(`Error: ${response.error || 'Save failed'}`);
-                        }
-                        this.dirtyFields.add(changedField);
-                        setTimeout(() => {
+                        return;
+                    }
+
+                    const requestId = `req-update-${modelName}-${Date.now()}`;
+                    
+                    // Ensure we're using the correct format for the update operation
+                    const message = {
+                        type: 'model',
+                        name: modelName,
+                        action: 'update',
+                        parameters: { 
+                            id: recordId,  // ID passed separately to identify the record to update
+                            data: changedData 
+                        },
+                        requestId
+                    };
+                    
+                    console.log('Sending update request:', JSON.stringify(message));
+
+                    try {
+                        console.log(`Awaiting response from update request ${requestId}...`);
+                        const response = await this._sendRequest(message);
+                        console.log(`Update response received for ${requestId}:`, response);
+                        
+                        if (response.success) {
                             if (statusDiv) {
+                                statusDiv.textContent = 'Saved';
+                                statusDiv.className = 'success';
+                                setTimeout(() => {
+                                    statusDiv.textContent = '';
+                                    statusDiv.className = '';
+                                }, 1500);
+                            }
+                            if (response.result) {
+                                console.log(`Response for ${changedField} update:`, response.result);
+                                Object.assign(this.record, response.result);
+                                this._updateFormFields();
+                                this._updateRecordIndicator();
+                            }
+                        } else {
+                            console.error('Error updating record:', response.error);
+                            if (statusDiv) {
+                                statusDiv.textContent = `Error: ${response.error || 'Save failed'}`;
+                                statusDiv.className = 'error';
+                            } else {
+                                this._showFormError(`Error: ${response.error || 'Save failed'}`);
+                            }
+                            this.dirtyFields.add(changedField);
+                            setTimeout(() => {
+                                if (statusDiv) {
+                                    statusDiv.textContent = '';
+                                    statusDiv.className = '';
+                                }
+                            }, 3000);
+                        }
+                    } catch (error) {
+                        console.error('Update operation failed with error:', error);
+                        if (statusDiv) {
+                            statusDiv.textContent = 'Save operation timed out';
+                            statusDiv.className = 'error';
+                            setTimeout(() => {
                                 statusDiv.textContent = '';
                                 statusDiv.className = '';
-                            }
-                        }, 3000);
+                            }, 3000);
+                        }
                     }
                 } catch (error) {
-                    console.error('Update operation failed with error:', error);
+                    console.error('Error in update process:', error);
                     if (statusDiv) {
                         statusDiv.textContent = 'Save operation timed out';
                         statusDiv.className = 'error';
@@ -2316,5 +2337,95 @@ export class WindowForm {
             console.error('Error in delete process:', error);
             this._showFormError(`Error: ${error.message || 'Failed to delete record'}`);
         }
+    }
+
+    /**
+     * Process a file field for saving, converting to appropriate format
+     * @param {Object} value - The file field value with tempFile object
+     * @returns {Promise<Object|string>} - Processed file object or path
+     * @private
+     */
+    async _processFileForSave(value) {
+        if (!value || !value.tempFile || !(value.tempFile instanceof File)) {
+            return value; // Return as is if not a valid file object
+        }
+        
+        // Read the file as base64
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            
+            reader.onload = () => {
+                try {
+                    // Create file data object with base64 content
+                    const fileData = {
+                        filename: value.filename,
+                        mimeType: value.mimeType,
+                        size: value.size,
+                        data: reader.result.split(',')[1], // Remove data URL prefix
+                        uploadDate: new Date().toISOString()
+                    };
+                    
+                    // Resolve with processed file data
+                    resolve(fileData);
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            
+            reader.onerror = () => {
+                reject(new Error('Failed to read file'));
+            };
+            
+            // Read as data URL (base64)
+            reader.readAsDataURL(value.tempFile);
+        });
+    }
+
+    /**
+     * Process a file field value for saving to the server
+     * @param {Object} fileValue - The file field value containing tempFile
+     * @returns {Promise<Object>} - The processed file data
+     * @private
+     */
+    _processFileForSave(fileValue) {
+        return new Promise((resolve, reject) => {
+            if (!fileValue || !fileValue.tempFile) {
+                console.warn('No file to process:', fileValue);
+                return resolve(fileValue);
+            }
+            
+            const file = fileValue.tempFile;
+            const reader = new FileReader();
+            
+            reader.onload = function(event) {
+                try {
+                    // Convert the file to base64
+                    const base64Data = event.target.result;
+                    // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
+                    const base64Content = base64Data.split(',')[1];
+                    
+                    const fileData = {
+                        filename: file.name,
+                        mimeType: file.type,
+                        size: file.size,
+                        data: base64Content,
+                        uploadDate: new Date().toISOString()
+                    };
+                    
+                    console.log(`File processed successfully: ${file.name} (${file.type}, ${file.size} bytes)`);
+                    resolve(fileData);
+                } catch (err) {
+                    console.error('Error processing file data:', err);
+                    reject(err);
+                }
+            };
+            
+            reader.onerror = function(error) {
+                console.error('Error reading file:', error);
+                reject(error);
+            };
+            
+            reader.readAsDataURL(file);
+        });
     }
 }

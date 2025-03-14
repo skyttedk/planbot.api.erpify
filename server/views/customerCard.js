@@ -66,7 +66,18 @@ export const customerCardForm = {
             {
                 "caption": "Additional Information",
                 "fields": [
-
+                    {
+                        "name": "logo",
+                        "caption": "Company Logo",
+                        "editable": true,
+                        "fieldType": "file"
+                    },
+                    {
+                        "name": "documentation",
+                        "caption": "Customer Documentation",
+                        "editable": true,
+                        "fieldType": "file"
+                    }
                 ]
             }
         ]

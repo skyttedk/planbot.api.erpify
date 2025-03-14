@@ -261,6 +261,89 @@ class BindableInput extends HTMLElement {
       } else if (inputType === "select" || inputType === "enum") {
         element = document.createElement("select");
         this._populateSelectOptions(element);
+      } else if (inputType === "file") {
+        // Create a container for the file input
+        const container = document.createElement("div");
+        container.className = "file-upload-container";
+        container.style.width = "100%";
+        
+        // Create a wrapper for styling
+        const wrapper = document.createElement("div");
+        wrapper.className = "file-upload-wrapper";
+        wrapper.style.display = "flex";
+        wrapper.style.flexDirection = "column";
+        wrapper.style.width = "100%";
+        wrapper.style.border = "1px dashed #ccc";
+        wrapper.style.borderRadius = "4px";
+        wrapper.style.padding = "10px";
+        
+        // Create the actual file input element
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.className = "file-input";
+        fileInput.style.display = "none"; // Hide the native input
+        
+        // Create preview area
+        const previewArea = document.createElement("div");
+        previewArea.className = "file-preview";
+        previewArea.style.minHeight = "60px";
+        previewArea.style.display = "flex";
+        previewArea.style.alignItems = "center";
+        previewArea.style.justifyContent = "center";
+        previewArea.style.padding = "10px";
+        previewArea.style.backgroundColor = "#f9f9f9";
+        previewArea.style.borderRadius = "2px";
+        previewArea.style.marginBottom = "10px";
+        
+        // Display placeholder initially
+        const placeholderText = document.createElement("span");
+        placeholderText.textContent = "No file selected";
+        placeholderText.style.color = "#999";
+        previewArea.appendChild(placeholderText);
+        
+        // Create custom button for selecting files
+        const selectButton = document.createElement("button");
+        selectButton.type = "button";
+        selectButton.className = "file-select-button";
+        selectButton.textContent = "Select File";
+        selectButton.style.backgroundColor = "#f0f0f0";
+        selectButton.style.border = "1px solid #ddd";
+        selectButton.style.borderRadius = "4px";
+        selectButton.style.padding = "6px 12px";
+        selectButton.style.cursor = "pointer";
+        selectButton.style.fontSize = "12px";
+        selectButton.style.alignSelf = "flex-start";
+        
+        // Event handling
+        selectButton.addEventListener("click", () => {
+          fileInput.click(); // Trigger native file dialog
+        });
+        
+        fileInput.addEventListener("change", (e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            this._handleFileSelected(file, previewArea, placeholderText);
+          } else {
+            // Reset preview if file selection canceled
+            this._resetFilePreview(previewArea, placeholderText);
+          }
+        });
+        
+        // Add drag and drop support
+        this._setupDragAndDrop(wrapper, previewArea, placeholderText, fileInput);
+        
+        // Assemble elements
+        wrapper.appendChild(previewArea);
+        wrapper.appendChild(selectButton);
+        container.appendChild(fileInput);
+        container.appendChild(wrapper);
+        
+        // Store references for later
+        this._fileInput = fileInput;
+        this._filePreviewArea = previewArea;
+        
+        // Return the container instead of the input element
+        return container;
       } else if (inputType === "lookup") {
         // Create a container for the lookup input
         const container = document.createElement("div");
@@ -588,8 +671,6 @@ class BindableInput extends HTMLElement {
         const inputType = this.getAttribute("type") || "text";
         const currentValue = this._getValueFromPath(this._record, this._field);
         
-
-        
         if (["checkbox", "radio"].includes(inputType)) {
           const newChecked = !!currentValue;
           if (this.inputElement.checked !== newChecked) {
@@ -633,6 +714,33 @@ class BindableInput extends HTMLElement {
               this._lookupDropdown.style.display = "none";
             }
           }
+        } else if (inputType === "file") {
+          // For file fields, we need to update the file preview with stored file information
+          if (currentValue && (currentValue.filename || currentValue.path)) {
+            console.log(`Displaying file preview for ${this._field}:`, currentValue);
+            
+            // Create a mock file object for display purposes
+            const mockFile = {
+              name: currentValue.filename || currentValue.path?.split('/').pop() || 'Unknown file',
+              type: currentValue.mimeType || this._getMimeTypeFromFilename(currentValue.filename || currentValue.path),
+              size: currentValue.size || 0
+            };
+            
+            // If preview elements exist, update them
+            if (this._filePreviewArea) {
+              const placeholderText = this._filePreviewArea.querySelector('span') || document.createElement('span');
+              this._resetFilePreview(this._filePreviewArea, placeholderText);
+              this._displayStoredFile(mockFile, currentValue, this._filePreviewArea, placeholderText);
+            }
+          } else {
+            // If no file data, ensure preview area is reset
+            if (this._filePreviewArea) {
+              const placeholderText = this._filePreviewArea.querySelector('span') || document.createElement('span');
+              placeholderText.textContent = "No file selected";
+              placeholderText.style.color = "#999";
+              this._resetFilePreview(this._filePreviewArea, placeholderText);
+            }
+          }
         } else {
           const newValue = currentValue != null ? String(currentValue) : "";
           if (this.inputElement.value !== newValue) {
@@ -674,6 +782,28 @@ class BindableInput extends HTMLElement {
             value = null;
           }
           console.log(`Lookup value for ${this._field}: ${value}`);
+        } else if (inputType === "file") {
+          // For file uploads, prepare file information
+          if (this._selectedFile) {
+            // Create an object with file metadata
+            value = {
+              sourceFilePath: this._selectedFile.name, // This serves as a flag for the server
+              tempFile: this._selectedFile,            // Actual file object for uploads
+              filename: this._selectedFile.name,
+              mimeType: this._selectedFile.type,
+              size: this._selectedFile.size,
+              lastModified: this._selectedFile.lastModified
+            };
+            
+            console.log(`File value for ${this._field}:`, {
+              filename: value.filename,
+              mimeType: value.mimeType,
+              size: value.size
+            });
+          } else {
+            value = null;
+            console.log(`No file selected for ${this._field}`);
+          }
         } else {
           value = this.inputElement.value;
           if (inputType === "number") {
@@ -1058,6 +1188,378 @@ class BindableInput extends HTMLElement {
         noResults.style.fontSize = "var(--input-font-size, 10px)";
         this._lookupDropdown.appendChild(noResults);
       }
+    }
+  
+    /**
+     * Handles a file being selected via the file input
+     * @param {File} file - The selected file object
+     * @param {HTMLElement} previewArea - The element for file preview
+     * @param {HTMLElement} placeholderText - The placeholder text element to hide/show
+     * @private
+     */
+    _handleFileSelected(file, previewArea, placeholderText) {
+      // Clear previous preview
+      previewArea.innerHTML = '';
+      
+      // Create file info display
+      const fileInfo = document.createElement('div');
+      fileInfo.className = 'file-info';
+      fileInfo.style.display = 'flex';
+      fileInfo.style.alignItems = 'center';
+      fileInfo.style.width = '100%';
+      
+      // Determine file type and show appropriate preview
+      const fileType = file.type;
+      
+      // File icon based on type
+      const fileIcon = document.createElement('div');
+      fileIcon.className = 'file-icon';
+      fileIcon.style.marginRight = '10px';
+      fileIcon.style.fontSize = '24px';
+      
+      // Choose icon based on file type
+      if (fileType.startsWith('image/')) {
+        // For images, create an actual thumbnail
+        fileIcon.innerHTML = '🖼️';
+        
+        // Create image preview if it's an image
+        const imgPreview = document.createElement('img');
+        imgPreview.style.maxHeight = '50px';
+        imgPreview.style.maxWidth = '50px';
+        imgPreview.style.objectFit = 'contain';
+        imgPreview.style.marginRight = '10px';
+        
+        // Read file as data URL
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          imgPreview.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+        
+        fileInfo.appendChild(imgPreview);
+      } else if (fileType === 'application/pdf') {
+        fileIcon.innerHTML = '📄';
+        fileInfo.appendChild(fileIcon);
+      } else if (fileType.includes('word') || fileType === 'application/msword') {
+        fileIcon.innerHTML = '📝';
+        fileInfo.appendChild(fileIcon);
+      } else if (fileType.includes('excel') || fileType === 'application/vnd.ms-excel') {
+        fileIcon.innerHTML = '📊';
+        fileInfo.appendChild(fileIcon);
+      } else if (fileType.includes('zip') || fileType.includes('compressed')) {
+        fileIcon.innerHTML = '🗜️';
+        fileInfo.appendChild(fileIcon);
+      } else {
+        fileIcon.innerHTML = '📁';
+        fileInfo.appendChild(fileIcon);
+      }
+      
+      // File name and size
+      const fileDetails = document.createElement('div');
+      fileDetails.className = 'file-details';
+      fileDetails.style.overflow = 'hidden';
+      fileDetails.style.textOverflow = 'ellipsis';
+      fileDetails.style.flexGrow = '1';
+      
+      const fileName = document.createElement('div');
+      fileName.className = 'file-name';
+      fileName.textContent = file.name;
+      fileName.style.fontWeight = 'bold';
+      fileName.style.fontSize = '12px';
+      
+      const fileSize = document.createElement('div');
+      fileSize.className = 'file-size';
+      fileSize.textContent = this._formatFileSize(file.size);
+      fileSize.style.fontSize = '10px';
+      fileSize.style.color = '#777';
+      
+      fileDetails.appendChild(fileName);
+      fileDetails.appendChild(fileSize);
+      fileInfo.appendChild(fileDetails);
+      
+      // Remove button
+      const removeButton = document.createElement('button');
+      removeButton.type = 'button';
+      removeButton.className = 'file-remove-button';
+      removeButton.innerHTML = '×';
+      removeButton.style.border = 'none';
+      removeButton.style.background = 'none';
+      removeButton.style.fontSize = '16px';
+      removeButton.style.cursor = 'pointer';
+      removeButton.style.color = '#999';
+      removeButton.style.marginLeft = '5px';
+      removeButton.title = 'Remove file';
+      
+      removeButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._resetFilePreview(previewArea, placeholderText);
+        
+        // Reset the file input
+        if (this._fileInput) {
+          this._fileInput.value = '';
+        }
+        
+        // Update the record
+        this.onInput();
+      });
+      
+      fileInfo.appendChild(removeButton);
+      previewArea.appendChild(fileInfo);
+      
+      // Store the file in the component's state
+      this._selectedFile = file;
+      
+      // Trigger input event to update the record
+      this.onInput();
+    }
+    
+    /**
+     * Resets the file preview area to its initial state
+     * @param {HTMLElement} previewArea - The element for file preview
+     * @param {HTMLElement} placeholderText - The placeholder text element to show
+     * @private
+     */
+    _resetFilePreview(previewArea, placeholderText) {
+      previewArea.innerHTML = '';
+      previewArea.appendChild(placeholderText);
+      this._selectedFile = null;
+    }
+    
+    /**
+     * Sets up drag and drop functionality for file uploads
+     * @param {HTMLElement} dropZone - The element to enable as a drop zone
+     * @param {HTMLElement} previewArea - The element for file preview
+     * @param {HTMLElement} placeholderText - The placeholder text element
+     * @param {HTMLInputElement} fileInput - The hidden file input element
+     * @private
+     */
+    _setupDragAndDrop(dropZone, previewArea, placeholderText, fileInput) {
+      const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.style.borderColor = '#3F7FE4';
+        dropZone.style.backgroundColor = '#F0F7FF';
+      };
+      
+      const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.style.borderColor = '#ccc';
+        dropZone.style.backgroundColor = '';
+      };
+      
+      const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        dropZone.style.borderColor = '#ccc';
+        dropZone.style.backgroundColor = '';
+        
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        if (files.length) {
+          fileInput.files = files;
+          this._handleFileSelected(files[0], previewArea, placeholderText);
+        }
+      };
+      
+      dropZone.addEventListener('dragover', handleDragOver);
+      dropZone.addEventListener('dragleave', handleDragLeave);
+      dropZone.addEventListener('drop', handleDrop);
+    }
+    
+    /**
+     * Formats file size in bytes to a human-readable format
+     * @param {number} bytes - File size in bytes
+     * @returns {string} Formatted file size
+     * @private
+     */
+    _formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    /**
+     * Displays a preview of a stored file (from server)
+     * @param {Object} fileInfo - Basic file info (name, type, size)
+     * @param {Object} storedFile - The file data from the server
+     * @param {HTMLElement} previewArea - The element for file preview
+     * @param {HTMLElement} placeholderText - The placeholder text element to hide
+     * @private
+     */
+    _displayStoredFile(fileInfo, storedFile, previewArea, placeholderText) {
+      // Clear previous preview
+      previewArea.innerHTML = '';
+      
+      // Create file info display
+      const fileInfo$ = document.createElement('div');
+      fileInfo$.className = 'file-info';
+      fileInfo$.style.display = 'flex';
+      fileInfo$.style.alignItems = 'center';
+      fileInfo$.style.width = '100%';
+      
+      // Determine file type and show appropriate preview
+      const fileType = fileInfo.type;
+      
+      // Add visual file indicator
+      const fileIcon = document.createElement('div');
+      fileIcon.className = 'file-icon';
+      fileIcon.style.marginRight = '10px';
+      fileIcon.style.fontSize = '24px';
+      
+      // Choose icon based on file type
+      if (fileType && fileType.startsWith('image/')) {
+        // For images, display icon or actual image if available
+        fileIcon.innerHTML = '🖼️';
+        
+        // If we have a FileBlobField with data, we can show actual image preview
+        if (storedFile.data) {
+          try {
+            // Create image preview
+            const imgPreview = document.createElement('img');
+            imgPreview.style.maxHeight = '50px';
+            imgPreview.style.maxWidth = '50px';
+            imgPreview.style.objectFit = 'contain';
+            imgPreview.style.marginRight = '10px';
+            
+            // Set source using base64 data
+            imgPreview.src = `data:${fileType};base64,${storedFile.data}`;
+            
+            fileInfo$.appendChild(imgPreview);
+          } catch (err) {
+            console.warn('Could not display image preview:', err);
+            fileInfo$.appendChild(fileIcon);
+          }
+        } else if (storedFile.path) {
+          // For FileDiskField, we might have a path to the image
+          // but showing it would require server support for serving the files
+          fileInfo$.appendChild(fileIcon);
+        } else {
+          fileInfo$.appendChild(fileIcon);
+        }
+      } else if (fileType === 'application/pdf') {
+        fileIcon.innerHTML = '📄';
+        fileInfo$.appendChild(fileIcon);
+      } else if (fileType.includes('word') || fileType === 'application/msword') {
+        fileIcon.innerHTML = '📝';
+        fileInfo$.appendChild(fileIcon);
+      } else if (fileType.includes('excel') || fileType === 'application/vnd.ms-excel') {
+        fileIcon.innerHTML = '📊';
+        fileInfo$.appendChild(fileIcon);
+      } else if (fileType.includes('zip') || fileType.includes('compressed')) {
+        fileIcon.innerHTML = '🗜️';
+        fileInfo$.appendChild(fileIcon);
+      } else {
+        fileIcon.innerHTML = '📁';
+        fileInfo$.appendChild(fileIcon);
+      }
+      
+      // File name and size
+      const fileDetails = document.createElement('div');
+      fileDetails.className = 'file-details';
+      fileDetails.style.overflow = 'hidden';
+      fileDetails.style.textOverflow = 'ellipsis';
+      fileDetails.style.flexGrow = '1';
+      
+      const fileName = document.createElement('div');
+      fileName.className = 'file-name';
+      fileName.textContent = fileInfo.name;
+      fileName.style.fontWeight = 'bold';
+      fileName.style.fontSize = '12px';
+      
+      const fileSize = document.createElement('div');
+      fileSize.className = 'file-size';
+      fileSize.textContent = this._formatFileSize(fileInfo.size);
+      fileSize.style.fontSize = '10px';
+      fileSize.style.color = '#777';
+      
+      fileDetails.appendChild(fileName);
+      fileDetails.appendChild(fileSize);
+      fileInfo$.appendChild(fileDetails);
+      
+      // Remove button (allows clearing the field)
+      const removeButton = document.createElement('button');
+      removeButton.type = 'button';
+      removeButton.className = 'file-remove-button';
+      removeButton.innerHTML = '×';
+      removeButton.style.border = 'none';
+      removeButton.style.background = 'none';
+      removeButton.style.fontSize = '16px';
+      removeButton.style.cursor = 'pointer';
+      removeButton.style.color = '#999';
+      removeButton.style.marginLeft = '5px';
+      removeButton.title = 'Remove file';
+      
+      removeButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._resetFilePreview(previewArea, placeholderText);
+        
+        // Reset the file input
+        if (this._fileInput) {
+          this._fileInput.value = '';
+        }
+        
+        // Set value to null to clear the field
+        this._selectedFile = null;
+        
+        // Update the record
+        this.onInput();
+      });
+      
+      fileInfo$.appendChild(removeButton);
+      previewArea.appendChild(fileInfo$);
+    }
+    
+    /**
+     * Attempts to determine MIME type from a filename
+     * @param {string} filename - The filename to analyze
+     * @returns {string} A best-guess MIME type
+     * @private
+     */
+    _getMimeTypeFromFilename(filename) {
+      if (!filename) return 'application/octet-stream';
+      
+      const extension = filename.split('.').pop().toLowerCase();
+      
+      const mimeTypes = {
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'gif': 'image/gif',
+        'webp': 'image/webp',
+        'svg': 'image/svg+xml',
+        'pdf': 'application/pdf',
+        'doc': 'application/msword',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls': 'application/vnd.ms-excel',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'ppt': 'application/vnd.ms-powerpoint',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'txt': 'text/plain',
+        'csv': 'text/csv',
+        'html': 'text/html',
+        'css': 'text/css',
+        'js': 'text/javascript',
+        'json': 'application/json',
+        'xml': 'application/xml',
+        'zip': 'application/zip',
+        'rar': 'application/x-rar-compressed',
+        'tar': 'application/x-tar',
+        'gz': 'application/gzip',
+        'mp3': 'audio/mpeg',
+        'mp4': 'video/mp4',
+        'avi': 'video/x-msvideo',
+        'mov': 'video/quicktime',
+        'wav': 'audio/wav'
+      };
+      
+      return mimeTypes[extension] || 'application/octet-stream';
     }
   }
   

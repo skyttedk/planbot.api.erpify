@@ -27,6 +27,17 @@ class Customer extends Model {
             default: 'Prefer not to say',
             caseSensitive: false
         }),
+        logo: new fields.FileBlobField({
+            caption: 'Company Logo',
+            allowedMimeTypes: ['image/jpeg', 'image/png', 'image/gif'],
+            maxSizeBytes: 2 * 1024 * 1024 // 2MB limit for database storage
+        }),
+        documentation: new fields.FileDiskField({
+            caption: 'Customer Documentation',
+            allowedMimeTypes: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+            maxSizeBytes: 10 * 1024 * 1024, // 10MB limit for disk storage
+            preserveFilename: true
+        }),
     };
 
     // Optionally add renameMap, indexes, etc.
