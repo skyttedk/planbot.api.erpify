@@ -57,6 +57,16 @@ const server = http.createServer((req, res) => {
     fs.stat(filePath, (err, stats) => {
       if (err || !stats.isFile()) {
         console.error(`File not found: ${filePath}`, err ? err.message : 'Not a file');
+        
+        // Log all files in the uploads directory to help debug
+        fs.readdir(UPLOADS_DIR, (dirErr, files) => {
+          if (!dirErr) {
+            console.log(`Files available in ${UPLOADS_DIR}:`, files);
+          } else {
+            console.error(`Error reading uploads directory: ${dirErr.message}`);
+          }
+        });
+        
         res.writeHead(404, {
           'Content-Type': 'text/plain',
           // Add CORS headers
@@ -104,8 +114,10 @@ const server = http.createServer((req, res) => {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET',
         'Access-Control-Allow-Headers': 'Content-Type',
-        // Add cache control
-        'Cache-Control': 'max-age=3600'
+        // Add cache control - set to no-cache for debugging
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
       });
       
       // Stream the file to the response

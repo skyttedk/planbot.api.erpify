@@ -667,143 +667,129 @@ class BindableInput extends HTMLElement {
   
     updateValue() {
       if (!this._record || !this._field || !this.inputElement) return;
-      try {
-        const inputType = this.getAttribute("type") || "text";
-        const currentValue = this._getValueFromPath(this._record, this._field);
+      
+      const currentValue = this._record[this._field];
+      const inputType = this.getAttribute('type') || 'text';
+      
+      // Handle different input types
+      if (inputType === "checkbox") {
+        this.inputElement.checked = !!currentValue;
+      } else if (inputType === "radio") {
+        this.inputElement.checked = currentValue === this.inputElement.value;
+      } else if (inputType === "select" || inputType === "enum") {
+        // For select elements, we need to find the option with the matching value
+        const options = this.inputElement.options;
+        let valueFound = false;
         
-        if (["checkbox", "radio"].includes(inputType)) {
-          const newChecked = !!currentValue;
-          if (this.inputElement.checked !== newChecked) {
-            this.inputElement.checked = newChecked;
-          }
-        } else if (["select", "enum"].includes(inputType)) {
-          // For select and enum fields, handle null values gracefully
-          const newValue = currentValue != null ? String(currentValue) : "";
-          if (this.inputElement.value !== newValue) {
-            this.inputElement.value = newValue;
-          }
-        } else if (inputType === "lookup") {
-          // For lookup fields, we need to handle the display value and the actual value
-          if (this._lookupInput) {
-            // If we have stored lookup options, find the matching option
-            if (this._lookupOptions && Array.isArray(this._lookupOptions) && this._lookupOptions.length > 0) {
-              const matchingOption = this._lookupOptions.find(opt => 
-                opt.id == currentValue || opt.value == currentValue
-              );
-              
-              if (matchingOption) {
-                console.log(`Found matching option for ${this._field}:`, matchingOption);
-                this._lookupInput.value = matchingOption.name || matchingOption.label || matchingOption.toString();
-                this._lookupInput.dataset.value = matchingOption.id !== undefined ? matchingOption.id : 
-                                                (matchingOption.value !== undefined ? matchingOption.value : matchingOption);
-              } else {
-                console.log(`No matching option found for ${this._field} with value ${currentValue}`);
-                // If no matching option found, just show the ID/value
-                this._lookupInput.value = currentValue != null ? String(currentValue) : '';
-                this._lookupInput.dataset.value = currentValue != null ? String(currentValue) : '';
-              }
-            } else {
-              console.log(`No lookup options available for ${this._field}`);
-              // If no options available yet, just show the ID/value
-              this._lookupInput.value = currentValue != null ? String(currentValue) : '';
-              this._lookupInput.dataset.value = currentValue != null ? String(currentValue) : '';
-            }
-            
-            // Ensure dropdown is hidden when updating value
-            if (this._lookupDropdown) {
-              this._lookupDropdown.style.display = "none";
-            }
-          }
-        } else if (inputType === "file") {
-          // For file fields, we need to update the file preview with stored file information
-          if (currentValue) {
-            console.log(`Displaying file for ${this._field}:`, currentValue);
-            
-            // Normalize file metadata to ensure all expected fields are present
-            const fileMetadata = {
-              // Basic defaults
-              name: 'Unknown file',
-              size: 0,
-              type: 'application/octet-stream',
-              
-              // Override with any values from currentValue that exist
-              ...(typeof currentValue === 'object' ? currentValue : {})
-            };
-            
-            // If we only have a path string, extract filename from it
-            if (typeof currentValue === 'string') {
-              const pathParts = currentValue.split(/[/\\]/); // Split on both forward and backslashes
-              fileMetadata.name = pathParts[pathParts.length - 1] || 'Unknown file';
-              fileMetadata.path = currentValue;
-            }
-            
-            console.log('File metadata before normalization:', JSON.stringify(fileMetadata, null, 2));
-            
-            // Use sourceFilePath as name if available and name isn't set
-            if (!fileMetadata.name || fileMetadata.name === 'Unknown file') {
-              if (fileMetadata.sourceFilePath) {
-                fileMetadata.name = fileMetadata.sourceFilePath;
-              } else if (fileMetadata.filename) {
-                fileMetadata.name = fileMetadata.filename;
-              }
-            }
-            
-            // Priority for determining type: type > mimeType > extension lookup
-            if (!fileMetadata.type && fileMetadata.mimeType) {
-              fileMetadata.type = fileMetadata.mimeType;
-            }
-            
-            // For FileBlobField, ensure data field is preserved
-            if (fileMetadata.data) {
-              console.log(`File has base64 data (length: ${fileMetadata.data.length})`);
-            }
-            
-            console.log(`Normalized file metadata for ${this._field}:`, {
-              name: fileMetadata.name,
-              filename: fileMetadata.filename,
-              sourceFilePath: fileMetadata.sourceFilePath,
-              size: fileMetadata.size,
-              type: fileMetadata.type,
-              hasData: !!fileMetadata.data,
-              hasUrl: !!fileMetadata.url,
-              path: fileMetadata.path
-            });
-            
-            // Create mock file for display
-            const mockFile = {
-              name: fileMetadata.name,
-              type: fileMetadata.type || fileMetadata.mimeType || this._getMimeTypeFromFilename(fileMetadata.name),
-              size: fileMetadata.size || 0
-            };
-            
-            console.log('Created mockFile for display:', mockFile);
-            
-            // If preview elements exist, update them
-            if (this._filePreviewArea) {
-              const placeholderText = this._filePreviewArea.querySelector('span') || document.createElement('span');
-              this._resetFilePreview(this._filePreviewArea, placeholderText);
-              this._displayStoredFile(mockFile, fileMetadata, this._filePreviewArea, placeholderText);
-            }
-          } else {
-            // If no file data, ensure preview area is reset
-            if (this._filePreviewArea) {
-              const placeholderText = this._filePreviewArea.querySelector('span') || document.createElement('span');
-              placeholderText.textContent = "No file selected";
-              placeholderText.style.color = "#999";
-              this._resetFilePreview(this._filePreviewArea, placeholderText);
-            }
-          }
-        } else {
-          const newValue = currentValue != null ? String(currentValue) : "";
-          if (this.inputElement.value !== newValue) {
-            this.inputElement.value = newValue;
+        for (let i = 0; i < options.length; i++) {
+          if (options[i].value === String(currentValue)) {
+            this.inputElement.selectedIndex = i;
+            valueFound = true;
+            break;
           }
         }
-        this._updateFormValidity();
-      } catch (error) {
-        console.error(`Error updating value for field ${this._field}:`, error);
-        this._reportError(`Failed to update ${this._field}: ${error.message}`);
+        
+        // If no matching option was found, select the first option
+        if (!valueFound && options.length > 0) {
+          this.inputElement.selectedIndex = 0;
+        }
+      } else if (inputType === "file") {
+        // For file fields, we need to update the file preview with stored file information
+        if (currentValue) {
+          console.log(`Displaying file for ${this._field}:`, currentValue);
+          
+          // Normalize file metadata to ensure all expected fields are present
+          const fileMetadata = {
+            // Basic defaults
+            name: 'Unknown file',
+            size: 0,
+            type: 'application/octet-stream',
+            
+            // Override with any values from currentValue that exist
+            ...(typeof currentValue === 'object' ? currentValue : {})
+          };
+          
+          // If we only have a path string, extract filename from it
+          if (typeof currentValue === 'string') {
+            fileMetadata.path = currentValue;
+            // Extract filename from path
+            const pathParts = currentValue.split(/[/\\]/); // Split on both forward and backslashes
+            fileMetadata.name = pathParts[pathParts.length - 1] || 'Unknown file';
+            fileMetadata.filename = fileMetadata.name;
+            fileMetadata.sourceFilePath = fileMetadata.name;
+          }
+          
+          console.log('File metadata before normalization:', JSON.stringify(fileMetadata, null, 2));
+          
+          // Use sourceFilePath as name if available and name isn't set
+          if (!fileMetadata.name || fileMetadata.name === 'Unknown file') {
+            if (fileMetadata.sourceFilePath) {
+              fileMetadata.name = fileMetadata.sourceFilePath;
+            } else if (fileMetadata.filename) {
+              fileMetadata.name = fileMetadata.filename;
+            }
+          }
+          
+          // Priority for determining type: type > mimeType > extension lookup
+          if (!fileMetadata.type && fileMetadata.mimeType) {
+            fileMetadata.type = fileMetadata.mimeType;
+          }
+          
+          // If we don't have a URL but have a path, create a URL
+          if (!fileMetadata.url && fileMetadata.path) {
+            const filename = this._extractFilenameFromPath(fileMetadata.path);
+            fileMetadata.url = `/uploads/${filename}`;
+            console.log(`Generated URL from path: ${fileMetadata.url}`);
+          }
+          
+          // For FileBlobField, ensure data field is preserved
+          if (fileMetadata.data) {
+            console.log(`File has base64 data (length: ${fileMetadata.data.length})`);
+          }
+          
+          console.log(`Normalized file metadata for ${this._field}:`, {
+            name: fileMetadata.name,
+            filename: fileMetadata.filename,
+            sourceFilePath: fileMetadata.sourceFilePath,
+            size: fileMetadata.size,
+            type: fileMetadata.type,
+            hasData: !!fileMetadata.data,
+            hasUrl: !!fileMetadata.url,
+            path: fileMetadata.path,
+            url: fileMetadata.url
+          });
+          
+          // Create mock file for display
+          const mockFile = {
+            name: fileMetadata.name,
+            type: fileMetadata.type || fileMetadata.mimeType || this._getMimeTypeFromFilename(fileMetadata.name),
+            size: fileMetadata.size || 0
+          };
+          
+          console.log('Created mockFile for display:', mockFile);
+          
+          // If preview elements exist, update them
+          if (this._filePreviewArea) {
+            const placeholderText = this._filePreviewArea.querySelector('span') || document.createElement('span');
+            this._resetFilePreview(this._filePreviewArea, placeholderText);
+            this._displayStoredFile(mockFile, fileMetadata, this._filePreviewArea, placeholderText);
+          }
+        } else {
+          // If no file data, ensure preview area is reset
+          if (this._filePreviewArea) {
+            const placeholderText = this._filePreviewArea.querySelector('span') || document.createElement('span');
+            placeholderText.textContent = "No file selected";
+            placeholderText.style.color = "#999";
+            this._resetFilePreview(this._filePreviewArea, placeholderText);
+          }
+        }
+      } else {
+        const newValue = currentValue != null ? String(currentValue) : "";
+        if (this.inputElement.value !== newValue) {
+          this.inputElement.value = newValue;
+        }
       }
+      this._updateFormValidity();
     }
   
     onInput() {
@@ -1502,7 +1488,8 @@ class BindableInput extends HTMLElement {
         type: mockFile.type,
         size: mockFile.size,
         hasData: !!storedFile.data,
-        hasUrl: !!storedFile.url
+        hasUrl: !!storedFile.url,
+        url: storedFile.url
       });
       
       // Clear previous preview
@@ -1583,8 +1570,10 @@ class BindableInput extends HTMLElement {
         
         // 3. As a last resort, if we have a path and it's accessible, try to use it
         else if (storedFile.path) {
+          // Extract just the filename from the path, which may include UUID prefix
+          const filename = this._extractFilenameFromPath(storedFile.path);
           // Use path with origin to ensure absolute URL
-          previewSource = window.location.origin + '/uploads/' + this._extractFilenameFromPath(storedFile.path);
+          previewSource = window.location.origin + '/uploads/' + filename;
           console.log('Attempting to use path for image preview:', previewSource);
         }
         
@@ -1610,6 +1599,16 @@ class BindableInput extends HTMLElement {
           // Add error handler in case image doesn't load
           imgPreview.onerror = (err) => {
             console.warn('Image failed to load:', previewSource, err);
+            // Try a direct URL to the file as a last resort
+            if (storedFile.path && !previewSource.includes('data:')) {
+              const filename = this._extractFilenameFromPath(storedFile.path);
+              const fallbackUrl = window.location.origin + '/uploads/' + filename;
+              if (fallbackUrl !== previewSource) {
+                console.log('Trying fallback URL:', fallbackUrl);
+                imgPreview.src = fallbackUrl;
+                return; // Don't proceed with the error handling yet
+              }
+            }
             // The file icon is already in place, so we don't need to do anything else
           };
           
@@ -1705,52 +1704,6 @@ class BindableInput extends HTMLElement {
     }
     
     /**
-     * Attempts to determine MIME type from a filename
-     * @param {string} filename - The filename to analyze
-     * @returns {string} A best-guess MIME type
-     * @private
-     */
-    _getMimeTypeFromFilename(filename) {
-      if (!filename) return 'application/octet-stream';
-      
-      const extension = filename.split('.').pop().toLowerCase();
-      
-      const mimeTypes = {
-        'jpg': 'image/jpeg',
-        'jpeg': 'image/jpeg',
-        'png': 'image/png',
-        'gif': 'image/gif',
-        'webp': 'image/webp',
-        'svg': 'image/svg+xml',
-        'pdf': 'application/pdf',
-        'doc': 'application/msword',
-        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'xls': 'application/vnd.ms-excel',
-        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'ppt': 'application/vnd.ms-powerpoint',
-        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        'txt': 'text/plain',
-        'csv': 'text/csv',
-        'html': 'text/html',
-        'css': 'text/css',
-        'js': 'text/javascript',
-        'json': 'application/json',
-        'xml': 'application/xml',
-        'zip': 'application/zip',
-        'rar': 'application/x-rar-compressed',
-        'tar': 'application/x-tar',
-        'gz': 'application/gzip',
-        'mp3': 'audio/mpeg',
-        'mp4': 'video/mp4',
-        'avi': 'video/x-msvideo',
-        'mov': 'video/quicktime',
-        'wav': 'audio/wav'
-      };
-      
-      return mimeTypes[extension] || 'application/octet-stream';
-    }
-    
-    /**
      * Extracts filename from a path string
      * @param {string} filepath - Path string
      * @returns {string} Extracted filename
@@ -1762,6 +1715,36 @@ class BindableInput extends HTMLElement {
       // Split on both forward and backslashes
       const parts = filepath.split(/[\/\\]/);
       return parts[parts.length - 1] || '';
+    }
+    
+    /**
+     * Gets MIME type from a filename based on extension
+     * @param {string} filename - Filename to analyze
+     * @returns {string} MIME type
+     * @private
+     */
+    _getMimeTypeFromFilename(filename) {
+      if (!filename) return 'application/octet-stream';
+      
+      const extension = filename.split('.').pop().toLowerCase();
+      const mimeTypes = {
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'gif': 'image/gif',
+        'pdf': 'application/pdf',
+        'doc': 'application/msword',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls': 'application/vnd.ms-excel',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'txt': 'text/plain',
+        'csv': 'text/csv',
+        'json': 'application/json',
+        'xml': 'application/xml',
+        'zip': 'application/zip'
+      };
+      
+      return mimeTypes[extension] || 'application/octet-stream';
     }
   }
   
