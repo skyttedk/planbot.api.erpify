@@ -665,6 +665,8 @@ export class WindowForm {
         // Add a random attribute to avoid browser fingerprinting the form
         this.formElement.setAttribute('data-form-random', Math.random().toString(36).substring(2));
 
+        // Removed inline styles - now using external CSS in styles.css
+        
         const fieldMap = {};
         const groupMap = {};
 
@@ -687,6 +689,11 @@ export class WindowForm {
                 const groupDiv = document.createElement('div');
                 groupDiv.className = 'form-group';
                 if (field.fullWidth) groupDiv.classList.add('full-width');
+                
+                // Add required class for styling
+                if (field.required) {
+                    groupDiv.classList.add('required');
+                }
 
                 const label = document.createElement('label');
                 label.htmlFor = field.name;

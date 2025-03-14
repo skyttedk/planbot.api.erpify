@@ -420,10 +420,10 @@ form {
 }
 
 .form-section {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   background: #fff;
   border-radius: 6px;
-  padding: 10px;
+  padding: 8px;
   box-shadow: 0 4px 8px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.05);
 }
 
@@ -431,50 +431,93 @@ form {
   font-family: var(--font-headings);
   font-size: 12px;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--color-primary);
   border-bottom: 1px solid rgba(0,0,0,0.1);
-  padding-bottom: 4px;
+  padding-bottom: 3px;
 }
 
 .field-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 4px;
+  margin-bottom: 10px;
 }
 
 .form-group {
-  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 3px;
+  padding: 2px;
+  border-radius: 3px;
+  transition: background-color 0.2s;
+}
+
+.form-group:hover {
+  background-color: rgba(0, 0, 0, 0.03);
 }
 
 .form-group.full-width {
   grid-column: 1 / -1;
+  width: 100%;
 }
 
 .form-group label {
-  display: block;
-  margin-bottom: 3px;
-  font-family: var(--font-secondary);
-  font-size: 10px;
+  min-width: 120px;
+  width: 30%;
+  margin-right: 10px;
+  text-align: left;
+  font-size: 0.9em;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: #555;
+  padding-left: 2px;
   user-select: none;
 }
 
 .form-group bindable-input {
+  flex: 1;
+  min-width: 0; /* Fix for flexbox to allow truncation */
+}
+
+/* Additional spacing for checkbox fields */
+.form-group bindable-input[type="checkbox"] {
+  margin-left: 5px;
+  width: auto;
+}
+
+/* Styling for select/dropdown fields */
+.form-group bindable-input[type="select"],
+.form-group bindable-input[type="enum"],
+.form-group bindable-input[type="lookup"] {
   width: 100%;
-  display: block;
 }
 
 .form-group bindable-input::part(input),
 .form-group bindable-input::part(select),
 .form-group bindable-input::part(textarea) {
   width: 100%;
-  padding: 4px 6px;
+  padding: 3px 6px;
   font-size: 10px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 3px;
   transition: border-color 0.2s, box-shadow 0.2s;
+  background-color: #fff;
+}
+
+/* Override any default browser styling for inputs */
+.form-group bindable-input input,
+.form-group bindable-input select,
+.form-group bindable-input textarea {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  font-size: inherit !important;
+  outline: none !important;
 }
 
 .form-group bindable-input::part(input):focus,
@@ -482,7 +525,29 @@ form {
 .form-group bindable-input::part(textarea):focus {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(52,152,219,0.25);
+  box-shadow: 0 0 0 2px rgba(52,152,219,0.25);
+}
+
+/* Styling for required fields */
+.form-group.required label::after {
+  content: "*";
+  color: #e53935;
+  margin-left: 4px;
+}
+
+/* When screen gets too narrow, stack label above input */
+@media (max-width: 480px) {
+  .form-group {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .form-group label {
+    width: 100%;
+    text-align: left;
+    margin-right: 0;
+    margin-bottom: 3px;
+  }
 }
 
 button.submit-btn {
