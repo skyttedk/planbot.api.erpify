@@ -354,95 +354,125 @@ export default class Model {
    * @returns {Promise<Object>} The updated record.
    */
   static async update(id, data) {
-    // Convert id to the right type
-    if (typeof id === 'string' && !isNaN(parseInt(id))) {
-      id = parseInt(id);
-    }
+    console.log(`[Model:${this.tableName}] Update request received for ID:`, id, 'with data:', JSON.stringify(data));
     
-    // Skip the primary key from updates
-    const updateData = { ...data };
-    delete updateData[this.primaryKey];
-
-    // Get the existing record to run hooks
-    const existingRecord = await this.findById(id);
-    if (!existingRecord) {
-      throw new Error(`Record with ${this.primaryKey} = ${id} not found for update`);
-    }
-
-    // Run the onBeforeUpdate hook if it exists
-    if (typeof this.onBeforeUpdate === 'function') {
-      await this.onBeforeUpdate(existingRecord);
-    }
-
-    // Process fields with validation
-    const processedData = {};
-    const fields = this.fields || {};
-    const schema = this.getSchema();
-
-    for (const [key, value] of Object.entries(updateData)) {
+    try {
+      // Convert id to the right type
+      if (typeof id === 'string' && !isNaN(parseInt(id))) {
+        id = parseInt(id);
+        console.log(`[Model:${this.tableName}] Converted string ID to number:`, id);
+      }
+      
       // Skip the primary key from updates
-      if (key === this.primaryKey) continue;
-
-      console.log(`Processing field ${key} with value: ${JSON.stringify(value)}`);
-
-      // Process the field through onSet transformation
-      if (fields[key] && typeof fields[key].onSet === 'function') {
-        try {
-          // Handle async onSet methods
-          processedData[key] = await fields[key].onSet(value);
-          console.log(`After onSet, field ${key} value: ${JSON.stringify(processedData[key])}`);
-        } catch (error) {
-          console.error(`Error processing field ${key}:`, error);
-          throw error;
-        }
-      } else {
-        processedData[key] = value;
+      const updateData = { ...data };
+      delete updateData[this.primaryKey];
+      console.log(`[Model:${this.tableName}] UpdateData after removing primary key:`, JSON.stringify(updateData));
+  
+      // Get the existing record to run hooks
+      const existingRecord = await this.findById(id);
+      if (!existingRecord) {
+        console.error(`[Model:${this.tableName}] Record with ${this.primaryKey} = ${id} not found for update`);
+        throw new Error(`Record with ${this.primaryKey} = ${id} not found for update`);
       }
-
-      // Validate against the schema
-      if (schema[key] && typeof schema[key].validate === 'function') {
-        try {
-          schema[key].validate(processedData[key]);
-        } catch (error) {
-          throw new Error(`Validation failed for field '${key}' in table '${this.tableName}': ${error.message}`);
+      console.log(`[Model:${this.tableName}] Found existing record:`, JSON.stringify(existingRecord.data));
+  
+      // Run the onBeforeUpdate hook if it exists
+      if (typeof this.onBeforeUpdate === 'function') {
+        await this.onBeforeUpdate(existingRecord);
+      }
+  
+      // Process fields with validation
+      const processedData = {};
+      const fields = this.fields || {};
+      const schema = this.getSchema();
+  
+      for (const [key, value] of Object.entries(updateData)) {
+        // Skip the primary key from updates
+        if (key === this.primaryKey) continue;
+  
+        console.log(`Processing field ${key} with value: ${JSON.stringify(value)}`);
+  
+        // Process the field through onSet transformation
+        if (fields[key] && typeof fields[key].onSet === 'function') {
+          try {
+            // Handle async onSet methods
+            processedData[key] = await fields[key].onSet(value);
+            console.log(`After onSet, field ${key} value: ${JSON.stringify(processedData[key])}`);
+          } catch (error) {
+            console.error(`Error processing field ${key}:`, error);
+            throw error;
+          }
+        } else {
+          processedData[key] = value;
+        }
+  
+        // Validate against the schema
+        if (schema[key] && typeof schema[key].validate === 'function') {
+          try {
+            schema[key].validate(processedData[key]);
+          } catch (error) {
+            throw new Error(`Validation failed for field '${key}' in table '${this.tableName}': ${error.message}`);
+          }
         }
       }
+  
+      // Add updatedAt timestamp
+      if (fields.updatedAt) {
+        processedData.updatedAt = new Date();
+      }
+  
+      // Build the SQL query
+      if (Object.keys(processedData).length === 0) {
+        console.log('No valid fields to update.');
+        return existingRecord;
+      }
+  
+      const setClause = Object.keys(processedData)
+        .map((key, i) => `${this._quoteIdentifier(key)} = $${i + 1}`)
+        .join(', ');
+      const values = Object.values(processedData);
+      values.push(id); // Add the ID for the WHERE clause
+  
+      const query = `UPDATE ${this._quoteIdentifier(this.tableName)} 
+                    SET ${setClause} 
+                    WHERE ${this._quoteIdentifier(this.primaryKey)} = $${values.length} 
+                    RETURNING *`;
+  
+      console.log(`[Model:${this.tableName}] Executing update query:`, query, 'with values:', values);
+      
+      // Execute the query
+      const result = await this.query(query, values);
+      
+      // Create a model instance with the result
+      const updatedModel = new this(result[0]);
+      
+      // Run the onAfterUpdate hook if it exists
+      if (typeof this.onAfterUpdate === 'function') {
+        await this.onAfterUpdate(updatedModel);
+      }
+      
+      return updatedModel;
+    } catch (error) {
+      // Check for unique constraint violations
+      if (error.message && error.message.includes('duplicate key') && error.message.includes('unique constraint')) {
+        // Extract the constraint name if available
+        const constraintMatch = error.message.match(/unique constraint "([^"]+)"/);
+        const constraintName = constraintMatch ? constraintMatch[1] : 'unknown';
+        
+        // Create a more specific error message
+        const enhancedError = new Error(
+          `Duplicate value detected for unique constraint '${constraintName}' in table '${this.tableName}'. ` +
+          `The value you provided already exists in another record.`
+        );
+        
+        console.error(`[Model:${this.tableName}] ${enhancedError.message}`, error);
+        throw enhancedError;
+      }
+      
+      // Re-throw other errors
+      console.error(`[Model:${this.tableName}] Update error:`, error);
+      throw error;
     }
-
-    // Add updatedAt timestamp
-    if (fields.updatedAt) {
-      processedData.updatedAt = new Date();
-    }
-
-    // Build the SQL query
-    if (Object.keys(processedData).length === 0) {
-      console.log('No valid fields to update.');
-      return existingRecord;
-    }
-
-    const setClause = Object.keys(processedData)
-      .map((key, i) => `${this._quoteIdentifier(key)} = $${i + 1}`)
-      .join(', ');
-    const values = Object.values(processedData);
-    values.push(id); // Add the ID for the WHERE clause
-
-    const query = `UPDATE ${this._quoteIdentifier(this.tableName)} 
-                  SET ${setClause} 
-                  WHERE ${this._quoteIdentifier(this.primaryKey)} = $${values.length} 
-                  RETURNING *`;
-
-    // Execute the query
-    const result = await this.query(query, values);
-    
-    // Create a model instance with the result
-    const updatedModel = new this(result[0]);
-    
-    // Run the onAfterUpdate hook if it exists
-    if (typeof this.onAfterUpdate === 'function') {
-      await this.onAfterUpdate(updatedModel);
-    }
-    
-    return updatedModel;
   }
 
   /**

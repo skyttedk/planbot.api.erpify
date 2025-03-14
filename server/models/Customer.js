@@ -58,11 +58,14 @@ class Customer extends Model {
     static async onBeforeUpdate(customer) {
         logger.model('beforeUpdate', 'Customer', customer);
 
-        customer.age += 1; // Increment age
-        //this.fields.age.validate(1); // Validate age
-
-        //customer.fields.age.validate(1); // Validate ag
-        // e
+        // Log update info but don't modify any fields automatically
+        if (customer && customer.data) {
+            logger.model('customerUpdate', 'Customer', { 
+                id: customer.data.id, 
+                updatedFields: Object.keys(customer.data) 
+            });
+        }
+        
         return customer;
     }
 

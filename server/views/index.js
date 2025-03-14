@@ -331,9 +331,36 @@ class ViewLoader {
                             }
                             
                             // For enum fields, include the options
-                            if ((field.type === 'enum' || modelField.constructor.name === 'EnumField') && modelField._options) {
+                            //if ((field.type === 'enum' || modelField.constructor.name === 'EnumField') && modelField._options) {
+                            //    field.options = [...modelField._options];
+                            //}
+
+                            // add options to field if it exists, 
+                            if (modelField._options) {
                                 field.options = [...modelField._options];
                             }
+
+                            // Handle nested options in modelField.options
+                            if (modelField.options) {
+                                // First level options
+                                Object.entries(modelField.options).forEach(([key, value]) => {
+                                    // Skip properties that are already defined in field
+                                    if (field[key] === undefined && key !== 'options') {
+                                        field[key] = value;
+                                    }
+                                });
+                                
+                                // Handle second level options (nested options)
+                                if (modelField.options.options) {
+                                    Object.entries(modelField.options.options).forEach(([key, value]) => {
+                                        // Apply nested options directly to the field for client access
+                                        if (field[key] === undefined) {
+                                            field[key] = value;
+                                        }
+                                    });
+                                }
+                            }
+
                         }
                     }
                 }

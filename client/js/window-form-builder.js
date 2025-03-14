@@ -533,54 +533,126 @@ export class WindowForm {
         this.isSaving = true;
         const modelName = formCfg.model;
 
-        // For new records (id=0 or no id), use create operation
-        let message;
+        console.log(`Current record state:`, {
+            recordId,
+            recordIdType: typeof recordId,
+            isRecordIdFalsy: !recordId,
+            isZero: recordId === 0,
+            fullRecord: this.record
+        });
+        
+        // New record: if id is 0 (or falsy), call create; otherwise update
         if (!recordId || recordId === 0) {
-            const requestId = `req-create-close-${modelName}-${Date.now()}`;
-            message = {
+            console.log(`Creating new record for model ${modelName} with data:`, changedData);
+            if (statusDiv) {
+                statusDiv.textContent = 'Creating...';
+                statusDiv.className = 'saving';
+            }
+
+            const requestId = `req-create-${modelName}-${Date.now()}`;
+            const message = {
                 type: 'model',
                 name: modelName,
                 action: 'create',
                 parameters: { data: changedData },
                 requestId
             };
-        } else {
-            // For existing records, use update operation
-            const requestId = `req-update-close-${modelName}-${Date.now()}`;
-            message = {
-                type: 'model',
-                name: modelName,
-                action: 'update',
-                parameters: { id: recordId, data: changedData },
-                requestId
-            };
-        }
 
-        try {
-            const response = await this._sendRequest(message);
-            this.isSaving = false;
-            if (response.success) {
-                this.close();
-            } else {
-                const action = (!recordId || recordId === 0) ? 'creating' : 'updating';
-                console.error(`Error ${action} record:`, response.error);
+            try {
+                const response = await this._sendRequest(message);
+                this.isSaving = false;
+                if (response.success) {
+                    this.close();
+                } else {
+                    const action = (!recordId || recordId === 0) ? 'creating' : 'updating';
+                    console.error(`Error ${action} record:`, response.error);
+                    this.isClosing = false;
+                    if (statusDiv) {
+                        statusDiv.textContent = `Error: ${response.error || ((!recordId || recordId === 0) ? 'Create failed' : 'Save failed')}`;
+                        statusDiv.className = 'error';
+                    } else {
+                        this._showFormError(`Error: ${response.error || ((!recordId || recordId === 0) ? 'Create failed' : 'Save failed')}`);
+                    }
+                    this.currentFocusElement?.focus();
+                }
+            } catch (error) {
+                this.isSaving = false;
                 this.isClosing = false;
                 if (statusDiv) {
-                    statusDiv.textContent = `Error: ${response.error || ((!recordId || recordId === 0) ? 'Create failed' : 'Save failed')}`;
+                    statusDiv.textContent = (!recordId || recordId === 0) ? 'Create operation timed out' : 'Save operation timed out';
                     statusDiv.className = 'error';
-                } else {
-                    this._showFormError(`Error: ${response.error || ((!recordId || recordId === 0) ? 'Create failed' : 'Save failed')}`);
                 }
                 this.currentFocusElement?.focus();
             }
-        } catch (error) {
-            this.isSaving = false;
-            this.isClosing = false;
+        } else {
+            // Existing record: call update
+            console.log(`Updating record ${recordId} for model ${modelName}`, changedData);
             if (statusDiv) {
-                statusDiv.textContent = (!recordId || recordId === 0) ? 'Create operation timed out' : 'Save operation timed out';
-                statusDiv.className = 'error';
+                statusDiv.textContent = 'Saving...';
+                statusDiv.className = 'saving';
             }
-            this.currentFocusElement?.focus();
+
+            // Additional validation to ensure we have a valid ID for updating
+            if (!recordId || recordId === 0 || recordId === '0' || recordId === 'undefined') {
+                console.error('Cannot update record: Invalid record ID', {
+                    recordId,
+                    recordIdType: typeof recordId,
+                    fullRecord: this.record
+                });
+                if (statusDiv) {
+                    statusDiv.textContent = 'Error: Invalid record ID for update';
+                    statusDiv.className = 'error';
+                    setTimeout(() => {
+                        statusDiv.textContent = '';
+                        statusDiv.className = '';
+                    }, 3000);
+                }
+                this.isClosing = false;
+                this.isSaving = false;
+                return;
+            }
+
+            const requestId = `req-update-${modelName}-${Date.now()}`;
+            
+            // Ensure we're using the correct format for the update operation
+            const message = {
+                type: 'model',
+                name: modelName,
+                action: 'update',
+                parameters: { 
+                    id: recordId,  // ID passed separately to identify the record to update
+                    data: changedData 
+                },
+                requestId
+            };
+            
+            console.log('Sending update request:', JSON.stringify(message));
+
+            try {
+                const response = await this._sendRequest(message);
+                this.isSaving = false;
+                if (response.success) {
+                    this.close();
+                } else {
+                    console.error('Error updating record:', response.error);
+                    this.isClosing = false;
+                    if (statusDiv) {
+                        statusDiv.textContent = `Error: ${response.error || 'Save failed'}`;
+                        statusDiv.className = 'error';
+                    } else {
+                        this._showFormError(`Error: ${response.error || 'Save failed'}`);
+                    }
+                    this.currentFocusElement?.focus();
+                }
+            } catch (error) {
+                this.isSaving = false;
+                this.isClosing = false;
+                if (statusDiv) {
+                    statusDiv.textContent = 'Save operation timed out';
+                    statusDiv.className = 'error';
+                }
+                this.currentFocusElement?.focus();
+            }
         }
     }
 
@@ -622,7 +694,62 @@ export class WindowForm {
                 groupDiv.appendChild(label);
 
                 const input = document.createElement('bindable-input');
-                const inputType = field.type === 'lookup' ? 'select' : field.type;
+                
+                // CRITICAL: Determine the correct input type for the UI
+                // This is different from the database field type
+                let inputType = field.type; // Default to the field type from the model
+                
+                // Check if field name follows common patterns for lookup fields
+                const lookupFieldPatterns = [
+                    /Id$/i,                  // Fields ending with "Id" (e.g., countryId)
+                    /Reference$/i,           // Fields ending with "Reference"
+                ];
+                
+                // Check if this is likely a lookup field based on name patterns
+                const isLikelyLookupByName = lookupFieldPatterns.some(pattern => pattern.test(field.name));
+                
+                // If field is an integer and matches lookup patterns, it's likely a lookup field
+                if ((field.type === 'integer' || field.type === 'number') && isLikelyLookupByName) {
+                    console.log(`Field ${field.name}: Detected as likely lookup field based on name pattern`);
+                    inputType = 'lookup';
+                }
+                
+                // If a field has explicitly defined relationship or lookup properties, make it a lookup field
+                if (field.dataSource || field.relationTable || field.displayField || field.valueField) {
+                    console.log(`Field ${field.name}: Detected as lookup field based on field properties`);
+                    inputType = 'lookup';
+                }
+                
+                // Check directly for fieldType property (could be from flattened nested options)
+                if (field.fieldType) {
+                    inputType = field.fieldType;
+                    console.log(`Field ${field.name}: Using fieldType '${inputType}' directly from field properties`);
+                }
+                
+                // Check if this field has options with a fieldType property
+                if (field.options && field.options.fieldType) {
+                    // Use the fieldType from options for the UI
+                    inputType = field.options.fieldType;
+                    console.log(`Field ${field.name}: Using UI input type '${inputType}' from options.fieldType instead of '${field.type}'`);
+                }
+                
+                // Special case for lookup fields - ensure they're detected by dataSource
+                if (inputType === 'lookup' || 
+                    (field.options && field.options.dataSource) ||
+                    field.dataSource) {
+                    console.log(`Field ${field.name}: Setting input type to 'lookup'`);
+                    inputType = 'lookup';
+                }
+                
+                // Debug log to help troubleshoot field type issues
+                console.log(`Field ${field.name} configuration:`, {
+                    originalType: field.type,
+                    finalInputType: inputType,
+                    hasOptions: !!field.options,
+                    fieldOptions: field.options,
+                    isLikelyLookupByName
+                });
+                
                 input.setAttribute('type', inputType);
                 input.setAttribute('field', field.name);
                 
@@ -652,17 +779,36 @@ export class WindowForm {
                 ) {
                     input.setAttribute('readonly', '');
                 }
-                if (field.type === 'select' || field.type === 'lookup' || field.type === 'enum') {
+                if (inputType === 'select' || inputType === 'enum' || inputType === 'lookup') {
                     let options = [];
-                    if (field.type === 'lookup') {
+                    if (inputType === 'lookup') {
                         options = [];
-                        if (field.dataSource) {
+                        // Determine the data source
+                        const dataSource = field.dataSource || 
+                                         (field.options && field.options.dataSource) || 
+                                         null;
+                                         
+                        if (dataSource) {
+                            console.log(`Lookup field ${field.name} using dataSource: ${dataSource}`);
+                            // Ensure field has the dataSource property for _fetchLookupOptions
+                            field.dataSource = dataSource;
+                            
+                            // Also set displayField and valueField if available in options
+                            if (field.options) {
+                                if (field.options.displayField) {
+                                    field.displayField = field.options.displayField;
+                                }
+                                if (field.options.valueField) {
+                                    field.valueField = field.options.valueField;
+                                }
+                            }
+                            
                             // Call async lookup fetch (fire and forget)
                             this._fetchLookupOptions(field, input);
                         } else {
                             console.warn(`Lookup field ${field.name} has no dataSource specified`);
                         }
-                    } else if (field.type === 'enum') {
+                    } else if (inputType === 'enum') {
                         // For enum fields, use the options provided by the field definition
                         if (field.options && Array.isArray(field.options)) {
                             // Preserve the exact case of options as defined in the model
@@ -748,16 +894,33 @@ export class WindowForm {
         // Inside _generateForm(), after building fieldMap:
         const autoSave = this._debounce(async (event) => {
             if (this.isClosing || this.isSaving) return;
-            const changedField = event?.detail?.field || event?.target?.name;
+            
+            console.log("========== AUTO-SAVE START ==========");
+            console.log("AutoSave triggered with event:", event?.type, "Event detail:", event?.detail);
+            
+            const changedField = event?.detail?.field || event?.target?.getAttribute('field') || event?.target?.name;
+            console.log("Determined changed field:", changedField);
+            
             if (!changedField) {
                 console.warn("Auto-save triggered but couldn't determine which field changed");
+                console.log("========== AUTO-SAVE END (no field) ==========");
                 return;
             }
             // Only proceed if the field is marked as dirty
-            if (!this.dirtyFields.has(changedField)) return;
+            if (!this.dirtyFields.has(changedField)) {
+                console.log(`Field ${changedField} is not marked as dirty, skipping auto-save`);
+                console.log("========== AUTO-SAVE END (not dirty) ==========");
+                return;
+            }
+            
+            const inputType = event?.target?.getAttribute('type') || 
+                             (event?.detail?.field ? fieldMap[event?.detail?.field]?.getAttribute('type') : null);
+            
+            console.log(`Auto-saving field ${changedField} (type: ${inputType}) with value:`, this.record[changedField]);
+            
             // Remove dirty flag for this field
             this.dirtyFields.delete(changedField);
-
+            
             const modelName = formCfg.model;
             if (!modelName) {
                 console.error("Cannot update record: model name is missing in form configuration");
@@ -768,6 +931,14 @@ export class WindowForm {
             const recordId = this.record.id;
             const statusDiv = document.getElementById('statusMessage');
             
+            console.log(`Current record state:`, {
+                recordId,
+                recordIdType: typeof recordId,
+                isRecordIdFalsy: !recordId,
+                isZero: recordId === 0,
+                fullRecord: this.record
+            });
+            
             // New record: if id is 0 (or falsy), call create; otherwise update
             if (!recordId || recordId === 0) {
                 console.log(`Creating new record for model ${modelName} with data:`, { [changedField]: this.record[changedField] });
@@ -777,16 +948,23 @@ export class WindowForm {
                 }
 
                 const requestId = `req-create-${modelName}-${Date.now()}`;
+                const createData = { [changedField]: this.record[changedField] };
+                console.log(`Preparing create operation with data:`, createData);
+                
                 const message = {
                     type: 'model',
                     name: modelName,
                     action: 'create',
-                    parameters: { data: { [changedField]: this.record[changedField] } },
+                    parameters: { data: createData },
                     requestId
                 };
+                
+                console.log('Sending create request:', JSON.stringify(message));
 
                 try {
                     const response = await this._sendRequest(message);
+                    console.log(`Create response received:`, response);
+                    
                     if (response.success) {
                         if (statusDiv) {
                             statusDiv.textContent = 'Created';
@@ -819,6 +997,7 @@ export class WindowForm {
                         }, 3000);
                     }
                 } catch (error) {
+                    console.error('Create operation failed with error:', error);
                     if (statusDiv) {
                         statusDiv.textContent = 'Create operation timed out';
                         statusDiv.className = 'error';
@@ -836,17 +1015,67 @@ export class WindowForm {
                     statusDiv.className = 'saving';
                 }
 
+                // Create the changed data object with only the field being updated
+                if (changedField === undefined || !(changedField in this.record)) {
+                    console.error(`Cannot update record: Field ${changedField} not found in record`, this.record);
+                    if (statusDiv) {
+                        statusDiv.textContent = `Error: Invalid field name ${changedField}`;
+                        statusDiv.className = 'error';
+                        setTimeout(() => {
+                            statusDiv.textContent = '';
+                            statusDiv.className = '';
+                        }, 3000);
+                    }
+                    return;
+                }
+                
+                const changedData = { [changedField]: this.record[changedField] };
+                console.log(`Preparing update operation for field ${changedField}:`, {
+                    field: changedField,
+                    value: this.record[changedField],
+                    recordId: recordId,
+                    dataToSend: changedData
+                });
+
+                // Additional validation to ensure we have a valid ID for updating
+                if (!recordId || recordId === 0 || recordId === '0' || recordId === 'undefined') {
+                    console.error('Cannot update record: Invalid record ID', {
+                        recordId,
+                        recordIdType: typeof recordId,
+                        fullRecord: this.record
+                    });
+                    if (statusDiv) {
+                        statusDiv.textContent = 'Error: Invalid record ID for update';
+                        statusDiv.className = 'error';
+                        setTimeout(() => {
+                            statusDiv.textContent = '';
+                            statusDiv.className = '';
+                        }, 3000);
+                    }
+                    return;
+                }
+
                 const requestId = `req-update-${modelName}-${Date.now()}`;
+                
+                // Ensure we're using the correct format for the update operation
                 const message = {
                     type: 'model',
                     name: modelName,
                     action: 'update',
-                    parameters: { id: recordId, data: { [changedField]: this.record[changedField] } },
+                    parameters: { 
+                        id: recordId,  // ID passed separately to identify the record to update
+                        data: changedData 
+                    },
                     requestId
                 };
+                
+                console.log('Sending update request:', JSON.stringify(message));
 
                 try {
+                    console.log(`Awaiting response from update request ${requestId}...`);
                     const response = await this._sendRequest(message);
+                    console.log(`Update response received for ${requestId}:`, response);
+                    
                     if (response.success) {
                         if (statusDiv) {
                             statusDiv.textContent = 'Saved';
@@ -879,6 +1108,7 @@ export class WindowForm {
                         }, 3000);
                     }
                 } catch (error) {
+                    console.error('Update operation failed with error:', error);
                     if (statusDiv) {
                         statusDiv.textContent = 'Save operation timed out';
                         statusDiv.className = 'error';
@@ -889,32 +1119,46 @@ export class WindowForm {
                     }
                 }
             }
+            
+            console.log("========== AUTO-SAVE END ==========");
         }, 10);
 
         // Update event listeners so that we mark fields as dirty on input but only trigger auto-save on blur:
         Object.values(fieldMap).forEach(input => {
             // Mark the field as dirty whenever its content changes.
-            input.addEventListener('input', () => {
+            input.addEventListener('input', (e) => {
                 const fieldName = input.getAttribute('field');
+                const inputType = input.getAttribute('type');
+                console.log(`Input event on field ${fieldName} (type: ${inputType}) - marking as dirty only`);
                 this.dirtyFields.add(fieldName);
             });
             
-            // Special handler for enum fields to ensure their values are properly synchronized
-            if (input.getAttribute('type') === 'enum') {
-                input.addEventListener('change', (event) => {
-                    console.log(`Enum field ${input.getAttribute('field')} changed:`, event.target.value);
-                    const fieldName = input.getAttribute('field');
-                    // Ensure value is set in the record
-                    this.record[fieldName] = event.target.value === "" ? null : event.target.value;
-                    this.dirtyFields.add(fieldName);
-                });
-            }
+            // Add blur event to trigger auto-save when leaving the field
+            input.addEventListener('blur', (e) => {
+                const fieldName = input.getAttribute('field');
+                const inputType = input.getAttribute('type');
+                console.log(`Blur event on field ${fieldName} (type: ${inputType}) - triggering auto-save`);
+                autoSave(e);
+            });
             
-            // Trigger auto-save when the field loses focus.
-            input.addEventListener('blur', autoSave);
-            // Also trigger auto-save on data-changed if needed.
-            input.addEventListener('data-changed', autoSave);
-
+            // Listen for data-changed events from bindable-input components
+            input.addEventListener('data-changed', (event) => {
+                const fieldName = event.detail?.field || input.getAttribute('field');
+                const inputType = input.getAttribute('type');
+                
+                if (fieldName) {
+                    console.log(`data-changed event on field ${fieldName} (type: ${inputType})`);
+                    this.dirtyFields.add(fieldName);
+                    
+                    // Only trigger auto-save for immediate-save fields
+                    if (['checkbox', 'radio', 'select', 'enum', 'lookup'].includes(inputType)) {
+                        console.log(`Auto-saving immediate-save field ${fieldName} (type: ${inputType}) on data-changed`);
+                        autoSave(event);
+                    } else {
+                        console.log(`Field ${fieldName} (type: ${inputType}) marked dirty, will save on blur`);
+                    }
+                }
+            });
         });
 
         this.body.appendChild(this.formElement);
@@ -1083,41 +1327,117 @@ export class WindowForm {
     }
 
     async _fetchLookupOptions(field, inputElement) {
-        const modelName = field.dataSource;
-        const displayField = field.displayField || 'name';
-        const valueField = field.valueField || 'id';
-        console.log(`Fetching lookup options for ${field.name} from model ${modelName}`);
-        const requestId = `req-find-all-${modelName}-${field.name}-${Date.now()}`;
+        // Determine the data source from field configuration
+        const dataSource = field.dataSource || 
+                         (field.options && field.options.dataSource);
+                         
+        if (!dataSource) {
+            console.warn(`Lookup field ${field.name} has no dataSource specified`);
+            if (typeof inputElement.setLookupOptions === 'function') {
+                inputElement.setLookupOptions([
+                    { id: '', name: `Error: No data source specified for ${field.name}` }
+                ]);
+            } else {
+                inputElement.setAttribute('options', JSON.stringify([
+                    { value: '', label: `Error: No data source specified for ${field.name}` }
+                ]));
+            }
+            return;
+        }
+        
+        const displayField = field.displayField || 
+                           (field.options && field.options.displayField) || 
+                           'name';
+                           
+        const valueField = field.valueField || 
+                         (field.options && field.options.valueField) || 
+                         'id';
+        
+        console.log(`Fetching lookup options for ${field.name} from model ${dataSource}`, {
+            field,
+            displayField,
+            valueField,
+            inputType: inputElement.getAttribute('type')
+        });
+        
+        const requestId = `req-find-all-${dataSource}-${field.name}-${Date.now()}`;
         const message = {
             type: 'model',
-            name: modelName,
+            name: dataSource,
             action: 'findAll',
             parameters: {},
             requestId
         };
+        
         try {
             const response = await this._sendRequest(message);
             if (response.success && Array.isArray(response.result)) {
                 console.log(`Received lookup options for ${field.name}:`, response.result);
-                const options = response.result.map(item => ({
-                    value: item[valueField] ?? '',
-                    label: item[displayField] ?? '(No name)'
-                }));
-                inputElement.setAttribute('options', JSON.stringify(options));
-                if (this.record && this.record[field.name]) {
-                    inputElement.updateValue();
+                
+                // Check if this is a lookup field or a select field
+                if (inputElement.getAttribute('type') === 'lookup') {
+                    // For lookup fields, format options for the lookup dropdown
+                    const options = response.result.map(item => ({
+                        id: item[valueField] ?? '',
+                        name: item[displayField] ?? '(No name)'
+                    }));
+                    
+                    console.log(`Setting lookup options for ${field.name}:`, options);
+                    
+                    // Call the setLookupOptions method on the input element
+                    if (typeof inputElement.setLookupOptions === 'function') {
+                        inputElement.setLookupOptions(options);
+                        
+                        // If we have a current value, update the display value
+                        if (this.record && this.record[field.name] !== undefined && this.record[field.name] !== null) {
+                            const currentValue = this.record[field.name];
+                            inputElement.updateValue();
+                        }
+                    } else {
+                        console.error(`Input element for ${field.name} does not have setLookupOptions method`);
+                    }
+                } else {
+                    // For select fields, use the old approach
+                    const selectOptions = response.result.map(item => ({
+                        value: item[valueField] ?? '',
+                        label: item[displayField] ?? '(No name)'
+                    }));
+                    inputElement.setAttribute('options', JSON.stringify(selectOptions));
+                    if (this.record && this.record[field.name]) {
+                        inputElement.updateValue();
+                    }
                 }
             } else {
                 console.warn(`Failed to load lookup options for ${field.name}:`, response.error || 'Unknown error');
-                inputElement.setAttribute('options', JSON.stringify([
-                    { value: '', label: `Error loading ${field.name} options: ${response.error || 'Unknown error'}` }
-                ]));
+                if (inputElement.getAttribute('type') === 'lookup') {
+                    // For lookup fields, show an error in the dropdown
+                    if (typeof inputElement.setLookupOptions === 'function') {
+                        inputElement.setLookupOptions([
+                            { id: '', name: `Error loading ${field.name} options: ${response.error || 'Unknown error'}` }
+                        ]);
+                    }
+                } else {
+                    // For select fields, use the old approach
+                    inputElement.setAttribute('options', JSON.stringify([
+                        { value: '', label: `Error loading ${field.name} options: ${response.error || 'Unknown error'}` }
+                    ]));
+                }
             }
         } catch (error) {
             console.warn(`Lookup request for ${field.name} timed out`);
-            inputElement.setAttribute('options', JSON.stringify([
-                { value: '', label: `Error: Timeout loading ${field.name} options` }
-            ]));
+            if (inputElement.getAttribute('type') === 'lookup') {
+                // For lookup fields, show an error in the dropdown
+                if (typeof inputElement.setLookupOptions === 'function') {
+                    inputElement.setLookupOptions([
+                        { id: '', name: `Error: Timeout loading ${field.name} options` }
+                    ]);
+                }
+            } else {
+                // For select fields, use the old approach
+                inputElement.setAttribute('options', JSON.stringify([
+                    { value: '', label: `Error: Timeout loading ${field.name} options` }
+                ]));
+            }
         }
     }
 

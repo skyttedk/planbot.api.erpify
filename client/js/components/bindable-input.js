@@ -261,6 +261,188 @@ class BindableInput extends HTMLElement {
       } else if (inputType === "select" || inputType === "enum") {
         element = document.createElement("select");
         this._populateSelectOptions(element);
+      } else if (inputType === "lookup") {
+        // Create a container for the lookup input
+        const container = document.createElement("div");
+        container.className = "lookup-container";
+        container.style.position = "relative";
+        container.style.width = "100%";
+
+        // Create the text input element for entering search query
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "lookup-input";
+        input.placeholder = "Type to search...";
+        
+        // Apply autocomplete attributes to the input element
+        input.setAttribute("autocomplete", "off");
+        input.setAttribute("autocorrect", "off");
+        input.setAttribute("autocapitalize", "off");
+        input.setAttribute("spellcheck", "false");
+        
+        container.appendChild(input);
+
+        // Create a clear button for the input
+        const clearButton = document.createElement("div");
+        clearButton.className = "lookup-clear";
+        clearButton.innerHTML = "×";
+        clearButton.style.position = "absolute";
+        clearButton.style.right = "20px"; // Leave space for the dropdown indicator
+        clearButton.style.top = "50%";
+        clearButton.style.transform = "translateY(-50%)";
+        clearButton.style.fontSize = "14px";
+        clearButton.style.color = "#999";
+        clearButton.style.cursor = "pointer";
+        clearButton.style.display = "none"; // Hide by default
+        clearButton.style.width = "14px";
+        clearButton.style.height = "14px";
+        clearButton.style.textAlign = "center";
+        clearButton.style.lineHeight = "14px";
+        
+        // Show clear button when input has content
+        input.addEventListener("input", () => {
+          clearButton.style.display = input.value ? "block" : "none";
+        });
+        
+        // Clear input when button is clicked
+        clearButton.addEventListener("click", (e) => {
+          e.stopPropagation(); // Prevent dropdown from opening
+          input.value = "";
+          input.dataset.value = "";
+          clearButton.style.display = "none";
+          
+          // Hide dropdown
+          dropdown.style.display = "none";
+          
+          // Trigger change to update record
+          input.dispatchEvent(new Event("change"));
+        });
+        
+        container.appendChild(clearButton);
+
+        // Create the dropdown container for displaying lookup options
+        const dropdown = document.createElement("div");
+        dropdown.className = "lookup-dropdown";
+        dropdown.style.position = "absolute";
+        dropdown.style.top = "100%";
+        dropdown.style.left = "0";
+        dropdown.style.right = "0";
+        dropdown.style.zIndex = "1000";
+        dropdown.style.background = "white";
+        dropdown.style.border = "1px solid #ddd";
+        dropdown.style.borderTop = "none";
+        dropdown.style.borderRadius = "0 0 4px 4px";
+        dropdown.style.maxHeight = "200px";
+        dropdown.style.overflowY = "auto";
+        dropdown.style.display = "none";
+        dropdown.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
+        container.appendChild(dropdown);
+
+        // Save references for later use
+        this._lookupInput = input;
+        this._lookupDropdown = dropdown;
+
+        // Event handler for input change
+        input.addEventListener("input", (e) => {
+          const query = e.target.value.toLowerCase();
+          console.log(`Lookup search query for ${this._field}: "${query}"`);
+          
+          // Store reference to component instance
+          const self = this;
+          
+          // If we have local options, filter them by the search term
+          if (this._lookupOptions && Array.isArray(this._lookupOptions) && this._lookupOptions.length > 0) {
+            const filteredOptions = this._lookupOptions.filter(option => {
+              const displayText = (option.name || option.label || option.toString()).toLowerCase();
+              return displayText.includes(query);
+            });
+            
+            // Show filtered options
+            self._renderLookupOptions(filteredOptions);
+            dropdown.style.display = "block";
+          } else {
+            // Dispatch a custom event so that the parent form can fetch lookup options
+            this.dispatchEvent(new CustomEvent("lookup-search", {
+              detail: { 
+                query, 
+                field: this._field 
+              },
+              bubbles: true,
+              composed: true
+            }));
+            
+            // If the dropdown is not visible, show it
+            if (dropdown.style.display !== "block") {
+              dropdown.style.display = "block";
+            }
+          }
+        });
+        
+        // Handle change event to update the record
+        input.addEventListener("change", () => {
+          this.onInput();
+        });
+        
+        // Hide dropdown on blur after a short delay
+        input.addEventListener("blur", () => {
+          setTimeout(() => { dropdown.style.display = "none"; }, 200);
+        });
+        
+        // Show dropdown when clicking on the input
+        input.addEventListener("click", (e) => {
+          // If dropdown is already showing, keep it that way
+          if (dropdown.style.display === "block") {
+            return;
+          }
+          
+          // Show clear button if there's a value
+          clearButton.style.display = input.value ? "block" : "none";
+          
+          // Store reference to component instance
+          const self = this;
+          
+          // If we have options stored, show them
+          if (this._lookupOptions && Array.isArray(this._lookupOptions) && this._lookupOptions.length > 0) {
+            if (input.value) {
+              // If there's text in the input, filter the options
+              const query = input.value.toLowerCase();
+              const filteredOptions = this._lookupOptions.filter(option => {
+                const displayText = (option.name || option.label || option.toString()).toLowerCase();
+                return displayText.includes(query);
+              });
+              self._renderLookupOptions(filteredOptions);
+            } else {
+              // Otherwise show all options
+              self._renderLookupOptions(this._lookupOptions);
+            }
+            dropdown.style.display = "block";
+          } else {
+            // Dispatch a search event with empty query to get all options
+            this.dispatchEvent(new CustomEvent("lookup-search", {
+              detail: { query: "", field: this._field },
+              bubbles: true,
+              composed: true
+            }));
+          }
+        });
+
+        // Add a small dropdown indicator
+        const indicator = document.createElement("div");
+        indicator.className = "lookup-indicator";
+        indicator.innerHTML = "▼";
+        indicator.style.position = "absolute";
+        indicator.style.right = "5px";
+        indicator.style.top = "50%";
+        indicator.style.transform = "translateY(-50%)";
+        indicator.style.fontSize = "8px";
+        indicator.style.color = "#666";
+        indicator.style.pointerEvents = "none";
+        container.appendChild(indicator);
+
+        // The actual input element is this._lookupInput, not the container
+        this.inputElement = input;
+        
+        return container;
       } else {
         element = document.createElement("input");
         element.type = inputType;
@@ -419,7 +601,38 @@ class BindableInput extends HTMLElement {
           if (this.inputElement.value !== newValue) {
             this.inputElement.value = newValue;
           }
-
+        } else if (inputType === "lookup") {
+          // For lookup fields, we need to handle the display value and the actual value
+          if (this._lookupInput) {
+            // If we have stored lookup options, find the matching option
+            if (this._lookupOptions && Array.isArray(this._lookupOptions) && this._lookupOptions.length > 0) {
+              const matchingOption = this._lookupOptions.find(opt => 
+                opt.id == currentValue || opt.value == currentValue
+              );
+              
+              if (matchingOption) {
+                console.log(`Found matching option for ${this._field}:`, matchingOption);
+                this._lookupInput.value = matchingOption.name || matchingOption.label || matchingOption.toString();
+                this._lookupInput.dataset.value = matchingOption.id !== undefined ? matchingOption.id : 
+                                                (matchingOption.value !== undefined ? matchingOption.value : matchingOption);
+              } else {
+                console.log(`No matching option found for ${this._field} with value ${currentValue}`);
+                // If no matching option found, just show the ID/value
+                this._lookupInput.value = currentValue != null ? String(currentValue) : '';
+                this._lookupInput.dataset.value = currentValue != null ? String(currentValue) : '';
+              }
+            } else {
+              console.log(`No lookup options available for ${this._field}`);
+              // If no options available yet, just show the ID/value
+              this._lookupInput.value = currentValue != null ? String(currentValue) : '';
+              this._lookupInput.dataset.value = currentValue != null ? String(currentValue) : '';
+            }
+            
+            // Ensure dropdown is hidden when updating value
+            if (this._lookupDropdown) {
+              this._lookupDropdown.style.display = "none";
+            }
+          }
         } else {
           const newValue = currentValue != null ? String(currentValue) : "";
           if (this.inputElement.value !== newValue) {
@@ -450,6 +663,17 @@ class BindableInput extends HTMLElement {
           // For select and enum fields, empty string becomes null
           value = this.inputElement.value === "" ? null : this.inputElement.value;
           console.log(`Select/Enum value for ${this._field}: ${value}`);
+        } else if (inputType === "lookup") {
+          // For lookup fields, get the value from the dataset
+          if (this._lookupInput && this._lookupInput.dataset.value) {
+            const rawValue = this._lookupInput.dataset.value;
+            // Convert to number if it looks like a number
+            const numValue = Number(rawValue);
+            value = !isNaN(numValue) ? numValue : rawValue;
+          } else {
+            value = null;
+          }
+          console.log(`Lookup value for ${this._field}: ${value}`);
         } else {
           value = this.inputElement.value;
           if (inputType === "number") {
@@ -484,6 +708,8 @@ class BindableInput extends HTMLElement {
           if (!this.hasAttribute("name")) {
             this.setAttribute("name", this._field);
           }
+          
+          console.log(`Dispatching "input" event for ${this._field} (type: ${inputType})`);
           this.dispatchEvent(
             new CustomEvent("input", {
               bubbles: true,
@@ -491,7 +717,11 @@ class BindableInput extends HTMLElement {
               detail: { field: this._field, value, record: this._record },
             })
           );
-          if (["checkbox", "radio", "select", "enum"].includes(inputType)) {
+          
+          // Dispatch data-changed for field types that should trigger immediate save 
+          // like checkbox, radio, select, lookup, etc.
+          if (["checkbox", "radio", "select", "enum", "lookup"].includes(inputType)) {
+            console.log(`Dispatching "data-changed" event for ${this._field} (type: ${inputType}) - immediate save type`);
             this.dispatchEvent(
               new CustomEvent("data-changed", {
                 bubbles: true,
@@ -499,6 +729,8 @@ class BindableInput extends HTMLElement {
                 detail: { field: this._field, value, record: this._record },
               })
             );
+          } else {
+            console.log(`NOT dispatching "data-changed" for text field ${this._field} (type: ${inputType}) - will save on blur`);
           }
         }
         this._updateFormValidity();
@@ -510,17 +742,58 @@ class BindableInput extends HTMLElement {
   
     _updateFormValidity() {
       if (!BindableInput.formAssociated) return;
-      const isValid = this.inputElement.checkValidity();
+      
+      // For lookup inputs, check validity on the inner input element
+      const inputType = this.getAttribute("type") || "text";
+      
+      let isValid = true;
       const errorMsg = this.shadowRoot.querySelector(".error-message");
-      if (!isValid) {
-        this.setAttribute("invalid", "");
-        errorMsg.textContent = this.inputElement.validationMessage;
-        this._internals.setValidity({ customError: true }, this.inputElement.validationMessage);
+      
+      if (inputType === "lookup") {
+        // For lookup fields, use our own validation logic
+        if (this.hasAttribute("required") && (!this._lookupInput || !this._lookupInput.value)) {
+          isValid = false;
+          if (errorMsg) errorMsg.textContent = "This field is required";
+          this.setAttribute("invalid", "");
+          this._internals.setValidity({ valueMissing: true }, "This field is required");
+        } else {
+          isValid = true;
+          this.removeAttribute("invalid");
+          this._internals.setValidity({});
+        }
+        
+        // Set form value from the lookup input
+        if (this._lookupInput) {
+          const value = this._lookupInput.dataset.value || "";
+          this._internals.setFormValue(value !== "" ? value : null);
+        }
       } else {
-        this.removeAttribute("invalid");
-        this._internals.setValidity({});
+        // For regular inputs, use the native validity checking
+        try {
+          if (this.inputElement && typeof this.inputElement.checkValidity === 'function') {
+            isValid = this.inputElement.checkValidity();
+            if (!isValid && errorMsg) {
+              errorMsg.textContent = this.inputElement.validationMessage;
+              this.setAttribute("invalid", "");
+              this._internals.setValidity({ customError: true }, this.inputElement.validationMessage);
+            } else {
+              this.removeAttribute("invalid");
+              this._internals.setValidity({});
+            }
+            
+            // Set form value
+            if (this.inputElement) {
+              const value = this.inputElement.value;
+              this._internals.setFormValue(value !== "" ? value : null);
+            }
+          }
+        } catch (error) {
+          console.error(`Error checking validity for ${this._field}:`, error);
+          // Fall back to default validity state
+          this.removeAttribute("invalid");
+          this._internals.setValidity({});
+        }
       }
-      this._internals.setFormValue(this.inputElement.value !== "" ? this.inputElement.value : null);
     }
   
     _hasValueChanged(currentValue, newValue) {
@@ -651,6 +924,139 @@ class BindableInput extends HTMLElement {
         if (closestLabel) {
           closestLabel.setAttribute('for', this.inputElement.id);
         }
+      }
+    }
+  
+    /**
+     * Reports an error to the console and creates a validation message
+     * @param {string} message - The error message to report
+     * @private
+     */
+    _reportError(message) {
+      console.error(`[BindableInput] ${message}`);
+      
+      // Set validation message if the element is attached to a form
+      if (this._internals) {
+        this._internals.setValidity({ customError: true }, message);
+      }
+      
+      // Dispatch an error event that can be caught by parent components
+      const errorEvent = new CustomEvent('bindingerror', { 
+        bubbles: true, 
+        composed: true,
+        detail: { message, field: this._field }
+      });
+      this.dispatchEvent(errorEvent);
+    }
+  
+    // Method to set lookup options in the dropdown
+    setLookupOptions(options) {
+      if (!this._lookupDropdown) return;
+      
+      // Store options for later use
+      this._lookupOptions = options;
+      
+      // Render the options
+      this._renderLookupOptions(options);
+    }
+    
+    /**
+     * Creates an event handler function with proper 'this' binding
+     * @param {Function} fn - The function to bind
+     * @returns {Function} The bound function
+     * @private
+     */
+    _bindMethod(fn) {
+      return fn.bind(this);
+    }
+    
+    /**
+     * Helper method to render lookup options
+     * @param {Array} options - The options to render
+     * @private
+     */
+    _renderLookupOptions(options) {
+      if (!this._lookupDropdown) return;
+      
+      // Clear existing options
+      this._lookupDropdown.innerHTML = "";
+      
+      if (options && options.length > 0) {
+        // Create a header showing number of options
+        const header = document.createElement("div");
+        header.className = "lookup-header";
+        header.textContent = `${options.length} option${options.length !== 1 ? 's' : ''} found`;
+        header.style.padding = "4px 6px";
+        header.style.borderBottom = "1px solid #eee";
+        header.style.fontSize = "9px";
+        header.style.color = "#666";
+        header.style.background = "#f9f9f9";
+        this._lookupDropdown.appendChild(header);
+        
+        // Create option elements
+        options.forEach(option => {
+          const optionElem = document.createElement("div");
+          optionElem.className = "lookup-option";
+          optionElem.style.padding = "4px 6px";
+          optionElem.style.cursor = "pointer";
+          optionElem.style.fontSize = "var(--input-font-size, 10px)";
+          
+          // Highlight if this is the currently selected option
+          const currentValue = this._getValueFromPath(this._record, this._field);
+          if (option.id == currentValue || option.value == currentValue) {
+            optionElem.classList.add("selected");
+            optionElem.style.backgroundColor = "#f0f8ff";
+            optionElem.style.fontWeight = "bold";
+          }
+          
+          // Set option text and value
+          optionElem.textContent = option.name || option.label || option.toString();
+          optionElem.dataset.value = option.id !== undefined ? option.id : 
+                                    (option.value !== undefined ? option.value : option);
+          
+          // Handle option selection
+          optionElem.addEventListener("mousedown", () => {
+            // Store reference to component instance
+            const self = this;
+            
+            // Update input value and dataset
+            self._lookupInput.value = optionElem.textContent;
+            self._lookupInput.dataset.value = optionElem.dataset.value;
+            
+            // Hide dropdown
+            self._lookupDropdown.style.display = "none";
+            
+            // Trigger change event to update record
+            self._lookupInput.dispatchEvent(new Event("change"));
+            
+            // Set custom property to indicate this is a user selection
+            self._valueChanged = true;
+            
+            // Also update the component immediately
+            self.onInput();
+          });
+          
+          // Add hover effect
+          optionElem.addEventListener("mouseover", () => {
+            optionElem.style.backgroundColor = optionElem.classList.contains("selected") ? "#e6f2ff" : "#f0f0f0";
+          });
+          
+          optionElem.addEventListener("mouseout", () => {
+            optionElem.style.backgroundColor = optionElem.classList.contains("selected") ? "#f0f8ff" : "";
+          });
+          
+          this._lookupDropdown.appendChild(optionElem);
+        });
+      } else {
+        // Show "No results" message
+        const noResults = document.createElement("div");
+        noResults.className = "lookup-no-results";
+        noResults.textContent = "No matching options found";
+        noResults.style.padding = "4px 6px";
+        noResults.style.color = "#666";
+        noResults.style.fontStyle = "italic";
+        noResults.style.fontSize = "var(--input-font-size, 10px)";
+        this._lookupDropdown.appendChild(noResults);
       }
     }
   }

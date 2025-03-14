@@ -164,6 +164,8 @@ async function handleClientConnection(ws) {
 
 // Handle model requests (CRUD operations)
 async function handleModelRequest(modelName, action, parameters) {
+  console.log(`Model request received: ${modelName}.${action}`, JSON.stringify(parameters));
+  
   const ModelClass = models[modelName];
   
   if (!ModelClass) {
@@ -173,14 +175,49 @@ async function handleModelRequest(modelName, action, parameters) {
     throw new Error(`Action "${action}" not available for model "${modelName}"`);
   }
   
+  // Special handling for update action to ensure parameters are correct
+  if (action === 'update') {
+    console.log(`Processing update request for ${modelName}:`, parameters);
+    
+    // Validate required parameters
+    if (!parameters.id) {
+      throw new Error(`Missing required parameter 'id' for update operation on model "${modelName}"`);
+    }
+    
+    if (!parameters.data || typeof parameters.data !== 'object' || Object.keys(parameters.data).length === 0) {
+      throw new Error(`Missing or invalid 'data' parameter for update operation on model "${modelName}"`);
+    }
+    
+    // Convert id to number if it's a numeric string
+    if (typeof parameters.id === 'string' && !isNaN(parseInt(parameters.id, 10))) {
+      parameters.id = parseInt(parameters.id, 10);
+      console.log(`Converted id parameter from string to number: ${parameters.id}`);
+    }
+    
+    console.log(`Validated update parameters for ${modelName}:`, {
+      id: parameters.id,
+      data: parameters.data
+    });
+  }
+  
   // Construct parameters array
   const expectedParams = getFunctionParameters(ModelClass[action]);
-  const paramArray = expectedParams.map((name) =>
-    parameters[name] !== undefined ? parameters[name] : null
-  );
+  const paramArray = expectedParams.map((name) => {
+    console.log(`Processing parameter ${name}:`, parameters[name] !== undefined ? JSON.stringify(parameters[name]) : 'null');
+    return parameters[name] !== undefined ? parameters[name] : null;
+  });
   
-  // Call the method
-  return await ModelClass[action](...paramArray);
+  console.log(`Calling ${modelName}.${action} with parameters:`, JSON.stringify(paramArray));
+  
+  try {
+    // Call the method
+    const result = await ModelClass[action](...paramArray);
+    console.log(`${modelName}.${action} completed successfully`, result ? 'with result' : 'with no result');
+    return result;
+  } catch (error) {
+    console.error(`Error in ${modelName}.${action}:`, error);
+    throw error;
+  }
 }
 
 // Handle view requests (returning UI configurations)
