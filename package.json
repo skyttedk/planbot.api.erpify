@@ -4,8 +4,9 @@
   "main": "server/index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon server/index.js",
-    "start": "node server/index.js",
+    "frontend dev": "cd client && npx http-server -p 3000",
+    "backend dev": "nodemon server/index.js",
+    "backend start": "node server/index.js",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules npx jest",
     "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules npx jest --watch",
     "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules npx jest --coverage --collectCoverageFrom='server/**/*.js'",
@@ -19,6 +20,7 @@
   "description": "",
   "keywords": [],
   "dependencies": {
+    "@modelcontextprotocol/server-puppeteer": "^0.6.2",
     "async_hooks": "^1.0.0",
     "dotenv": "^16.4.7",
     "jsonwebtoken": "^9.0.2",

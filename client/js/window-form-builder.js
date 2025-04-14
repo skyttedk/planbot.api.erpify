@@ -160,12 +160,21 @@ class FormMenuManager {
         this.menuItems = {};
     }
 }
-
 // Create a singleton instance
 const formMenuManager = new FormMenuManager();
 
 // Initialize the active window forms tracking array
 window.activeWindowForms = window.activeWindowForms || [];
+
+import { BindableInputCore } from "./components/form-inputs/bindable-input-core.js";
+import {
+    TextInput,
+    SelectInput,
+    ToggleInput,
+    LookupInput,
+    FileInput,
+    getInputComponentForType
+} from "./components/form-inputs/index.js";
 
 export class WindowForm {
     /**
@@ -184,7 +193,7 @@ export class WindowForm {
         this.record = { id: 0 };
         this.messageHandlers = [];
         this.dirtyFields = new Set();
-        
+
         // Register any menu items from the form config BEFORE creating the window
         this._registerConfigMenuItems();
 
@@ -233,23 +242,23 @@ export class WindowForm {
                     }
                 }
             }
-            
+            // Removed extra closing brace here
             console.log(`Sending request ${message.requestId}:`, JSON.stringify({
                 ...message,
                 parameters: message.parameters ? {
                     ...message.parameters,
-                    data: message.parameters.data ? 
+                    data: message.parameters.data ?
                         Object.fromEntries(
-                            Object.entries(message.parameters.data).map(([k, v]) => 
-                                typeof v === 'object' && v && v.data ? 
-                                [k, {...v, data: `[base64 data, length: ${v.data ? v.data.length : 0}]`}] : 
-                                [k, v]
+                            Object.entries(message.parameters.data).map(([k, v]) =>
+                                typeof v === 'object' && v && v.data ?
+                                    [k, { ...v, data: `[base64 data, length: ${v.data ? v.data.length : 0}]` }] :
+                                    [k, v]
                             )
-                        ) : 
+                        ) :
                         message.parameters.data
                 } : null
             }, null, 2));
-            
+
             const requestId = message.requestId;
             const responseHandler = (response) => {
                 if (response.requestId === requestId) {
@@ -313,7 +322,7 @@ export class WindowForm {
         // Create footer (for status messages or controls)
         const footer = document.createElement('div');
         footer.className = 'window-footer';
-        
+
         // Add navigation toolbar on the left side of the footer
         this._createNavigationToolbar(footer);
 
@@ -412,14 +421,14 @@ export class WindowForm {
                 event.stopPropagation();
                 return false;
             }
-            
+
             // Handle other keyboard shortcuts
             this._handleKeydown(event);
         };
-        
+
         // Use capture phase for all keyboard events
         document.addEventListener('keydown', this.keydownHandler, { capture: true });
-        
+
         this.focusHandler = (e) => {
             if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) {
                 this.currentFocusElement = e.target;
@@ -430,13 +439,13 @@ export class WindowForm {
 
     _handleKeydown(event) {
         if (!this.windowElement.isConnected) return;
-        
+
         // Only process shortcut keys when our window is active
-        if (!this.windowElement.contains(document.activeElement) && 
+        if (!this.windowElement.contains(document.activeElement) &&
             document.activeElement !== document.body) {
             return;
         }
-        
+
         // Handle F3 key for new record
         if (event.key === 'F3') {
             this._createNewRecord();
@@ -444,7 +453,7 @@ export class WindowForm {
             event.preventDefault();
             return;
         }
-        
+
         // Handle F4 key for delete record
         if (event.key === 'F4') {
             this._deleteRecord();
@@ -452,7 +461,7 @@ export class WindowForm {
             event.preventDefault();
             return;
         }
-        
+
         // Handle F8 key for zoom (view record as JSON)
         if (event.key === 'F8') {
             this._Zoom();
@@ -460,12 +469,12 @@ export class WindowForm {
             event.preventDefault();
             return;
         }
-        
+
         // Handle Alt key shortcuts
         if (event.altKey) {
             let handled = true;
-            
-            switch(event.key.toLowerCase()) {
+
+            switch (event.key.toLowerCase()) {
                 case 'r':  // Alt+R - Refresh
                     this._loadDefaultRecord();
                     break;
@@ -473,19 +482,19 @@ export class WindowForm {
                     handled = false;
                     break;
             }
-            
+
             if (handled) {
                 event.stopPropagation();
                 event.preventDefault();
                 return;
             }
         }
-        
+
         // Handle Ctrl key shortcuts
         if (event.ctrlKey) {
             let handled = true;
-            
-            switch(event.key.toLowerCase()) {
+
+            switch (event.key.toLowerCase()) {
                 case 's':  // CTRL+S - Save
                     this._saveAndClose();
                     break;
@@ -505,7 +514,7 @@ export class WindowForm {
                     handled = false;
                     break;
             }
-            
+
             // If we handled the shortcut, prevent the default browser action
             if (handled) {
                 event.stopPropagation();
@@ -520,7 +529,7 @@ export class WindowForm {
         if (window.zoomDialogOpen) {
             return;
         }
-        
+
         if (this.isClosing || this.isSaving) return;
         if (this.dirtyFields.size > 0) {
             const confirmAction = window.confirm('You have unsaved changes! Do you want to save before closing?');
@@ -571,7 +580,7 @@ export class WindowForm {
             isZero: recordId === 0,
             fullRecord: this.record
         });
-        
+
         // New record: if id is 0 (or falsy), call create; otherwise update
         if (!recordId || recordId === 0) {
             console.log(`Creating new record for model ${modelName} with data:`, changedData);
@@ -644,19 +653,19 @@ export class WindowForm {
             }
 
             const requestId = `req-update-${modelName}-${Date.now()}`;
-            
+
             // Ensure we're using the correct format for the update operation
             const message = {
                 type: 'model',
                 name: modelName,
                 action: 'update',
-                parameters: { 
+                parameters: {
                     id: recordId,  // ID passed separately to identify the record to update
-                    data: changedData 
+                    data: changedData
                 },
                 requestId
             };
-            
+
             console.log('Sending update request:', JSON.stringify(message));
 
             try {
@@ -697,7 +706,7 @@ export class WindowForm {
         this.formElement.setAttribute('data-form-random', Math.random().toString(36).substring(2));
 
         // Removed inline styles - now using external CSS in styles.css
-        
+
         const fieldMap = {};
         const groupMap = {};
 
@@ -720,7 +729,7 @@ export class WindowForm {
                 const groupDiv = document.createElement('div');
                 groupDiv.className = 'form-group';
                 if (field.fullWidth) groupDiv.classList.add('full-width');
-                
+
                 // Add required class for styling
                 if (field.required) {
                     groupDiv.classList.add('required');
@@ -732,53 +741,53 @@ export class WindowForm {
                 groupDiv.appendChild(label);
 
                 const input = document.createElement('bindable-input');
-                
+
                 // CRITICAL: Determine the correct input type for the UI
                 // This is different from the database field type
                 let inputType = field.type; // Default to the field type from the model
-                
+
                 // Check if field name follows common patterns for lookup fields
                 const lookupFieldPatterns = [
                     /Id$/i,                  // Fields ending with "Id" (e.g., countryId)
                     /Reference$/i,           // Fields ending with "Reference"
                 ];
-                
+
                 // Check if this is likely a lookup field based on name patterns
                 const isLikelyLookupByName = lookupFieldPatterns.some(pattern => pattern.test(field.name));
-                
+
                 // If field is an integer and matches lookup patterns, it's likely a lookup field
                 if ((field.type === 'integer' || field.type === 'number') && isLikelyLookupByName) {
                     console.log(`Field ${field.name}: Detected as likely lookup field based on name pattern`);
                     inputType = 'lookup';
                 }
-                
+
                 // If a field has explicitly defined relationship or lookup properties, make it a lookup field
                 if (field.dataSource || field.relationTable || field.displayField || field.valueField) {
                     console.log(`Field ${field.name}: Detected as lookup field based on field properties`);
                     inputType = 'lookup';
                 }
-                
+
                 // Check directly for fieldType property (could be from flattened nested options)
                 if (field.fieldType) {
                     inputType = field.fieldType;
                     console.log(`Field ${field.name}: Using fieldType '${inputType}' directly from field properties`);
                 }
-                
+
                 // Check if this field has options with a fieldType property
                 if (field.options && field.options.fieldType) {
                     // Use the fieldType from options for the UI
                     inputType = field.options.fieldType;
                     console.log(`Field ${field.name}: Using UI input type '${inputType}' from options.fieldType instead of '${field.type}'`);
                 }
-                
+
                 // Special case for lookup fields - ensure they're detected by dataSource
-                if (inputType === 'lookup' || 
+                if (inputType === 'lookup' ||
                     (field.options && field.options.dataSource) ||
                     field.dataSource) {
                     console.log(`Field ${field.name}: Setting input type to 'lookup'`);
                     inputType = 'lookup';
                 }
-                
+
                 // Debug log to help troubleshoot field type issues
                 console.log(`Field ${field.name} configuration:`, {
                     originalType: field.type,
@@ -787,14 +796,14 @@ export class WindowForm {
                     fieldOptions: field.options,
                     isLikelyLookupByName
                 });
-                
+
                 input.setAttribute('type', inputType);
                 input.setAttribute('field', field.name);
-                
+
                 // Generate a randomized name to prevent browser from recognizing the field
                 const randomizedName = `${field.name}_${Math.random().toString(36).substring(2)}`;
                 input.setAttribute('name', randomizedName);
-                
+
                 input.setAttribute('aria-label', field.caption ?? field.name);
                 // Ensure autocomplete is disabled with multiple techniques
                 input.setAttribute('autocomplete', 'off');
@@ -802,7 +811,7 @@ export class WindowForm {
                 input.setAttribute('autocorrect', 'off');
                 input.setAttribute('autocapitalize', 'off');
                 input.setAttribute('spellcheck', 'false');
-                
+
                 if (field.required) input.setAttribute('required', '');
                 if (field.maxLength) input.setAttribute('maxLength', field.maxLength);
                 if (field.pattern) input.setAttribute('pattern', field.pattern);
@@ -822,15 +831,15 @@ export class WindowForm {
                     if (inputType === 'lookup') {
                         options = [];
                         // Determine the data source
-                        const dataSource = field.dataSource || 
-                                         (field.options && field.options.dataSource) || 
-                                         null;
-                                         
+                        const dataSource = field.dataSource ||
+                            (field.options && field.options.dataSource) ||
+                            null;
+
                         if (dataSource) {
                             console.log(`Lookup field ${field.name} using dataSource: ${dataSource}`);
                             // Ensure field has the dataSource property for _fetchLookupOptions
                             field.dataSource = dataSource;
-                            
+
                             // Also set displayField and valueField if available in options
                             if (field.options) {
                                 if (field.options.displayField) {
@@ -840,9 +849,13 @@ export class WindowForm {
                                     field.valueField = field.options.valueField;
                                 }
                             }
-                            
+
                             // Call async lookup fetch (fire and forget)
-                            this._fetchLookupOptions(field, input);
+                            if (this._fetchLookupOptions) {
+                                this._fetchLookupOptions(field, input);
+                            } else {
+                                console.error(`Error: _fetchLookupOptions is not implemented for field ${field.name}`);
+                            }
                         } else {
                             console.warn(`Lookup field ${field.name} has no dataSource specified`);
                         }
@@ -932,13 +945,13 @@ export class WindowForm {
         // Inside _generateForm(), after building fieldMap:
         const autoSave = this._debounce(async (event) => {
             if (this.isClosing || this.isSaving) return;
-            
+
             console.log("========== AUTO-SAVE START ==========");
             console.log("AutoSave triggered with event:", event?.type, "Event detail:", event?.detail);
-            
+
             const changedField = event?.detail?.field || event?.target?.getAttribute('field') || event?.target?.name;
             console.log("Determined changed field:", changedField);
-            
+
             if (!changedField) {
                 console.warn("Auto-save triggered but couldn't determine which field changed");
                 console.log("========== AUTO-SAVE END (no field) ==========");
@@ -950,15 +963,15 @@ export class WindowForm {
                 console.log("========== AUTO-SAVE END (not dirty) ==========");
                 return;
             }
-            
-            const inputType = event?.target?.getAttribute('type') || 
-                             (event?.detail?.field ? fieldMap[event?.detail?.field]?.getAttribute('type') : null);
-            
+
+            const inputType = event?.target?.getAttribute('type') ||
+                (event?.detail?.field ? fieldMap[event?.detail?.field]?.getAttribute('type') : null);
+
             console.log(`Auto-saving field ${changedField} (type: ${inputType}) with value:`, this.record[changedField]);
-            
+
             // Remove dirty flag for this field
             this.dirtyFields.delete(changedField);
-            
+
             const modelName = formCfg.model;
             if (!modelName) {
                 console.error("Cannot update record: model name is missing in form configuration");
@@ -968,7 +981,7 @@ export class WindowForm {
 
             const recordId = this.record.id;
             const statusDiv = document.getElementById('statusMessage');
-            
+
             console.log(`Current record state:`, {
                 recordId,
                 recordIdType: typeof recordId,
@@ -976,7 +989,7 @@ export class WindowForm {
                 isZero: recordId === 0,
                 fullRecord: this.record
             });
-            
+
             // New record: if id is 0 (or falsy), call create; otherwise update
             if (!recordId || recordId === 0) {
                 console.log(`Creating new record for model ${modelName} with data:`, { [changedField]: this.record[changedField] });
@@ -988,7 +1001,7 @@ export class WindowForm {
                 const requestId = `req-create-${modelName}-${Date.now()}`;
                 const createData = { [changedField]: this.record[changedField] };
                 console.log(`Preparing create operation with data:`, createData);
-                
+
                 const message = {
                     type: 'model',
                     name: modelName,
@@ -996,13 +1009,13 @@ export class WindowForm {
                     parameters: { data: createData },
                     requestId
                 };
-                
+
                 console.log('Sending create request:', JSON.stringify(message));
 
                 try {
                     const response = await this._sendRequest(message);
                     console.log(`Create response received:`, response);
-                    
+
                     if (response.success) {
                         if (statusDiv) {
                             statusDiv.textContent = 'Created';
@@ -1066,11 +1079,11 @@ export class WindowForm {
                     }
                     return;
                 }
-                
+
                 try {
                     // Get the field value
                     let fieldValue = this.record[changedField];
-                    
+
                     // Process file field if needed (containing tempFile property)
                     if (fieldValue && typeof fieldValue === 'object' && fieldValue.tempFile) {
                         console.log(`Processing file field ${changedField} for saving...`);
@@ -1081,7 +1094,7 @@ export class WindowForm {
                             data: fieldValue.data ? `${fieldValue.data.length} characters` : 'none'
                         });
                     }
-                    
+
                     const changedData = { [changedField]: fieldValue };
                     console.log(`Preparing update operation for field ${changedField}:`, {
                         field: changedField,
@@ -1091,7 +1104,7 @@ export class WindowForm {
                         recordId: recordId,
                         dataToSend: changedData
                     });
-                
+
                     // Additional validation to ensure we have a valid ID for updating
                     if (!recordId || recordId === 0 || recordId === '0' || recordId === 'undefined') {
                         console.error('Cannot update record: Invalid record ID', {
@@ -1111,26 +1124,26 @@ export class WindowForm {
                     }
 
                     const requestId = `req-update-${modelName}-${Date.now()}`;
-                    
+
                     // Ensure we're using the correct format for the update operation
                     const message = {
                         type: 'model',
                         name: modelName,
                         action: 'update',
-                        parameters: { 
+                        parameters: {
                             id: recordId,  // ID passed separately to identify the record to update
-                            data: changedData 
+                            data: changedData
                         },
                         requestId
                     };
-                    
+
                     console.log('Sending update request:', JSON.stringify(message));
 
                     try {
                         console.log(`Awaiting response from update request ${requestId}...`);
                         const response = await this._sendRequest(message);
                         console.log(`Update response received for ${requestId}:`, response);
-                        
+
                         if (response.success) {
                             if (statusDiv) {
                                 statusDiv.textContent = 'Saved';
@@ -1185,7 +1198,7 @@ export class WindowForm {
                     }
                 }
             }
-            
+
             console.log("========== AUTO-SAVE END ==========");
         }, 10);
 
@@ -1198,7 +1211,7 @@ export class WindowForm {
                 console.log(`Input event on field ${fieldName} (type: ${inputType}) - marking as dirty only`);
                 this.dirtyFields.add(fieldName);
             });
-            
+
             // Add blur event to trigger auto-save when leaving the field
             input.addEventListener('blur', (e) => {
                 const fieldName = input.getAttribute('field');
@@ -1206,16 +1219,16 @@ export class WindowForm {
                 console.log(`Blur event on field ${fieldName} (type: ${inputType}) - triggering auto-save`);
                 autoSave(e);
             });
-            
+
             // Listen for data-changed events from bindable-input components
             input.addEventListener('data-changed', (event) => {
                 const fieldName = event.detail?.field || input.getAttribute('field');
                 const inputType = input.getAttribute('type');
-                
+
                 if (fieldName) {
                     console.log(`data-changed event on field ${fieldName} (type: ${inputType})`);
                     this.dirtyFields.add(fieldName);
-                    
+
                     // Only trigger auto-save for immediate-save fields
                     if (['checkbox', 'radio', 'select', 'enum', 'lookup'].includes(inputType)) {
                         console.log(`Auto-saving immediate-save field ${fieldName} (type: ${inputType}) on data-changed`);
@@ -1236,26 +1249,26 @@ export class WindowForm {
             this._showFormError("No record data available to display");
             return;
         }
-        
+
         // Add a marker to indicate that the zoom dialog is open
         window.zoomDialogOpen = true;
-        
+
         // Create a dialog overlay
         const overlay = document.createElement('div');
         overlay.className = 'zoom-overlay';
-        
+
         // Create dialog container
         const dialog = document.createElement('div');
         dialog.className = 'zoom-dialog';
-        
+
         // Add header with title and close button
         const header = document.createElement('div');
         header.className = 'zoom-header';
-        
+
         const title = document.createElement('h3');
         title.textContent = 'Record Details';
         header.appendChild(title);
-        
+
         const closeBtn = document.createElement('button');
         closeBtn.textContent = '✕';
         closeBtn.className = 'zoom-close-btn';
@@ -1264,21 +1277,21 @@ export class WindowForm {
         });
         header.appendChild(closeBtn);
         dialog.appendChild(header);
-        
+
         // Format record as pretty JSON
         const content = document.createElement('div');
         content.className = 'zoom-content';
-        
+
         const pre = document.createElement('pre');
         pre.className = 'json-display';
         pre.textContent = JSON.stringify(this.record, null, 2);
         content.appendChild(pre);
         dialog.appendChild(content);
-        
+
         // Add copy button
         const actions = document.createElement('div');
         actions.className = 'zoom-actions';
-        
+
         const copyBtn = document.createElement('button');
         copyBtn.textContent = 'Copy to Clipboard';
         copyBtn.className = 'zoom-copy-btn';
@@ -1300,11 +1313,11 @@ export class WindowForm {
         });
         actions.appendChild(copyBtn);
         dialog.appendChild(actions);
-        
+
         // Add to DOM
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
-        
+
         // Function to close the zoom dialog
         const closeZoomDialog = () => {
             if (document.body.contains(overlay)) {
@@ -1313,7 +1326,7 @@ export class WindowForm {
                 document.removeEventListener('keydown', escHandler);
             }
         };
-        
+
         // Add escape key handler to close
         const escHandler = (e) => {
             if (e.key === 'Escape') {
@@ -1323,10 +1336,10 @@ export class WindowForm {
                 return false;
             }
         };
-        
+
         // Ensure this handler runs before the window's ESC handler by using capture phase
         document.addEventListener('keydown', escHandler, { capture: true });
-        
+
         // Add click outside to close
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
@@ -1373,138 +1386,23 @@ export class WindowForm {
     _updateFormFields() {
         console.log('Updating form fields with record:', this.record);
         const inputs = this.formElement.querySelectorAll('bindable-input');
-        
+
         // First reset all inputs to ensure they don't show old values
         inputs.forEach(input => {
             input.value = '';
         });
-        
+
         // Then update with current record values
         inputs.forEach(input => {
             input.record = this.record;
             input.updateValue();
         });
-        
+
         // Force a repaint to ensure UI is updated
         this.formElement.style.opacity = '0.99';
         setTimeout(() => {
             this.formElement.style.opacity = '1';
         }, 10);
-    }
-
-    async _fetchLookupOptions(field, inputElement) {
-        // Determine the data source from field configuration
-        const dataSource = field.dataSource || 
-                         (field.options && field.options.dataSource);
-                         
-        if (!dataSource) {
-            console.warn(`Lookup field ${field.name} has no dataSource specified`);
-            if (typeof inputElement.setLookupOptions === 'function') {
-                inputElement.setLookupOptions([
-                    { id: '', name: `Error: No data source specified for ${field.name}` }
-                ]);
-            } else {
-                inputElement.setAttribute('options', JSON.stringify([
-                    { value: '', label: `Error: No data source specified for ${field.name}` }
-                ]));
-            }
-            return;
-        }
-        
-        const displayField = field.displayField || 
-                           (field.options && field.options.displayField) || 
-                           'name';
-                           
-        const valueField = field.valueField || 
-                         (field.options && field.options.valueField) || 
-                         'id';
-        
-        console.log(`Fetching lookup options for ${field.name} from model ${dataSource}`, {
-            field,
-            displayField,
-            valueField,
-            inputType: inputElement.getAttribute('type')
-        });
-        
-        const requestId = `req-find-all-${dataSource}-${field.name}-${Date.now()}`;
-        const message = {
-            type: 'model',
-            name: dataSource,
-            action: 'findAll',
-            parameters: {},
-            requestId
-        };
-        
-        try {
-            const response = await this._sendRequest(message);
-            if (response.success && Array.isArray(response.result)) {
-                console.log(`Received lookup options for ${field.name}:`, response.result);
-                
-                // Check if this is a lookup field or a select field
-                if (inputElement.getAttribute('type') === 'lookup') {
-                    // For lookup fields, format options for the lookup dropdown
-                    const options = response.result.map(item => ({
-                        id: item[valueField] ?? '',
-                        name: item[displayField] ?? '(No name)'
-                    }));
-                    
-                    console.log(`Setting lookup options for ${field.name}:`, options);
-                    
-                    // Call the setLookupOptions method on the input element
-                    if (typeof inputElement.setLookupOptions === 'function') {
-                        inputElement.setLookupOptions(options);
-                        
-                        // If we have a current value, update the display value
-                        if (this.record && this.record[field.name] !== undefined && this.record[field.name] !== null) {
-                            const currentValue = this.record[field.name];
-                            inputElement.updateValue();
-                        }
-                    } else {
-                        console.error(`Input element for ${field.name} does not have setLookupOptions method`);
-                    }
-                } else {
-                    // For select fields, use the old approach
-                    const selectOptions = response.result.map(item => ({
-                        value: item[valueField] ?? '',
-                        label: item[displayField] ?? '(No name)'
-                    }));
-                    inputElement.setAttribute('options', JSON.stringify(selectOptions));
-                    if (this.record && this.record[field.name]) {
-                        inputElement.updateValue();
-                    }
-                }
-            } else {
-                console.warn(`Failed to load lookup options for ${field.name}:`, response.error || 'Unknown error');
-                if (inputElement.getAttribute('type') === 'lookup') {
-                    // For lookup fields, show an error in the dropdown
-                    if (typeof inputElement.setLookupOptions === 'function') {
-                        inputElement.setLookupOptions([
-                            { id: '', name: `Error loading ${field.name} options: ${response.error || 'Unknown error'}` }
-                        ]);
-                    }
-                } else {
-                    // For select fields, use the old approach
-                    inputElement.setAttribute('options', JSON.stringify([
-                        { value: '', label: `Error loading ${field.name} options: ${response.error || 'Unknown error'}` }
-                    ]));
-                }
-            }
-        } catch (error) {
-            console.warn(`Lookup request for ${field.name} timed out`);
-            if (inputElement.getAttribute('type') === 'lookup') {
-                // For lookup fields, show an error in the dropdown
-                if (typeof inputElement.setLookupOptions === 'function') {
-                    inputElement.setLookupOptions([
-                        { id: '', name: `Error: Timeout loading ${field.name} options` }
-                    ]);
-                }
-            } else {
-                // For select fields, use the old approach
-                inputElement.setAttribute('options', JSON.stringify([
-                    { value: '', label: `Error: Timeout loading ${field.name} options` }
-                ]));
-            }
-        }
     }
 
     /**
@@ -1557,13 +1455,13 @@ export class WindowForm {
             document.removeEventListener('keydown', this.keydownHandler, { capture: true });
             this.keydownHandler = null;
         }
-        
+
         // Remove focus event listener
         if (this.focusHandler && this.windowElement) {
             this.windowElement.removeEventListener('focusin', this.focusHandler);
             this.focusHandler = null;
         }
-        
+
         // Clean up form inputs
         if (this.formElement) {
             const inputs = this.formElement.querySelectorAll('bindable-input');
@@ -1573,7 +1471,7 @@ export class WindowForm {
                 }
             });
         }
-        
+
         // Clean up message handlers
         if (this.messageHandlers && this.messageHandlers.length > 0) {
             this.messageHandlers.forEach(handler => {
@@ -1583,7 +1481,7 @@ export class WindowForm {
             });
             this.messageHandlers = [];
         }
-        
+
         // Remove from global tracking
         const index = window.activeWindowForms.indexOf(this);
         if (index !== -1) {
@@ -1798,45 +1696,45 @@ export class WindowForm {
         // Define standard menu items that every form will have
         const standardMenus = {
             [modelName]: [
-                { 
-                    label: 'New', 
+                {
+                    label: 'New',
                     action: () => this._createNewRecord(),
                     shortcut: 'F3'
                 },
-                { 
-                    label: 'Delete', 
+                {
+                    label: 'Delete',
                     action: () => this._deleteRecord(),
                     shortcut: 'F4'
                 }
             ],
             'View': [
-                { 
-                    label: 'Refresh', 
+                {
+                    label: 'Refresh',
                     action: () => this._loadDefaultRecord(),
                     shortcut: 'Alt+R'
                 },
-                { 
-                    label: 'First Record', 
+                {
+                    label: 'First Record',
                     action: () => this._navigateToRecord('first'),
                     shortcut: 'Ctrl+Home'
                 },
-                { 
-                    label: 'Previous Record', 
+                {
+                    label: 'Previous Record',
                     action: () => this._navigateToRecord('previous'),
                     shortcut: 'Ctrl+←'
                 },
-                { 
-                    label: 'Next Record', 
+                {
+                    label: 'Next Record',
                     action: () => this._navigateToRecord('next'),
                     shortcut: 'Ctrl+→'
                 },
-                { 
-                    label: 'Last Record', 
+                {
+                    label: 'Last Record',
                     action: () => this._navigateToRecord('last'),
                     shortcut: 'Ctrl+End'
                 },
-                { 
-                    label: 'Zoom', 
+                {
+                    label: 'Zoom',
                     action: () => this._Zoom(),
                     shortcut: 'F8'
                 }
@@ -1970,7 +1868,7 @@ export class WindowForm {
             textSpan.className = 'menu-item-text';
             textSpan.textContent = item.caption || item.label || '';
             menuItem.appendChild(textSpan);
-            
+
             // Add shortcut text if available
             if (item.shortcut) {
                 const shortcutSpan = document.createElement('span');
@@ -2220,6 +2118,63 @@ export class WindowForm {
     }
 
     /**
+     * Fetch options for lookup fields from the server
+     * @param {Object} field - The field configuration
+     * @param {HTMLElement} input - The input element
+     * @private
+     */
+    async _fetchLookupOptions(field, input) {
+        if (!field.dataSource || !this.socketService) {
+            console.error(`Cannot fetch lookup options: Missing data source or socket service for field ${field.name}`);
+            return;
+        }
+
+        console.log(`Fetching lookup options for field ${field.name} from source ${field.dataSource}`);
+
+        try {
+            const requestId = `req-lookup-options-${field.dataSource}-${Date.now()}`;
+            const message = {
+                type: 'model',
+                name: field.dataSource,
+                action: 'findAll',
+                parameters: {},
+                requestId
+            };
+
+            const response = await this._sendRequest(message);
+
+            if (response.success && Array.isArray(response.result)) {
+                // Get display and value field names
+                const displayField = field.displayField || 'name';
+                const valueField = field.valueField || 'id';
+
+                console.log(`Successfully fetched ${response.result.length} options for ${field.name}`);
+
+                // Format options in the expected format for lookup inputs
+                const options = response.result.map(item => ({
+                    value: item[valueField],
+                    label: item[displayField] || `(${item[valueField]})`
+                }));
+
+                // Set options on the input element
+                if (input && typeof input.setAttribute === 'function') {
+                    input.setAttribute('options', JSON.stringify(options));
+
+                    // If the input is a LookupInput component, call its updateOptions method
+                    if (input.updateOptions) {
+                        input.updateOptions(response.result);
+                    }
+                }
+            } else {
+                console.error(`Error fetching lookup options for ${field.name}:`,
+                    response.error || 'Unknown error');
+            }
+        } catch (error) {
+            console.error(`Failed to fetch lookup options for ${field.name}:`, error);
+        }
+    }
+
+    /**
      * Deletes the current record after confirmation
      */
     async _deleteRecord() {
@@ -2278,18 +2233,18 @@ export class WindowForm {
             console.log('Sending delete request for record ID:', recordId);
             const deleteResponse = await this._sendRequest(deleteMessage);
             console.log('Delete response:', deleteResponse);
-            
+
             if (!deleteResponse || !deleteResponse.success) {
                 const errorMsg = deleteResponse?.error || 'Failed to delete record';
                 this._showFormError(errorMsg);
                 return;
             }
-            
+
             // Clear the UI immediately after successful deletion
             // to prevent showing deleted record
             this.record = { id: 0 };
             this.dirtyFields.clear();
-            
+
             // Clear all form inputs
             const inputs = this.formElement.querySelectorAll('bindable-input');
             inputs.forEach(input => {
@@ -2299,13 +2254,13 @@ export class WindowForm {
                     input.value = '';
                 }
             });
-            
+
             // Show success message
             if (statusDiv) {
                 statusDiv.textContent = 'Record deleted';
                 statusDiv.className = 'success';
             }
-            
+
             // Now find the next record after deletion
             const nextRequestId = `req-findNext-${modelName}-${Date.now()}`;
             const nextMessage = {
@@ -2315,12 +2270,12 @@ export class WindowForm {
                 parameters: { id: deletedRecordId },
                 requestId: nextRequestId
             };
-            
+
             console.log('Looking for next record after deletion...');
             try {
                 const nextResponse = await this._sendRequest(nextMessage);
                 console.log('Next record response:', nextResponse);
-                
+
                 if (nextResponse.success && nextResponse.result) {
                     // Verify the next record isn't the same as the deleted one
                     if (nextResponse.result.id !== deletedRecordId) {
@@ -2333,7 +2288,7 @@ export class WindowForm {
                         console.warn('Server returned the deleted record as next record!');
                     }
                 }
-                
+
                 // If no next record found or it returned the deleted record, 
                 // try to find the previous record
                 const prevRequestId = `req-findPrevious-${modelName}-${Date.now()}`;
@@ -2344,11 +2299,11 @@ export class WindowForm {
                     parameters: { id: deletedRecordId },
                     requestId: prevRequestId
                 };
-                
+
                 console.log('Looking for previous record after deletion...');
                 const prevResponse = await this._sendRequest(prevMessage);
                 console.log('Previous record response:', prevResponse);
-                
+
                 if (prevResponse.success && prevResponse.result) {
                     // Verify the previous record isn't the same as the deleted one
                     if (prevResponse.result.id !== deletedRecordId) {
@@ -2361,11 +2316,11 @@ export class WindowForm {
                         console.warn('Server returned the deleted record as previous record!');
                     }
                 }
-                
+
                 // If we still don't have a valid record, create a new one
                 console.log('No valid next or previous records found, creating new record');
                 this._createNewRecord();
-                
+
             } catch (navError) {
                 console.error('Error finding next/previous record:', navError);
                 // If navigation fails, create a new record
@@ -2375,119 +2330,5 @@ export class WindowForm {
             console.error('Error in delete process:', error);
             this._showFormError(`Error: ${error.message || 'Failed to delete record'}`);
         }
-    }
-
-    /**
-     * Process a file field for saving, converting to appropriate format
-     * @param {Object} value - The file field value with tempFile object
-     * @returns {Promise<Object|string>} - Processed file object or path
-     * @private
-     */
-    async _processFileForSave(value) {
-        if (!value || !value.tempFile || !(value.tempFile instanceof File)) {
-            return value; // Return as is if not a valid file object
-        }
-        
-        // Read the file as base64
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            
-            reader.onload = () => {
-                try {
-                    // Create file data object with base64 content
-                    const fileData = {
-                        filename: value.filename,
-                        mimeType: value.mimeType,
-                        size: value.size,
-                        data: reader.result.split(',')[1], // Remove data URL prefix
-                        uploadDate: new Date().toISOString()
-                    };
-                    
-                    // Resolve with processed file data
-                    resolve(fileData);
-                } catch (error) {
-                    reject(error);
-                }
-            };
-            
-            reader.onerror = () => {
-                reject(new Error('Failed to read file'));
-            };
-            
-            // Read as data URL (base64)
-            reader.readAsDataURL(value.tempFile);
-        });
-    }
-
-    /**
-     * Process a file field value for saving to the server
-     * @param {Object} fileValue - The file field value containing tempFile
-     * @returns {Promise<Object>} - The processed file data
-     * @private
-     */
-    _processFileForSave(fileValue) {
-        console.log('_processFileForSave called with:', {
-            hasFileValue: !!fileValue,
-            hasTempFile: fileValue && !!fileValue.tempFile,
-            fileValueKeys: fileValue ? Object.keys(fileValue) : []
-        });
-        
-        return new Promise((resolve, reject) => {
-            if (!fileValue || !fileValue.tempFile) {
-                console.warn('No file to process:', fileValue);
-                return resolve(fileValue);
-            }
-            
-            const file = fileValue.tempFile;
-            console.log('Processing file:', {
-                name: file.name,
-                type: file.type,
-                size: file.size,
-                lastModified: file.lastModified
-            });
-            
-            const reader = new FileReader();
-            
-            reader.onload = function(event) {
-                try {
-                    // Convert the file to base64
-                    const base64Data = event.target.result;
-                    console.log(`File read complete, data length: ${base64Data.length}`);
-                    console.log(`Data preview: ${base64Data.substring(0, 100)}...`);
-                    
-                    // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
-                    const parts = base64Data.split(',');
-                    console.log(`Data URL prefix: ${parts[0]}`);
-                    const base64Content = parts[1];
-                    console.log(`Base64 content length: ${base64Content.length}`);
-                    
-                    const fileData = {
-                        filename: file.name,
-                        mimeType: file.type,
-                        size: file.size,
-                        data: base64Content,            // Include the base64 data for both field types
-                        sourceFilePath: file.name,      // Include sourceFilePath for FileDiskField
-                        uploadDate: new Date().toISOString()
-                    };
-                    
-                    console.log('Prepared file data with properties:', Object.keys(fileData));
-                    console.log(`Data length: ${fileData.data.length} characters`);
-                    
-                    console.log(`File processed successfully: ${file.name} (${file.type}, ${file.size} bytes)`);
-                    resolve(fileData);
-                } catch (err) {
-                    console.error('Error processing file data:', err);
-                    reject(err);
-                }
-            };
-            
-            reader.onerror = function(error) {
-                console.error('Error reading file:', error);
-                reject(error);
-            };
-            
-            console.log('Starting file read as DataURL');
-            reader.readAsDataURL(file);
-        });
     }
 }

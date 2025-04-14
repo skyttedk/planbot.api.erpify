@@ -7,6 +7,17 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-for-jwt-tokens';
 const TOKEN_EXPIRY = '24h'; // Token expiry time
 
+// Development mode settings
+const DEV_MODE = process.env.NODE_ENV !== 'production';
+const DEV_TOKEN = 'dev-token-bypass-auth-123456';
+const DEV_USER = {
+    id: 999,
+    username: 'DevUser',
+    name: 'Development User',
+    email: 'dev@example.com',
+    isAdmin: true
+};
+
 /**
  * Authentication Controller
  * Handles user authentication operations like login, registration, and token validation
@@ -23,21 +34,21 @@ class Auth {
     static async login(username, password) {
         try {
             logger.info(`Login attempt for user: ${username}`);
-            
+
             // Get the password field to hash the password
             const passwordField = User.fields.password;
-            
+
             // Hash the password before querying
             const hashedPassword = await passwordField.hashPassword(password);
-            
+
             // Find user by username and password in a single query
-            const user = await User.findOne({ 
-                where: { 
+            const user = await User.findOne({
+                where: {
                     username: username,
                     password: hashedPassword
                 }
             });
-            
+
             // If no user found with that username and password
             if (!user) {
                 logger.warn(`Login failed: Invalid credentials for username: ${username}`);
@@ -46,7 +57,7 @@ class Auth {
                     message: 'Invalid username or password'
                 };
             }
-            
+
             // Check if user is active
             if (user.isActive === false) {
                 logger.warn(`Login attempt for inactive user: ${username}`);
@@ -55,15 +66,15 @@ class Auth {
                     message: 'Account is inactive. Please contact an administrator.'
                 };
             }
-            
+
             // Update last login timestamp
-            await User.update(user.id, { 
-                lastLoginDate: new Date() 
+            await User.update(user.id, {
+                lastLoginDate: new Date()
             });
-            
+
             // Generate JWT token
             const token = jwt.sign(
-                { 
+                {
                     userId: user.id,
                     username: user.username,
                     isAdmin: user.isAdmin
@@ -71,9 +82,9 @@ class Auth {
                 JWT_SECRET,
                 { expiresIn: TOKEN_EXPIRY }
             );
-            
+
             logger.info(`User ${username} logged in successfully`);
-            
+
             return {
                 success: true,
                 token,
@@ -93,8 +104,8 @@ class Auth {
             };
         }
     }
-    
-   
+
+
     /**
      * Verifies a JWT token
      * 
@@ -109,29 +120,39 @@ class Auth {
                     message: 'No token provided'
                 };
             }
-            
+
+            // Check for development token bypass
+            if (DEV_MODE && token === DEV_TOKEN) {
+                logger.warn('Using development token bypass - NEVER USE IN PRODUCTION');
+                return {
+                    success: true,
+                    user: DEV_USER,
+                    isDevelopmentBypass: true
+                };
+            }
+
             // Verify the token
             const decoded = jwt.verify(token, JWT_SECRET);
-            
+
             // Check if the user still exists and is active using findOne
-            const user = await User.findOne({ 
+            const user = await User.findOne({
                 where: { id: decoded.userId }
             });
-            
+
             if (!user) {
                 return {
                     success: false,
                     message: 'User not found'
                 };
             }
-            
+
             if (user.isActive === false) {
                 return {
                     success: false,
                     message: 'User account is inactive'
                 };
             }
-            
+
             return {
                 success: true,
                 user: {
@@ -150,7 +171,7 @@ class Auth {
             };
         }
     }
-    
+
     /**
      * Refreshes a user's token
      * 
@@ -160,16 +181,16 @@ class Auth {
     static async refreshToken(token) {
         try {
             const verification = await Auth.verifyToken(token);
-            
+
             if (!verification.success) {
                 return verification;
             }
-            
+
             const user = verification.user;
-            
+
             // Generate a new token
             const newToken = jwt.sign(
-                { 
+                {
                     userId: user.id,
                     username: user.username,
                     isAdmin: user.isAdmin
@@ -177,7 +198,7 @@ class Auth {
                 JWT_SECRET,
                 { expiresIn: TOKEN_EXPIRY }
             );
-            
+
             return {
                 success: true,
                 token: newToken,
@@ -193,4 +214,4 @@ class Auth {
     }
 }
 
-export default Auth; 
+export default Auth;
