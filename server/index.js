@@ -1,10 +1,8 @@
 import { WebSocketServer } from 'ws';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { asyncLocalStorage } from '../server/lib/orm/asyncContext.js';
-import { buildMenuStructure } from './lib/menuBuilder.js';
 import pool from './config/db.js';
 import modelLoader from './models/index.js';
-import viewLoader from './views/index.js';
 import controllerLoader from './controllers/index.js';
 import logger from './lib/logger.js';
 import http from 'http';
@@ -25,13 +23,12 @@ const forceSyncSchema = args.includes('--sync-schema') || args.includes('-s');
 const forceReseed = args.includes('--seed') || args.includes('-d');
 const skipSeeders = args.includes('--no-seed');
 
-// Load all models, views, and controllers
+// Load models and controllers
 const models = await modelLoader.init({ 
     forceSyncSchema,
     runSeeders: !skipSeeders,
     forceReseed
 });
-const views = await viewLoader.init();
 const controllers = await controllerLoader.init();
 
 const rateLimiter = new RateLimiterMemory({ points: 100, duration: 60 });
@@ -244,31 +241,11 @@ async function handleClientConnection(ws) {
         const { type, name, action, parameters = {}, requestId } = request;
         let result;
 
-        // Process request based on type (model, view, or controller)
-        switch (type) {
-          case 'model':
-            result = await handleModelRequest(name, action, parameters);
-            break;
-          
-          case 'view':
-            result = await handleViewRequest(name, parameters);
-            break;
-          
-          case 'controller':
-            result = await handleControllerRequest(name, action, parameters);
-            break;
-          
-          case 'menu':
-            result = await handleMenuRequest();
-            break;
-          
-          default:
-            // For backward compatibility, assume it's a model request if no type specified
-            if (request.model) {
-              result = await handleModelRequest(request.model, action, parameters);
-            } else {
-              throw new Error('Invalid request type. Must be "model", "view", or "controller"');
-            }
+        // Process controller request only
+        if (type === 'controller') {
+          result = await handleControllerRequest(name, action, parameters);
+        } else {
+          throw new Error('Invalid request type. Only "controller" is supported');
         }
 
         await client.query('COMMIT');
@@ -298,161 +275,6 @@ async function handleClientConnection(ws) {
   ws.on('error', (error) => logger.error('WebSocket error:', error));
 }
 
-// Handle model requests (CRUD operations)
-async function handleModelRequest(modelName, action, parameters) {
-  console.log(`Model request received: ${modelName}.${action}`, JSON.stringify(parameters));
-  
-  const ModelClass = models[modelName];
-  
-  if (!ModelClass) {
-    throw new Error(`Model "${modelName}" not found`);
-  }
-  if (typeof ModelClass[action] !== 'function') {
-    throw new Error(`Action "${action}" not available for model "${modelName}"`);
-  }
-  
-  // Special handling for update action to ensure parameters are correct
-  if (action === 'update') {
-    console.log(`Processing update request for ${modelName}:`, parameters);
-    
-    // Validate required parameters
-    if (!parameters.id) {
-      throw new Error(`Missing required parameter 'id' for update operation on model "${modelName}"`);
-    }
-    
-    if (!parameters.data || typeof parameters.data !== 'object' || Object.keys(parameters.data).length === 0) {
-      throw new Error(`Missing or invalid 'data' parameter for update operation on model "${modelName}"`);
-    }
-    
-    // Check for file fields
-    console.log(`Examining data for file fields`);
-    for (const [field, value] of Object.entries(parameters.data)) {
-      if (value && typeof value === 'object') {
-        console.log(`Field ${field} contains an object:`, {
-          keys: Object.keys(value),
-          hasData: !!value.data,
-          dataLength: value.data ? value.data.length : 0,
-          dataPreview: value.data ? `${value.data.substring(0, 50)}...` : null,
-          sourceFilePath: value.sourceFilePath,
-          filename: value.filename,
-          mimeType: value.mimeType
-        });
-      }
-    }
-    
-    // Convert id to number if it's a numeric string
-    if (typeof parameters.id === 'string' && !isNaN(parseInt(parameters.id, 10))) {
-      parameters.id = parseInt(parameters.id, 10);
-      console.log(`Converted id parameter from string to number: ${parameters.id}`);
-    }
-    
-    console.log(`Validated update parameters for ${modelName}:`, {
-      id: parameters.id,
-      data: parameters.data
-    });
-  }
-  
-  // Construct parameters array
-  const expectedParams = getFunctionParameters(ModelClass[action]);
-  const paramArray = expectedParams.map((name) => {
-    console.log(`Processing parameter ${name}:`, parameters[name] !== undefined ? JSON.stringify(parameters[name]) : 'null');
-    return parameters[name] !== undefined ? parameters[name] : null;
-  });
-  
-  console.log(`Calling ${modelName}.${action} with parameters:`, JSON.stringify(paramArray));
-  
-  try {
-    // Call the method
-    let result = await ModelClass[action](...paramArray);
-    
-    // Special handling for get/find actions to handle async onGet methods on fields
-    if (action === 'get' || action === 'find' || action === 'findAll') {
-      console.log(`Processing results from ${action} action for async field getters`);
-      
-      // Handle single result or array of results
-      if (Array.isArray(result)) {
-        // For findAll results
-        const processedResults = [];
-        for (const item of result) {
-          if (item && typeof item === 'object') {
-            const processedItem = { ...item };
-            // Process each field that might have an async getter
-            for (const fieldName in item) {
-              if (ModelClass._fieldDefinitions && ModelClass._fieldDefinitions[fieldName]) {
-                const fieldDef = ModelClass._fieldDefinitions[fieldName];
-                if (fieldDef && typeof fieldDef.onGet === 'function') {
-                  try {
-                    // Call onGet and await if it returns a Promise
-                    const fieldValue = fieldDef.onGet(item[fieldName]);
-                    if (fieldValue instanceof Promise) {
-                      processedItem[fieldName] = await fieldValue;
-                      console.log(`Processed async field ${fieldName} in ${modelName}`);
-                    } else {
-                      processedItem[fieldName] = fieldValue;
-                    }
-                  } catch (err) {
-                    console.error(`Error processing field ${fieldName}:`, err);
-                    // Keep original value on error
-                  }
-                }
-              }
-            }
-            processedResults.push(processedItem);
-          } else {
-            processedResults.push(item);
-          }
-        }
-        result = processedResults;
-      } else if (result && typeof result === 'object') {
-        // For single result from get
-        const processedResult = { ...result };
-        // Process each field that might have an async getter
-        for (const fieldName in result) {
-          if (ModelClass._fieldDefinitions && ModelClass._fieldDefinitions[fieldName]) {
-            const fieldDef = ModelClass._fieldDefinitions[fieldName];
-            if (fieldDef && typeof fieldDef.onGet === 'function') {
-              try {
-                // Call onGet and await if it returns a Promise
-                const fieldValue = fieldDef.onGet(result[fieldName]);
-                if (fieldValue instanceof Promise) {
-                  processedResult[fieldName] = await fieldValue;
-                  console.log(`Processed async field ${fieldName} in ${modelName}`);
-                } else {
-                  processedResult[fieldName] = fieldValue;
-                }
-              } catch (err) {
-                console.error(`Error processing field ${fieldName}:`, err);
-                // Keep original value on error
-              }
-            }
-          }
-        }
-        result = processedResult;
-      }
-    }
-    
-    console.log(`${modelName}.${action} completed successfully`, result ? 'with result' : 'with no result');
-    return result;
-  } catch (error) {
-    console.error(`Error in ${modelName}.${action}:`, error);
-    throw error;
-  }
-}
-
-// Handle view requests (returning UI configurations)
-async function handleViewRequest(viewName, parameters) {
-  if (!views[viewName]) {
-    throw new Error(`View "${viewName}" not found`);
-  }
-  
-  // Views might be static configs or functions that generate configs
-  if (typeof views[viewName] === 'function') {
-    return await views[viewName](parameters);
-  } else {
-    return views[viewName];
-  }
-}
-
 // Handle controller requests (business logic actions)
 async function handleControllerRequest(controllerName, action, parameters) {
   const ControllerClass = controllers[controllerName];
@@ -472,14 +294,6 @@ async function handleControllerRequest(controllerName, action, parameters) {
   
   // Call the controller method
   return await ControllerClass[action](...paramArray);
-}
-
-// Handle menu requests (returning the dynamically built menu structure)
-async function handleMenuRequest() {
-  
-  // Build and return the menu structure from all views
-  const menuStructure = buildMenuStructure(views);
-  return menuStructure;
 }
 
 // Main function to start the server (unchanged)
