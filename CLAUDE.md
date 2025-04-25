@@ -21,8 +21,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Error Handling**: Use try/catch blocks with specific error messages
 - **Naming**: PascalCase for classes, camelCase for variables/functions
 - **Documentation**: JSDoc comments for classes and methods
-- **CSS**: Keep all styling in client/css/styles.css - aim for professional, compact design
 - **Architecture**: Follow the MVC pattern with model-driven development approach
+- **Code Cleanup**: Keep code clean, sleek and simple; avoid unnecessary complexity
+- **Simplicity**: Don't build a "Rube Goldberg Machine" - aim for the simplest solution
+
+## Adding New Components
+
+- **Field Templates**: Create in server/models/fields following the field.template structure
+- **Model Templates**: Create in server/models following the model.template structure
+- **Always add new fields** to fieldPaths in server/models/fields/index.js
+- **Always add new models** to modelPaths in server/models/index.js
 
 ## Project Vision
 
@@ -42,26 +50,12 @@ AI.ERPIFY is a Rapid Application Development platform for quickly building busin
 - Custom ORM with transaction support and field templates
 - JWT-based authentication and RBAC authorization
 
-### Client Tier
-
-- Vanilla JavaScript with web component architecture
-- WebSockets for real-time communication
-- History API for SPA navigation
-- Two-way data binding for form inputs
-
 ### Field Templates System
 
 - Centralized field definitions for consistency
 - Reusable field components with validation
 - Field inheritance and override capabilities
 - Auto-generated UI components from field templates
-
-### Form Builder
-
-- Declarative JSON-based form configuration
-- Support for multiple form types (list, detail, lookup)
-- Permissions control at form and field level
-- Dynamic layouts with conditional field visibility
 
 ### Socket Communication
 
