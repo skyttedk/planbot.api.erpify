@@ -172,28 +172,39 @@ async function handleClientConnection(ws) {
 
       // Special handling for authentication requests
       if (request.type === 'controller' && request.name === 'Auth') {
-        // Authentication requests don't require a token
-        // Acquire a client from the pool
-        client = await pool.connect();
+        try {
+          // Authentication requests don't require a token
+          // Acquire a client from the pool
+          client = await pool.connect();
 
-        // Run the request processing in an AsyncLocalStorage context
-        await asyncLocalStorage.run({ client }, async () => {
-          await client.query('BEGIN');
+          // Run the request processing in an AsyncLocalStorage context
+          await asyncLocalStorage.run({ client }, async () => {
+            await client.query('BEGIN');
 
-          // Process the authentication request
-          const result = await handleControllerRequest('Auth', request.action, request.parameters || {});
+            // Process the authentication request
+            const result = await handleControllerRequest('Auth', request.action, request.parameters || {});
 
-          await client.query('COMMIT');
-          ws.send(JSON.stringify({
-            success: true,
-            type: request.type,
-            data: result,
-            requestId: request.requestId
+            await client.query('COMMIT');
+            ws.send(JSON.stringify({
+              success: true,
+              type: request.type,
+              data: result,
+              requestId: request.requestId
+            }));
+          });
+        } catch (error) {
+          if (client) await client.query('ROLLBACK');
+          logger.error('Authentication error:', error);
+          ws.send(JSON.stringify({ 
+            success: false, 
+            message: error.message,
+            requestId: request.requestId 
           }));
-        });
-        
-        if (client) {
-          client.release();
+        } finally {
+          if (client) {
+            client.release();
+            client = null; // Prevent double-release in the outer finally block
+          }
         }
         return;
       }
