@@ -56,6 +56,11 @@ AI.ERPIFY is a Rapid Application Development platform for quickly building busin
 - Reusable field components with validation
 - Field inheritance and override capabilities
 - Auto-generated UI components from field templates
+- Fixed properties combined with allowed overrides
+- Custom transformations via onSet() and onGet() hooks
+- Each field has a unique identifier (UID) for registration
+- Base Field class provides core validation functionality
+- Field-specific logic encapsulated within each template
 
 ### Socket Communication
 
