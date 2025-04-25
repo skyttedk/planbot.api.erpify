@@ -1,7 +1,3 @@
-cursors--- when updating, disable cursor!!
-
-
-
 
 
 when calling controllers, or in general.... hmm we should have a messages
