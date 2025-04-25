@@ -16,7 +16,14 @@ class AgeField extends Field {
             default: options.default,
         };
 
-        super({ ...fixedProperties, ...allowedOverrides });
+        // Field documentation provides metadata about the field
+        const documentation = {
+            description: 'Age Field',
+            examples: ['25', '30', '42'],
+            usage: 'Used for storing a person\'s age between 0 and 120'
+        };
+
+        super({ ...fixedProperties, ...allowedOverrides, documentation }, 'AgeField');
     }
 
     /**

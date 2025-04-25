@@ -52,15 +52,37 @@ class CountryField extends Field {
         return null;
     }
 
-    // Validate that the value is a valid integer or null
-    validate(value) {
+    /**
+     * Custom setter logic to validate the country ID
+     *
+     * @param {any} value - The value to validate and transform.
+     * @returns {any} The validated value.
+     */
+    onSet(value) {
         if (value === null || value === undefined) {
-            return !this.required;
+            if (this.required) {
+                throw new Error(`${this.fieldName} is required.`);
+            }
+            return value;
         }
         
         // Check if it's a valid integer
         const intValue = parseInt(value, 10);
-        return !isNaN(intValue) && intValue.toString() === value.toString();
+        if (isNaN(intValue) || intValue.toString() !== value.toString()) {
+            throw new Error(`${this.fieldName} must be a valid integer ID.`);
+        }
+        
+        return intValue;
+    }
+    
+    /**
+     * Custom getter logic
+     *
+     * @param {any} value - The stored value.
+     * @returns {any} The processed value.
+     */
+    onGet(value) {
+        return value;
     }
 }
 

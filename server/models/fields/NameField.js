@@ -28,8 +28,8 @@ class NameField extends Field {
             usage: 'Name of a person',
         };
 
-        // Merge fixed properties and allowed overrides, set field name to 'Name'
-        super({ ...fixedProperties, ...allowedOverrides }, 'Name');
+        // Merge fixed properties and allowed overrides, set field name to 'NameField'
+        super({ ...fixedProperties, ...allowedOverrides, documentation }, 'NameField');
     }
 
     /**

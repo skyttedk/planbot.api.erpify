@@ -71,11 +71,10 @@ class EnumField extends Field {
      * @returns {string|null} The validated value or null.
      */
     onSet(value) {
-        console.log(`EnumField.onSet called with value: ${JSON.stringify(value)}`);
-        console.log(`Available options: ${JSON.stringify(this._options)}`);
+        // Value validation and normalization
         
         if (value === null || value === undefined || value === '') {
-            console.log(`Returning null for empty value`);
+            // Return null for empty values
             return null;
         }
 
@@ -96,12 +95,12 @@ class EnumField extends Field {
             }
             
             if (!matchedOption) {
-                console.log(`Validation failed for value: ${stringValue}`);
+                // Validation failed
                 throw new Error(`Value "${stringValue}" is not in the allowed options: ${this._options.join(', ')}`);
             }
             
             // Return the matched option with correct case from the options list
-            console.log(`Returning normalized value: ${matchedOption}`);
+            // Return the normalized value
             return matchedOption;
         }
         
@@ -145,7 +144,7 @@ class EnumField extends Field {
                 String(option).toLowerCase() === lowerValue
             );
             
-            console.log(`Case-insensitive validation: ${lowerValue} against options, found: ${foundOption}`);
+            // Perform case-insensitive validation
             return foundOption !== undefined;
         }
     }

@@ -9,7 +9,7 @@ import Field from '../../lib/orm/Field.js';
  * @param {string} [options.default] - Default value if none is provided.
  * @param {string} [options.caption] - Caption for the field.
  */
-class Code10 extends Field {
+class Code10Field extends Field {
     constructor(options = {}) {
         // Fixed properties for a Code10 field.
         const fixedProperties = {
@@ -34,7 +34,7 @@ class Code10 extends Field {
         };
 
         // Merge fixed properties and allowed overrides and pass them to the base Field constructor.
-        super({ ...fixedProperties, ...allowedOverrides, documentation });
+        super({ ...fixedProperties, ...allowedOverrides, documentation }, 'Code10Field');
     }
 
     /**
@@ -78,4 +78,4 @@ class Code10 extends Field {
     }
 }
 
-export default Code10; 
+export default Code10Field; 

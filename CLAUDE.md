@@ -17,6 +17,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **ES Modules**: Use import/export syntax - project uses ES modules (type: "module")
 - **Field Template Pattern**: Follow field.template structure when creating new field types
+  - All field classes must follow the naming convention ClassNameField (e.g. StringField, EmailField)
+  - Always set unique UID for each field in fixedProperties
+  - Always include complete documentation with description, examples, and usage
+  - Always pass fieldName to super() as the second parameter
+  - Custom properties must be set AFTER super() call
+  - Use onSet() and onGet() methods for field-specific validation and transformation logic
+  - Use 'varchar' type name for string fields, not 'string'
 - **Model Template Pattern**: Follow model.template structure when creating new models
 - **Error Handling**: Use try/catch blocks with specific error messages
 - **Naming**: PascalCase for classes, camelCase for variables/functions

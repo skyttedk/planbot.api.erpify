@@ -1,6 +1,6 @@
 import Field from '../../lib/orm/Field.js';
 
-class Email extends Field {
+class EmailField extends Field {
     constructor(options = {}) {
         const fixedProperties = {
             uid: '{b9cabff6-d2d1-499c-9bc6-9c5dae540443}',
@@ -19,7 +19,7 @@ class Email extends Field {
             usage: 'Used for storing email addresses'
         };
 
-        super({ ...fixedProperties, ...allowedOverrides });
+        super({ ...fixedProperties, ...allowedOverrides, documentation }, 'EmailField');
     }
 
     onSet(value) {
@@ -36,4 +36,4 @@ class Email extends Field {
     }
 }
 
-export default Email;
+export default EmailField;

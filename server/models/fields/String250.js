@@ -1,6 +1,6 @@
 import Field from '../../lib/orm/Field.js';
 
-class String250 extends Field {
+class String250Field extends Field {
     constructor(options = {}) {
         const fixedProperties = {
             uid: 'b79030b2-11e6-43fb-92af-c91625827674',
@@ -14,12 +14,12 @@ class String250 extends Field {
         };
 
         const documentation = {
-            description: '<your description here>',
-            examples: ['""', '""'],
-            usage: '<describe intended usages>'
+            description: 'Standard string field with 250 character limit',
+            examples: ['"Short text"', '"Longer description with multiple words"'],
+            usage: 'Use for names, descriptions, and general text content under 250 characters'
         };
 
-        super({ ...fixedProperties, ...allowedOverrides });
+        super({ ...fixedProperties, ...allowedOverrides, documentation }, 'String250Field');
     }
 
     onSet(value) {
@@ -36,4 +36,4 @@ class String250 extends Field {
     }
 }
 
-export default String250;
+export default String250Field;

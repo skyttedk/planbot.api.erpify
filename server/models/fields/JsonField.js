@@ -64,7 +64,10 @@ class JsonField extends Field {
             try {
                 return JSON.parse(value);
             } catch (e) {
-                return value; // Return the string as-is if parsing fails
+                // Log the error but don't throw it to avoid breaking the application
+                console.error(`Error parsing JSON value in JsonField: ${e.message}`);
+                // Return a safe default for invalid JSON
+                return {};
             }
         }
         return value; // Return non-string values unchanged

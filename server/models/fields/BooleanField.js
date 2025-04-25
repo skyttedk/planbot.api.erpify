@@ -84,8 +84,8 @@ class BooleanField extends Field {
      * @returns {boolean} The boolean value.
      */
     onGet(value) {
-        // Simply return the boolean value
-        return value === true;
+        // Return the original value to maintain null/undefined distinction
+        return value;
     }
 
     /**

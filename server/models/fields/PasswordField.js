@@ -103,10 +103,11 @@ class PasswordField extends Field {
      * @throws {Error} If the password doesn't meet requirements.
      */
     async _validatePassword(password) {
-        const minLength = 8;
-        const requireNumber = true;
-        const requireSpecialChar = true;
-        const requireUppercase = true;
+        // Use validation options from the constructor
+        const minLength = this._validationOptions.minLength;
+        const requireNumber = this._validationOptions.requireNumber;
+        const requireSpecialChar = this._validationOptions.requireSpecialChar;
+        const requireUppercase = this._validationOptions.requireUppercase;
 
         if (password.length < minLength) {
             throw new Error(`Password must be at least ${minLength} characters long`);

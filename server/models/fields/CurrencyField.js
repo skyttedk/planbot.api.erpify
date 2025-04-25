@@ -13,8 +13,9 @@ class CurrencyField extends Field {
         const allowedOverrides = {
             required: options.required,
             default: options.default,
-            currency: options.currency || 'USD', // Default currency is USD
         };
+        
+        // Store currency code after super()
 
         const documentation = {
             description: 'Currency Field',
@@ -23,6 +24,9 @@ class CurrencyField extends Field {
         };
 
         super({ ...fixedProperties, ...allowedOverrides, documentation });
+        
+        // Store currency setting - AFTER super() call
+        this._currency = options.currency || 'USD'; // Default currency is USD
     }
 
     onSet(value) {
@@ -45,7 +49,7 @@ class CurrencyField extends Field {
     onGet(value) {
         // Custom getter logic
         if (value !== null && value !== undefined) {
-            const currency = this.currency || 'USD';
+            const currency = this._currency || 'USD';
             // Format the number as currency
             return {
                 value: parseFloat(value),
