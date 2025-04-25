@@ -14,7 +14,7 @@ import logger from './logger.js';
 async function initDatabase() {
     const client = await pool.connect();
     try {
-        logger.info('Initializing database infrastructure tables...');
+        // Silent database initialization
         
         // Check if schema_versions table exists
         const versionTableExists = (await client.query(
@@ -27,7 +27,7 @@ async function initDatabase() {
         )).rows[0].exists;
         
         if (!versionTableExists) {
-            logger.info('Creating schema_versions table...');
+            // Creating schema_versions table
             // Create schema_versions table if it doesn't exist
             await client.query(`
                 CREATE TABLE schema_versions (
@@ -36,12 +36,12 @@ async function initDatabase() {
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
             `);
-            logger.info('schema_versions table created successfully');
+            // Schema_versions table created successfully
         } else {
-            logger.info('schema_versions table already exists');
+            // Schema_versions table already exists
         }
         
-        logger.info('Database infrastructure tables initialized successfully');
+        // Database infrastructure tables initialized successfully
         return true;
     } catch (error) {
         logger.error('Error initializing database:', error);

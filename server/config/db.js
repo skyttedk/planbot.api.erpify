@@ -19,11 +19,7 @@ const config = {
     port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 5432,
 };
 
-// Log connection without password for debugging
-logger.debug('DB Connection config:', { 
-    ...config,
-    password: '****' // Hide password in logs
-});
+// Connection established, no need to log config
 
 const pool = new Pool(config);
 

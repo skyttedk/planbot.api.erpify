@@ -23,11 +23,11 @@ async function loadModels() {
     await Promise.all(
         Object.entries(modelPaths).map(async ([name, path]) => {
             try {
-                modelSpinner.text = `Loading model: ${name}`;
+                // Loading model
                 const module = await import(path);
                 importedModels[name] = module.default;
                 loadedCount++;
-                modelSpinner.text = `Loaded ${loadedCount}/${totalModels} models`;
+                modelSpinner.text = `Loading models`;
             } catch (error) {
                 logger.error(`Failed to load model ${name} from ${path}:`, error);
                 throw error;
@@ -35,7 +35,7 @@ async function loadModels() {
         })
     );
     
-    modelSpinner.succeed(`Successfully loaded ${totalModels} models`);
+    modelSpinner.succeed(`Models loaded successfully`);
     return importedModels;
 }
 
@@ -50,7 +50,7 @@ async function syncSchemas(models, options = { force: false }) {
         
         const syncPromises = Object.entries(models).map(async ([name, model]) => {
             if (typeof model.syncSchema === 'function') {
-                schemaSpinner.text = `Syncing schema for ${name}`;
+                // Syncing schema
                 // When force is true, also drop extra columns
                 const syncOptions = { 
                     force: options.force,
@@ -58,7 +58,7 @@ async function syncSchemas(models, options = { force: false }) {
                 };
                 await model.syncSchema(syncOptions);
                 syncedCount++;
-                schemaSpinner.text = `Synced ${syncedCount}/${modelNames.length} schemas`;
+                schemaSpinner.text = `Checking database schemas`;
             }
         });
         
@@ -101,16 +101,16 @@ class ModelLoader {
                     const models = await loadModels();
                     
                     if (options.forceSyncSchema) {
-                        initSpinner.text = 'Forcing schema synchronization';
+                        // Forcing schema synchronization
                     } else {
-                        initSpinner.text = 'Checking schema consistency';
+                        // Checking schema consistency
                     }
                     
                     await syncSchemas(models, { force: options.forceSyncSchema });
                     
                     // Run seeders if enabled
                     if (options.runSeeders) {
-                        initSpinner.text = 'Running database seeders';
+                        // Running database seeders
                         await seeders.runSeeders(models, { force: options.forceReseed });
                     }
                     
