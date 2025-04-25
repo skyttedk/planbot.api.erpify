@@ -24,6 +24,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Custom properties must be set AFTER super() call
   - Use onSet() and onGet() methods for field-specific validation and transformation logic
   - Use 'varchar' type name for string fields, not 'string'
+  - **IMPORTANT**: Reuse existing field templates when appropriate rather than creating new ones:
+    - For enumerated values, use EnumField with the options property
+    - For string fields, use the appropriate StringXX field (String10, String20, String50, String100, String250)
+    - Create custom field templates only when they have unique validation or transformation logic
 - **Model Template Pattern**: Follow model.template structure when creating new models
 - **Error Handling**: Use try/catch blocks with specific error messages
 - **Naming**: PascalCase for classes, camelCase for variables/functions

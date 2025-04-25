@@ -14,6 +14,10 @@ export const fieldPaths = {
     PathField: './PathField.js',
     NameField: './NameField.js',
     Email: './Email.js',
+    String10: './String10.js',
+    String20: './String20.js',
+    String50: './String50.js',
+    String100: './String100.js',
     String250: './String250.js',
     CurrencyField: './CurrencyField.js',
     Code10: './Code10.js',
@@ -22,7 +26,8 @@ export const fieldPaths = {
     EnumField: './EnumField.js',
     CountryField: './CountryField.js',
     FileBlobField: './FileBlobField.js',
-    FileDiskField: './FileDiskField.js'
+    FileDiskField: './FileDiskField.js',
+    NumberField: './NumberField.js'
 };
 
 // Dynamically import each module based on the above configuration.
