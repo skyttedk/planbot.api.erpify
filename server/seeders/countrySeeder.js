@@ -35,7 +35,7 @@ async function run(models, options = { force: false }) {
         const existingCountries = await Country.findAll();
         
         if (existingCountries.length > 0 && !options.force) {
-            logger.info(`${existingCountries.length} countries already exist, skipping seed`);
+            // Silent skip
             return;
         }
 

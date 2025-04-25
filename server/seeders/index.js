@@ -45,7 +45,7 @@ async function runSeeders(models, options = { force: false }) {
                 try {
                     await seeder.run(models, options);
                     completedCount++;
-                    seederSpinner.text = `Completed ${completedCount}/${totalSeeders} seeders`;
+                    seederSpinner.text = `Running database seeders`;
                 } catch (error) {
                     logger.error(`Error in seeder ${seeder.name}:`, error);
                     // Instead of continuing, we'll throw to trigger transaction rollback

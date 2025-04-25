@@ -30,7 +30,7 @@ async function run(models, options = { force: false }) {
         });
         
         if (existingAdmin && !options.force) {
-            logger.info('Admin user already exists, skipping seed');
+            // Silent skip
             return;
         }
 
