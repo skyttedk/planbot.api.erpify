@@ -1,28 +1,32 @@
 import pool from '../../config/db.js';
-
 import { asyncLocalStorage } from '../../lib/orm/asyncContext.js';
-
 import logger from '../../lib/logger.js';
 
-
+/**
+ * Base Model class for ORM implementation
+ * Provides core CRUD functionality and schema management
+ */
 export default class Model {
   static tableName = '';
   static primaryKey = 'id';
 
-  // Hardcode default field definitions
+  /**
+   * Default field definitions included in all models
+   * @type {Object}
+   */
   static defaultFields = {
     id: {
-      uid: '{f6e2aabc-1e8f-4b19-8e3d-1a2b3c4d5e6f}', // Replace with your fixed GUID
+      uid: '{f6e2aabc-1e8f-4b19-8e3d-1a2b3c4d5e6f}', 
       sql: 'INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY',
       required: true,
     },
     createdAt: {
-      uid: '{a1b2c3d4-e5f6-7890-abcd-ef1234567890}', // Replace with your fixed GUID
+      uid: '{a1b2c3d4-e5f6-7890-abcd-ef1234567890}', 
       sql: 'TIMESTAMPTZ NOT NULL DEFAULT NOW()',
       required: true,
     },
     updatedAt: {
-      uid: '{09876543-21fe-dcba-0987-654321fedcba}', // Replace with your fixed GUID
+      uid: '{09876543-21fe-dcba-0987-654321fedcba}', 
       sql: 'TIMESTAMPTZ NOT NULL DEFAULT NOW()',
       required: true,
     },
@@ -74,7 +78,7 @@ export default class Model {
         // For async transformations, we can't await here
         // The actual value will be processed when saved
         if (result instanceof Promise) {
-          console.log(`Warning: Async onSet detected for field ${key}. Using original value until save.`);
+          logger.warn(`Async onSet detected for field ${key}. Using original value until save.`);
         } else {
           // If synchronous, use the transformed value
           this.data[key] = result;
@@ -86,7 +90,8 @@ export default class Model {
   /**
    * Process a database row by applying field transformations
    * @param {Object} row - The database row to process
-   * @returns {Object} The model instance with processed data
+   * @param {*} [value] - Optional single value to process
+   * @returns {Object|*} The model instance with processed data or processed value
    * @private
    */
   static _processOnGet(row, value) {
@@ -135,22 +140,44 @@ export default class Model {
    * @param {Object} [options.where] - Conditions for filtering records.
    * @param {number} [options.limit] - Maximum number of records to return.
    * @param {number} [options.offset] - Number of records to skip.
-   * @param {string} [options.orderBy] - Column to order results by.
+   * @param {Object} [options.orderBy] - Column to order results by.
+   * @param {string} [options.orderBy.column] - Column name to order by.
+   * @param {string} [options.orderBy.direction="ASC"] - Direction to order (ASC or DESC).
+   * @param {Object} [options.join] - Join configuration for related tables.
+   * @param {string} [options.join.table] - Table to join with.
+   * @param {string} [options.join.on] - Join condition.
+   * @param {string} [options.join.type="INNER"] - Join type (INNER, LEFT, RIGHT, etc).
    * @returns {Promise<Object[]>} Array of records.
    */
   static async find(options = {}) {
     // Ensure options is an object, not null
     options = options || {};
     
-    const { where = {}, limit, offset, orderBy } = options;
+    const { where = {}, limit, offset, orderBy, join } = options;
     const { whereClause, values } = this.buildWhere(where);
-    let query = `SELECT * FROM ${this._quoteIdentifier(this.tableName)} ${whereClause}`;
+    
+    // Base query with potential join
+    let query = `SELECT ${this.tableName}.* FROM ${this._quoteIdentifier(this.tableName)}`;
+    
+    // Handle joins if specified
+    if (join) {
+      const joinType = (join.type || 'INNER').toUpperCase();
+      query += ` ${joinType} JOIN ${this._quoteIdentifier(join.table)} ON ${join.on}`;
+    }
+    
+    // Add where clause
+    query += ` ${whereClause}`;
+    
+    // Add ordering
     if (orderBy) {
       const { column, direction = 'ASC' } = orderBy;
       query += ` ORDER BY ${this._quoteIdentifier(column)} ${direction.toUpperCase()}`;
     }
+    
+    // Add pagination
     if (limit) query += ` LIMIT ${limit}`;
     if (offset) query += ` OFFSET ${offset}`;
+    
     const rows = await this.query(query, values);
     return rows.map(row => this._processOnGet(row));
   }
@@ -301,7 +328,7 @@ export default class Model {
    */
   static async create(data) {
     // Run the onBeforeCreate hook if it exists
-    if (typeof this.onBeforeCreate === 'function') {2222
+    if (typeof this.onBeforeCreate === 'function') {
       data = await this.onBeforeCreate(data);
     }
 
@@ -316,7 +343,7 @@ export default class Model {
           // Handle async onSet methods
           processedData[key] = await fields[key].onSet(value);
         } catch (error) {
-          console.error(`Error processing field ${key}:`, error);
+          logger.error(`Error processing field ${key}:`, error);
           throw error;
         }
       } else {
@@ -354,27 +381,24 @@ export default class Model {
    * @returns {Promise<Object>} The updated record.
    */
   static async update(id, data) {
-    console.log(`[Model:${this.tableName}] Update request received for ID:`, id, 'with data:', JSON.stringify(data));
+    logger.debug(`Update request received for ${this.tableName}:${id}`);
     
     try {
       // Convert id to the right type
       if (typeof id === 'string' && !isNaN(parseInt(id))) {
         id = parseInt(id);
-        console.log(`[Model:${this.tableName}] Converted string ID to number:`, id);
       }
       
       // Skip the primary key from updates
       const updateData = { ...data };
       delete updateData[this.primaryKey];
-      console.log(`[Model:${this.tableName}] UpdateData after removing primary key:`, JSON.stringify(updateData));
-  
+      
       // Get the existing record to run hooks
       const existingRecord = await this.findById(id);
       if (!existingRecord) {
-        console.error(`[Model:${this.tableName}] Record with ${this.primaryKey} = ${id} not found for update`);
+        logger.error(`Record not found for update: ${this.tableName}:${id}`);
         throw new Error(`Record with ${this.primaryKey} = ${id} not found for update`);
       }
-      console.log(`[Model:${this.tableName}] Found existing record:`, JSON.stringify(existingRecord.data));
   
       // Run the onBeforeUpdate hook if it exists
       if (typeof this.onBeforeUpdate === 'function') {
@@ -390,16 +414,13 @@ export default class Model {
         // Skip the primary key from updates
         if (key === this.primaryKey) continue;
   
-        console.log(`Processing field ${key} with value: ${JSON.stringify(value)}`);
-  
         // Process the field through onSet transformation
         if (fields[key] && typeof fields[key].onSet === 'function') {
           try {
             // Handle async onSet methods
             processedData[key] = await fields[key].onSet(value);
-            console.log(`After onSet, field ${key} value: ${JSON.stringify(processedData[key])}`);
           } catch (error) {
-            console.error(`Error processing field ${key}:`, error);
+            logger.error(`Error processing field ${key}:`, error);
             throw error;
           }
         } else {
@@ -423,7 +444,7 @@ export default class Model {
   
       // Build the SQL query
       if (Object.keys(processedData).length === 0) {
-        console.log('No valid fields to update.');
+        logger.debug('No valid fields to update');
         return existingRecord;
       }
   
@@ -437,8 +458,6 @@ export default class Model {
                     SET ${setClause} 
                     WHERE ${this._quoteIdentifier(this.primaryKey)} = $${values.length} 
                     RETURNING *`;
-  
-      console.log(`[Model:${this.tableName}] Executing update query:`, query, 'with values:', values);
       
       // Execute the query
       const result = await this.query(query, values);
@@ -465,12 +484,12 @@ export default class Model {
           `The value you provided already exists in another record.`
         );
         
-        console.error(`[Model:${this.tableName}] ${enhancedError.message}`, error);
+        logger.error(`${enhancedError.message}`, error);
         throw enhancedError;
       }
       
       // Re-throw other errors
-      console.error(`[Model:${this.tableName}] Update error:`, error);
+      logger.error(`Update error in ${this.tableName}:`, error);
       throw error;
     }
   }
@@ -483,10 +502,28 @@ export default class Model {
    * @returns {Promise<Object[]>} Array of updated records.
    */
   static async updateBatch({ where, data } = {}) {
-    if (!where || !Object.keys(where).length) throw new Error("A 'where' condition is required for updateBatch.");
-    if (!data || !Object.keys(data).length) throw new Error("No data provided for updateBatch.");
+    if (!where || !Object.keys(where).length) {
+      throw new Error("A 'where' condition is required for updateBatch.");
+    }
+    
+    if (!data || !Object.keys(data).length) {
+      throw new Error("No data provided for updateBatch.");
+    }
+    
+    // Validate the data
     const schema = this.getSchema();
-    for (const [key, value] of Object.entries(data)) {
+    const fields = this.fields || {};
+    const processedData = {};
+    
+    // Execute the onBeforeUpdate hook if it exists
+    let preparedData = { ...data };
+    if (typeof this.onBeforeUpdate === 'function') {
+      preparedData = await this.onBeforeUpdate(preparedData);
+    }
+    
+    // Process and validate each field
+    for (const [key, value] of Object.entries(preparedData)) {
+      // Validate the field
       if (schema[key]?.validate) {
         try {
           schema[key].validate(value);
@@ -494,17 +531,51 @@ export default class Model {
           throw new Error(`Validation failed for field '${key}' in table '${this.tableName}': ${error.message}`);
         }
       }
+      
+      // Process with onSet if available
+      if (fields[key] && typeof fields[key].onSet === 'function') {
+        try {
+          processedData[key] = await fields[key].onSet(value);
+        } catch (error) {
+          logger.error(`Error processing field ${key}:`, error);
+          throw error;
+        }
+      } else {
+        processedData[key] = value;
+      }
     }
-    if (this.onBeforeUpdate) data = await this.onBeforeUpdate(data);
-    const processedData = this._processOnSet(data, schema);
+    
+    // Add updatedAt timestamp if it exists
+    if (fields.updatedAt) {
+      processedData.updatedAt = new Date();
+    }
+    
+    // Build the update query
     const { whereClause, values: whereValues } = this.buildWhere(where);
     const updateKeys = Object.keys(processedData);
     const setClause = updateKeys.map((k, i) => `${this._quoteIdentifier(k)} = $${i + 1}`).join(', ');
-    const adjustedWhereClause = whereClause.replace(/\$\d+/g, match => `$${parseInt(match.slice(1)) + updateKeys.length}`);
-    const query = `UPDATE ${this._quoteIdentifier(this.tableName)} SET ${setClause} ${adjustedWhereClause} RETURNING *`;
+    
+    // Adjust the parameter placeholders in the where clause
+    const adjustedWhereClause = whereClause.replace(/\$\d+/g, match => 
+      `$${parseInt(match.slice(1)) + updateKeys.length}`
+    );
+    
+    const query = `UPDATE ${this._quoteIdentifier(this.tableName)} 
+                   SET ${setClause} 
+                   ${adjustedWhereClause} 
+                   RETURNING *`;
+    
+    // Execute the query and process results
     const result = await this.query(query, [...Object.values(processedData), ...whereValues]);
     const updatedRecords = result.map(row => this._processOnGet(row));
-    if (this.onAfterUpdate) for (const record of updatedRecords) await this.onAfterUpdate(record);
+    
+    // Execute the onAfterUpdate hook for each record if it exists
+    if (typeof this.onAfterUpdate === 'function') {
+      for (const record of updatedRecords) {
+        await this.onAfterUpdate(record);
+      }
+    }
+    
     return updatedRecords;
   }
 
@@ -514,10 +585,20 @@ export default class Model {
    * @returns {Promise<Object[]>} Array of deleted records (typically one).
    */
   static async delete(id) {
-    if (this.onBeforeDelete) await this.onBeforeDelete(id);
-    const query = `DELETE FROM ${this._quoteIdentifier(this.tableName)} WHERE ${this._quoteIdentifier(this.primaryKey)} = $1 RETURNING *`;
+    if (typeof this.onBeforeDelete === 'function') {
+      await this.onBeforeDelete(id);
+    }
+    
+    const query = `DELETE FROM ${this._quoteIdentifier(this.tableName)} 
+                  WHERE ${this._quoteIdentifier(this.primaryKey)} = $1 
+                  RETURNING *`;
+    
     const result = await this.query(query, [id]);
-    if (this.onAfterDelete) await this.onAfterDelete(result);
+    
+    if (typeof this.onAfterDelete === 'function') {
+      await this.onAfterDelete(result);
+    }
+    
     return result;
   }
 
@@ -528,16 +609,35 @@ export default class Model {
    * @returns {Promise<Object[]>} Array of deleted records.
    */
   static async deleteBatch({ where } = {}) {
-    if (!where || !Object.keys(where).length) throw new Error("A 'where' condition is required for deleteBatch.");
-    const { whereClause, values } = this.buildWhere(where);
-    if (this.onBeforeDelete) {
-      const idQuery = `SELECT ${this._quoteIdentifier(this.primaryKey)} FROM ${this._quoteIdentifier(this.tableName)} ${whereClause}`;
-      const ids = (await this.query(idQuery, values)).map(row => row[this.primaryKey]);
-      for (const id of ids) await this.onBeforeDelete(id);
+    if (!where || !Object.keys(where).length) {
+      throw new Error("A 'where' condition is required for deleteBatch.");
     }
-    const query = `DELETE FROM ${this._quoteIdentifier(this.tableName)} ${whereClause} RETURNING *`;
+    
+    const { whereClause, values } = this.buildWhere(where);
+    
+    // Execute the onBeforeDelete hook for each record if it exists
+    if (typeof this.onBeforeDelete === 'function') {
+      const idQuery = `SELECT ${this._quoteIdentifier(this.primaryKey)} 
+                      FROM ${this._quoteIdentifier(this.tableName)} 
+                      ${whereClause}`;
+      
+      const ids = (await this.query(idQuery, values)).map(row => row[this.primaryKey]);
+      
+      for (const id of ids) {
+        await this.onBeforeDelete(id);
+      }
+    }
+    
+    const query = `DELETE FROM ${this._quoteIdentifier(this.tableName)} 
+                  ${whereClause} 
+                  RETURNING *`;
+    
     const result = await this.query(query, values);
-    if (this.onAfterDelete) await this.onAfterDelete(result);
+    
+    if (typeof this.onAfterDelete === 'function') {
+      await this.onAfterDelete(result);
+    }
+    
     return result.map(row => this._processOnGet(row));
   }
 
@@ -547,14 +647,36 @@ export default class Model {
    * @returns {Promise<Object[]>} Array of created records.
    */
   static async createBatch(dataArray) {
-    if (!Array.isArray(dataArray) || !dataArray.length) throw new Error(`dataArray must be a non-empty array for batch create in table '${this.tableName}'`);
+    if (!Array.isArray(dataArray) || !dataArray.length) {
+      throw new Error(`dataArray must be a non-empty array for batch create in table '${this.tableName}'`);
+    }
+    
     const schema = this.getSchema();
+    const fields = this.fields || {};
     const baseKeys = Object.keys(dataArray[0]).sort();
+    
+    // Validate all objects have the same structure
     for (const data of dataArray) {
       if (Object.keys(data).sort().join(',') !== baseKeys.join(',')) {
         throw new Error(`All objects in dataArray must have the same keys for batch create in table '${this.tableName}'`);
       }
-      for (const [key, value] of Object.entries(data)) {
+    }
+    
+    // Process and validate each object
+    const processedArray = [];
+    
+    for (const data of dataArray) {
+      const processedItem = {};
+      
+      // Execute onBeforeCreate hook if exists
+      let itemData = { ...data };
+      if (typeof this.onBeforeCreate === 'function') {
+        itemData = await this.onBeforeCreate(itemData);
+      }
+      
+      // Process and validate each field
+      for (const [key, value] of Object.entries(itemData)) {
+        // Validate the field
         if (schema[key]?.validate) {
           try {
             schema[key].validate(value);
@@ -562,29 +684,60 @@ export default class Model {
             throw new Error(`Validation failed for field '${key}' in table '${this.tableName}': ${error.message}`);
           }
         }
+        
+        // Process with onSet if available
+        if (fields[key] && typeof fields[key].onSet === 'function') {
+          try {
+            processedItem[key] = await fields[key].onSet(value);
+          } catch (error) {
+            logger.error(`Error processing field ${key}:`, error);
+            throw error;
+          }
+        } else {
+          processedItem[key] = value;
+        }
       }
+      
+      processedArray.push(processedItem);
     }
-    const processedArray = dataArray.map(data => this._processOnSet(data, schema));
+    
+    // Build the batch insert query
     const keys = baseKeys;
     let values = [];
+    
+    // Create placeholders for each row
     const rowsPlaceholders = processedArray.map((data, rowIndex) => {
-      const placeholders = keys.map((_, colIndex) => {
-        values.push(data[keys[colIndex]]);
+      const placeholders = keys.map((key, colIndex) => {
+        values.push(data[key]);
         return `$${rowIndex * keys.length + colIndex + 1}`;
       });
       return `(${placeholders.join(', ')})`;
     });
+    
+    // Construct the final query
     const query = `
-      INSERT INTO ${this._quoteIdentifier(this.tableName)} (${keys.map(k => this._quoteIdentifier(k)).join(', ')})
+      INSERT INTO ${this._quoteIdentifier(this.tableName)} 
+      (${keys.map(k => this._quoteIdentifier(k)).join(', ')})
       VALUES ${rowsPlaceholders.join(', ')}
       RETURNING *
     `;
+    
+    // Execute the query
     const result = await this.query(query, values);
-    return result.map(row => this._processOnGet(row));
+    const createdRecords = result.map(row => this._processOnGet(row));
+    
+    // Execute onAfterCreate hook for each record if it exists
+    if (typeof this.onAfterCreate === 'function') {
+      for (const record of createdRecords) {
+        await this.onAfterCreate(record);
+      }
+    }
+    
+    return createdRecords;
   }
 
   /**
-   * Alias for findOne.
+   * Retrieves the first record matching the options.
    * @param {Object} [options={}] - Query options.
    * @returns {Promise<Object|null>} The first record or null.
    */
@@ -597,7 +750,67 @@ export default class Model {
     return this.findOne({ ...options, orderBy });
   }
 
-  /* ==================== Query Helpers ==================== */
+  /* ==================== Advanced Query Methods ==================== */
+  
+  /**
+   * Executes a raw SQL query with the model's context
+   * @param {string} sql - The SQL query to execute
+   * @param {Array} params - The parameters for the query
+   * @returns {Promise<Object[]>} Query results
+   */
+  static async rawQuery(sql, params = []) {
+    return this.query(sql, params);
+  }
+  
+  /**
+   * Finds records with a join to another table
+   * @param {Object} options - Join query options
+   * @param {string} options.joinTable - The table to join with
+   * @param {string} options.joinColumn - The column in the join table to match
+   * @param {string} options.localColumn - The column in this table to match (defaults to primary key)
+   * @param {string} options.joinType - Join type (INNER, LEFT, RIGHT)
+   * @param {Object} options.where - Where conditions for the query
+   * @returns {Promise<Object[]>} Array of records with joined data
+   */
+  static async findWithJoin(options = {}) {
+    const { 
+      joinTable, 
+      joinColumn, 
+      localColumn = this.primaryKey, 
+      joinType = 'INNER',
+      where = {},
+      limit,
+      offset,
+      orderBy
+    } = options;
+    
+    if (!joinTable || !joinColumn) {
+      throw new Error('joinTable and joinColumn are required for findWithJoin');
+    }
+    
+    const { whereClause, values } = this.buildWhere(where);
+    
+    let query = `SELECT ${this.tableName}.* 
+                FROM ${this._quoteIdentifier(this.tableName)} 
+                ${joinType} JOIN ${this._quoteIdentifier(joinTable)} 
+                ON ${this._quoteIdentifier(this.tableName)}.${this._quoteIdentifier(localColumn)} = ${this._quoteIdentifier(joinTable)}.${this._quoteIdentifier(joinColumn)}
+                ${whereClause}`;
+    
+    // Add ordering
+    if (orderBy) {
+      const { column, direction = 'ASC' } = orderBy;
+      query += ` ORDER BY ${this._quoteIdentifier(column)} ${direction.toUpperCase()}`;
+    }
+    
+    // Add pagination
+    if (limit) query += ` LIMIT ${limit}`;
+    if (offset) query += ` OFFSET ${offset}`;
+    
+    const rows = await this.query(query, values);
+    return rows.map(row => this._processOnGet(row));
+  }
+
+  /* ==================== Query Builders ==================== */
 
   /**
    * Builds a WHERE clause from conditions.
@@ -607,24 +820,77 @@ export default class Model {
   static buildWhere(where = {}) {
     const keys = Object.keys(where);
     if (!keys.length) return { whereClause: '', values: [] };
+    
     const clauses = [];
     const values = [];
+    
     keys.forEach(key => {
       const condition = where[key];
       const quotedKey = this._quoteIdentifier(key);
-      if (condition && typeof condition === 'object' && 'operator' in condition && 'value' in condition) {
-        clauses.push(`${quotedKey} ${condition.operator} $${values.length + 1}`);
-        values.push(condition.value);
+      
+      // Handle complex conditions (operator/value pairs)
+      if (condition && typeof condition === 'object') {
+        if ('operator' in condition && 'value' in condition) {
+          // Simple operator condition
+          clauses.push(`${quotedKey} ${this._sanitizeOperator(condition.operator)} $${values.length + 1}`);
+          values.push(condition.value);
+        } else if (Array.isArray(condition)) {
+          // IN condition
+          const placeholders = condition.map((_, i) => `$${values.length + i + 1}`).join(', ');
+          clauses.push(`${quotedKey} IN (${placeholders})`);
+          values.push(...condition);
+        } else if ('between' in condition && Array.isArray(condition.between) && condition.between.length === 2) {
+          // BETWEEN condition
+          clauses.push(`${quotedKey} BETWEEN $${values.length + 1} AND $${values.length + 2}`);
+          values.push(condition.between[0], condition.between[1]);
+        } else if ('like' in condition) {
+          // LIKE condition
+          clauses.push(`${quotedKey} LIKE $${values.length + 1}`);
+          values.push(condition.like);
+        } else if ('isNull' in condition && condition.isNull === true) {
+          // IS NULL condition
+          clauses.push(`${quotedKey} IS NULL`);
+        } else if ('isNotNull' in condition && condition.isNotNull === true) {
+          // IS NOT NULL condition
+          clauses.push(`${quotedKey} IS NOT NULL`);
+        } else {
+          // Default to equality
+          clauses.push(`${quotedKey} = $${values.length + 1}`);
+          values.push(condition);
+        }
       } else {
+        // Simple equality condition
         clauses.push(`${quotedKey} = $${values.length + 1}`);
         values.push(condition);
       }
     });
+    
     return { whereClause: `WHERE ${clauses.join(' AND ')}`, values };
   }
+  
+  /**
+   * Sanitizes SQL operators to prevent SQL injection
+   * @param {string} operator - The operator to sanitize
+   * @returns {string} Sanitized operator
+   * @private
+   */
+  static _sanitizeOperator(operator) {
+    const allowedOperators = ['=', '<>', '!=', '>', '<', '>=', '<=', 'LIKE', 'NOT LIKE', 'IN', 'NOT IN', 'IS NULL', 'IS NOT NULL'];
+    const sanitized = operator.toUpperCase().trim();
+    
+    if (allowedOperators.includes(sanitized)) {
+      return sanitized;
+    }
+    
+    // Default to equality if operator isn't allowed
+    logger.warn(`Invalid operator "${operator}" sanitized to "="`);
+    return '=';
+  }
+
+  /* ==================== Database Connection Management ==================== */
 
   /**
-   * Executes a database query.
+   * Executes a database query with proper connection management
    * @param {string} text - SQL query text.
    * @param {any[]} params - Query parameters.
    * @returns {Promise<Object[]>} Query results.
@@ -634,28 +900,40 @@ export default class Model {
     let releaseClient = false;
     const store = asyncLocalStorage.getStore();
 
-    if (store?.client) {
-      client = store.client; // Use client from request context
-    } else {
-      client = await pool.connect(); // Fallback for non-request contexts
-      releaseClient = true;
-    }
-
-    const tableName = this.tableName || 'unknown_table';
     try {
+      // Get a client either from the current transaction or a new one
+      if (store?.client) {
+        client = store.client; // Use client from request context
+      } else {
+        client = await pool.connect(); // Fallback for non-request contexts
+        releaseClient = true;
+      }
+
+      // Execute the query
       const result = await client.query(text, params);
       return result.rows;
     } catch (error) {
+      // Create enhanced error with more context
+      const tableName = this.tableName || 'unknown_table';
       const enhancedError = new Error(
         `Database error in table '${tableName}': ${error.message}\nQuery: ${text}\nParameters: ${JSON.stringify(params)}`
       );
-      if (error.column) enhancedError.field = error.column;
-      else if (error.detail?.match(/column "([^"]+)"/i)) enhancedError.field = error.detail.match(/column "([^"]+)"/i)[1];
+      
+      // Add field information if available
+      if (error.column) {
+        enhancedError.field = error.column;
+      } else if (error.detail?.match(/column "([^"]+)"/i)) {
+        enhancedError.field = error.detail.match(/column "([^"]+)"/i)[1];
+      }
+      
       enhancedError.originalError = error;
       logger.error('Database query error:', { tableName, text, params, error });
       throw enhancedError;
     } finally {
-      if (releaseClient) client.release();
+      // Always release the client if we acquired one
+      if (releaseClient && client) {
+        client.release();
+      }
     }
   }
 
@@ -663,7 +941,7 @@ export default class Model {
 
   /**
    * Synchronizes the database schema with the model definition.
-   * @param {Object} [options={dropExtraColumns: false}] - Sync options.
+   * @param {Object} [options={dropExtraColumns: false, force: false}] - Sync options.
    * @returns {Promise<void>}
    */
   static async syncSchema(options = { dropExtraColumns: false, force: false }) {
@@ -677,13 +955,12 @@ export default class Model {
 
   /* ==================== Utility Methods ==================== */
 
-  static _quoteIdentifier(identifier) {
-    return `"${identifier.replace(/"/g, '""')}"`;
-  }
-
-  // Methods used only for backward compatibility
-  // These are now properly implemented in SchemaManager
-  
+  /**
+   * Quotes an identifier (table or column name) for safe SQL usage
+   * @param {string} identifier - The identifier to quote
+   * @returns {string} Quoted identifier
+   * @private
+   */
   static _quoteIdentifier(identifier) {
     return `"${identifier.replace(/"/g, '""')}"`;
   }
@@ -692,7 +969,7 @@ export default class Model {
    * Process a field value through its onSet transformation
    * @param {Object} field - The field definition
    * @param {*} value - The value to process
-   * @returns {*} The processed value
+   * @returns {Promise<*>} The processed value
    * @private
    */
   static async _processOnSet(field, value) {
@@ -701,12 +978,14 @@ export default class Model {
         // Handle async onSet methods properly
         return await field.onSet(value);
       } catch (error) {
-        console.error('Error in _processOnSet:', error);
+        logger.error('Error in onSet transformation:', error);
         throw error;
       }
     }
     return value;
   }
+
+  /* ==================== Instance Methods ==================== */
 
   /**
    * Save method for instances - Add record if new, update if exists
