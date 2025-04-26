@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Issue Management Workflow
+
+When asked to "do work":
+1. Get issues ready for development
+2. Update the chosen issue status to "In Progress" 
+3. Implement the required changes
+4. When complete, update issue status to "In Review"
+
+When creating issues:
+- Include full context in the description
+- Specify relevant files and line numbers when possible
+- Explain the background/motivation for the issue
+- Provide enough detail for anyone to understand what needs to be done
+
 ## Build and Test Commands
 
 - Frontend dev: `npm run frontend dev`

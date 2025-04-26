@@ -1,0 +1,7 @@
+
+This is a description of the actual application that we are going to build upon the ORM framework.
+
+Name : PlanB
+
+An API, where we create users/resources/business units/
+
